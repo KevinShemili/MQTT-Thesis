@@ -1,0 +1,10 @@
+services:
+  aes-ascon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aes-ascon-benchmark
+    restart: "no"
+    volumes:
+      - ./results:/results
+    command: ["./run-aes-ascon.sh"]

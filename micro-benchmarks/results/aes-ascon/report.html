@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>AES-GCM vs ASCON AEAD Microbenchmark Report</title>
+
+    <style>
+        :root {
+            --background: #f4f7fb;
+            --surface: #ffffff;
+            --surface-muted: #f8fafc;
+            --border: #d9e2ec;
+            --text-main: #182230;
+            --text-muted: #5f6c7b;
+            --accent: #155e9f;
+            --accent-dark: #0f4777;
+            --accent-soft: #e8f2fb;
+            --danger: #be0c24;
+            --ascon: #300bb6;
+            --shadow: 0 18px 45px rgba(15, 35, 55, 0.10);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--background);
+            color: var(--text-main);
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.45;
+        }
+
+        .page {
+            width: min(1280px, calc(100% - 48px));
+            margin: 32px auto;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #0f4777 0%, #155e9f 52%, #233876 100%);
+            color: #ffffff;
+            border-radius: 22px;
+            padding: 34px 38px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero-label {
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            opacity: 0.78;
+            margin-bottom: 12px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 34px;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+        }
+
+        .hero p {
+            max-width: 850px;
+            margin: 16px 0 0 0;
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 16px;
+        }
+
+        .metadata {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(160px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 10px 28px rgba(15, 35, 55, 0.07);
+        }
+
+        .card-label {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .card-value {
+            margin-top: 8px;
+            font-size: 23px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section {
+            margin-top: 22px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 26px;
+            box-shadow: 0 10px 28px rgba(15, 35, 55, 0.06);
+        }
+
+        .section h2 {
+            margin: 0 0 10px 0;
+            font-size: 23px;
+            letter-spacing: -0.02em;
+        }
+
+        .section p {
+            margin: 0 0 18px 0;
+            color: var(--text-muted);
+        }
+
+        .note {
+            margin-top: 22px;
+            background: var(--accent-soft);
+            border: 1px solid #bfd9ef;
+            border-left: 5px solid var(--accent);
+            border-radius: 16px;
+            padding: 16px 18px;
+            color: #20364d;
+        }
+
+        .note strong {
+            color: var(--accent-dark);
+        }
+
+        .plots {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 22px;
+        }
+
+        .plot-card {
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .plot-card h3 {
+            margin: 0 0 6px 0;
+            font-size: 18px;
+        }
+
+        .plot-card p {
+            margin: 0 0 14px 0;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .plot-card img {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+
+        .legend-row {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .legend-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 999px;
+        }
+
+        .legend-dot-aes {
+            background: var(--danger);
+        }
+
+        .legend-dot-ascon {
+            background: var(--ascon);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 980px;
+            background: var(--surface);
+            font-size: 13px;
+        }
+
+        thead {
+            background: #eef3f8;
+        }
+
+        th {
+            color: #26384d;
+            font-size: 12px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            text-align: left;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 11px 14px;
+            border-bottom: 1px solid #edf1f5;
+            white-space: nowrap;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fbfdff;
+        }
+
+        tbody tr:hover {
+            background: #f1f7fd;
+        }
+
+        td:nth-child(3),
+        td:nth-child(4),
+        td:nth-child(5),
+        td:nth-child(6),
+        td:nth-child(7),
+        td:nth-child(8),
+        td:nth-child(9) {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        code {
+            background: #edf2f7;
+            border: 1px solid #d7e2ec;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 0.95em;
+        }
+
+        .footer {
+            margin: 24px 0 8px 0;
+            color: var(--text-muted);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            .metadata {
+                grid-template-columns: repeat(2, minmax(160px, 1fr));
+            }
+
+            .hero h1 {
+                font-size: 28px;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .page {
+                width: min(100% - 24px, 1280px);
+                margin: 18px auto;
+            }
+
+            .hero {
+                padding: 26px 24px;
+            }
+
+            .metadata {
+                grid-template-columns: 1fr;
+            }
+
+            .section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <section class="hero">
+            <div class="hero-label">AEAD Microbenchmark Report</div>
+
+            <h1>AES-GCM vs ASCON</h1>
+
+            <p>
+                Container-generated benchmark artifact comparing encryption latency, decryption latency,
+                throughput, and ciphertext overhead across MQTT-relevant payload sizes.
+            </p>
+        </section>
+
+        <section class="metadata">
+            <div class="card">
+                <div class="card-label">Independent runs</div>
+                <div class="card-value">4</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">Confidence interval</div>
+                <div class="card-value">95%</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">Student t</div>
+                <div class="card-value">3.182</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">Cipher operations</div>
+                <div class="card-value">3,178,852,919</div>
+            </div>
+        </section>
+
+        <section class="note">
+            <strong>Methodological note:</strong>
+            latency is reported as mean ± 95% confidence interval across 4
+            independent Go benchmark runs. The confidence interval uses Student's t with
+            df=3. Overhead is reported as nonce + authentication tag bytes,
+            because the nonce must be transmitted or stored with the encrypted message.
+        </section>
+
+        <section class="section">
+            <h2>Figures</h2>
+
+            <p>
+                The plots summarize the same measurements shown in the numerical table.
+                Latency is shown with confidence intervals. Throughput is reported as plaintext MB/s.
+            </p>
+
+            <div class="legend-row">
+                <span class="legend-item">
+                    <span class="legend-dot legend-dot-aes"></span>
+                    AES-GCM
+                </span>
+
+                <span class="legend-item">
+                    <span class="legend-dot legend-dot-ascon"></span>
+                    ASCON
+                </span>
+            </div>
+
+            <div class="plots">
+                <article class="plot-card">
+                    <h3>Latency vs payload size</h3>
+                    <p>
+                        Lower values indicate faster encryption or decryption.
+                        Error bars show the confidence interval.
+                    </p>
+                    <img src="plot.png" alt="Latency plot">
+                </article>
+
+                <article class="plot-card">
+                    <h3>Throughput vs payload size</h3>
+                    <p>
+                        Higher values indicate more plaintext bytes processed per second.
+                    </p>
+                    <img src="throughput.png" alt="Throughput plot">
+                </article>
+
+                <article class="plot-card">
+                    <h3>Ciphertext overhead vs payload size</h3>
+                    <p>
+                        Fixed per-message overhead becomes less significant as payload size increases.
+                    </p>
+                    <img src="overhead.png" alt="Ciphertext overhead plot">
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Numerical summary</h2>
+
+            <p>
+                The table contains the full benchmark summary used by the plots.
+                Latency is expressed as mean ± confidence interval.
+            </p>
+
+            <div class="table-wrapper">
+                <table>
+<thead>
+<tr>
+<th>Op</th>
+<th>Algorithm</th>
+<th>Payload</th>
+<th>Latency (ns/op)</th>
+<th>Throughput (MB/s)</th>
+<th>Overhead (B)</th>
+<th>Encrypted Size (B)</th>
+<th>Overhead (%)</th>
+<th>Iters (Σ8 runs)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>16B</td>
+<td>52.99 ± 0.35</td>
+<td>301.9</td>
+<td>28</td>
+<td>44</td>
+<td>175.00%</td>
+<td>400,000,000</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>64B</td>
+<td>78.61 ± 0.14</td>
+<td>814.1</td>
+<td>28</td>
+<td>92</td>
+<td>43.75%</td>
+<td>302,818,195</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>256B</td>
+<td>78.65 ± 0.77</td>
+<td>3255.0</td>
+<td>28</td>
+<td>284</td>
+<td>10.94%</td>
+<td>306,881,100</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>1KB</td>
+<td>169.40 ± 2.85</td>
+<td>6044.7</td>
+<td>28</td>
+<td>1052</td>
+<td>2.73%</td>
+<td>144,208,651</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>4KB</td>
+<td>537.02 ± 2.27</td>
+<td>7627.0</td>
+<td>28</td>
+<td>4124</td>
+<td>0.68%</td>
+<td>44,970,043</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>16KB</td>
+<td>2123.75 ± 141.60</td>
+<td>7724.8</td>
+<td>28</td>
+<td>16412</td>
+<td>0.17%</td>
+<td>11,346,739</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>AES-GCM</td>
+<td>64KB</td>
+<td>8211.00 ± 108.49</td>
+<td>7981.9</td>
+<td>28</td>
+<td>65564</td>
+<td>0.04%</td>
+<td>2,945,635</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>16B</td>
+<td>170.45 ± 2.22</td>
+<td>93.9</td>
+<td>32</td>
+<td>48</td>
+<td>200.00%</td>
+<td>141,050,013</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>64B</td>
+<td>341.75 ± 0.30</td>
+<td>187.3</td>
+<td>32</td>
+<td>96</td>
+<td>50.00%</td>
+<td>70,319,924</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>256B</td>
+<td>1030.00 ± 3.18</td>
+<td>248.5</td>
+<td>32</td>
+<td>288</td>
+<td>12.50%</td>
+<td>23,372,557</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>1KB</td>
+<td>3713.00 ± 18.69</td>
+<td>275.8</td>
+<td>32</td>
+<td>1056</td>
+<td>3.12%</td>
+<td>6,456,150</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>4KB</td>
+<td>14598.25 ± 627.09</td>
+<td>280.7</td>
+<td>32</td>
+<td>4128</td>
+<td>0.78%</td>
+<td>1,655,432</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>16KB</td>
+<td>57745.25 ± 856.82</td>
+<td>283.8</td>
+<td>32</td>
+<td>16416</td>
+<td>0.20%</td>
+<td>418,488</td>
+</tr>
+<tr>
+<td>encrypt</td>
+<td>ASCON</td>
+<td>64KB</td>
+<td>231125.00 ± 1155.24</td>
+<td>283.6</td>
+<td>32</td>
+<td>65568</td>
+<td>0.05%</td>
+<td>103,674</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>16B</td>
+<td>42.58 ± 0.64</td>
+<td>375.8</td>
+<td>28</td>
+<td>44</td>
+<td>175.00%</td>
+<td>563,503,014</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>64B</td>
+<td>59.45 ± 0.19</td>
+<td>1076.6</td>
+<td>28</td>
+<td>92</td>
+<td>43.75%</td>
+<td>400,000,000</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>256B</td>
+<td>73.86 ± 0.60</td>
+<td>3466.2</td>
+<td>28</td>
+<td>284</td>
+<td>10.94%</td>
+<td>319,319,183</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>1KB</td>
+<td>166.55 ± 5.91</td>
+<td>6150.6</td>
+<td>28</td>
+<td>1052</td>
+<td>2.73%</td>
+<td>143,472,200</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>4KB</td>
+<td>527.27 ± 6.68</td>
+<td>7768.6</td>
+<td>28</td>
+<td>4124</td>
+<td>0.68%</td>
+<td>45,339,065</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>16KB</td>
+<td>1986.75 ± 10.50</td>
+<td>8246.2</td>
+<td>28</td>
+<td>16412</td>
+<td>0.17%</td>
+<td>12,000,859</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>AES-GCM</td>
+<td>64KB</td>
+<td>7873.25 ± 57.60</td>
+<td>8324.2</td>
+<td>28</td>
+<td>65564</td>
+<td>0.04%</td>
+<td>3,083,488</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>16B</td>
+<td>176.18 ± 1.44</td>
+<td>90.8</td>
+<td>32</td>
+<td>48</td>
+<td>200.00%</td>
+<td>135,627,566</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>64B</td>
+<td>349.32 ± 2.02</td>
+<td>183.2</td>
+<td>32</td>
+<td>96</td>
+<td>50.00%</td>
+<td>68,332,209</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>256B</td>
+<td>1043.25 ± 19.37</td>
+<td>245.4</td>
+<td>32</td>
+<td>288</td>
+<td>12.50%</td>
+<td>22,976,872</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>1KB</td>
+<td>3724.25 ± 32.09</td>
+<td>275.0</td>
+<td>32</td>
+<td>1056</td>
+<td>3.12%</td>
+<td>6,465,659</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>4KB</td>
+<td>14436.50 ± 70.49</td>
+<td>283.7</td>
+<td>32</td>
+<td>4128</td>
+<td>0.78%</td>
+<td>1,658,577</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>16KB</td>
+<td>57163.25 ± 690.14</td>
+<td>286.6</td>
+<td>32</td>
+<td>16416</td>
+<td>0.20%</td>
+<td>423,691</td>
+</tr>
+<tr>
+<td>decrypt</td>
+<td>ASCON</td>
+<td>64KB</td>
+<td>230859.75 ± 2460.33</td>
+<td>283.9</td>
+<td>32</td>
+<td>65568</td>
+<td>0.05%</td>
+<td>103,935</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </section>
+
+        <div class="footer">
+            Generated from <code>bench_output.txt</code> inside the benchmark container.
+        </div>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,104 @@
+# ==========================================
+# Go
+# ==========================================
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build artifacts
+/bin/
+/dist/
+/build/
+
+# Go workspace
+go.work
+go.work.sum
+
+# Coverage reports
+coverage.out
+*.coverprofile
+
+# Vendor directory (optional)
+# /vendor/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Python
+# ==========================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache/
+pytest_cache/
+
+# Type checker caches
+.mypy_cache/
+.pytype/
+.pyre/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+.env.*
+
+# Ruff / Black / PyLint
+.ruff_cache/
+.black/
+.pylint.d/
+
+# Poetry
+poetry.lock
+
+# Pipenv
+Pipfile.lock
+
+# ==========================================
+# Benchmark / Data files (optional)
+# ==========================================
+
+# Temporary files
+tmp/
+temp/
