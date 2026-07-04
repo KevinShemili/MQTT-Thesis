@@ -8,3 +8,13 @@ services:
     volumes:
       - ./results:/results
     command: ["./run-aes-ascon.sh"]
+
+  json-cbor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: json-cbor-benchmark
+    restart: "no"
+    volumes:
+      - ./results:/results
+    command: ["./run-json-cbor.sh"]
