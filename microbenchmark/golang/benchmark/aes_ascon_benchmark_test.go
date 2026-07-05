@@ -12,52 +12,65 @@ var payloadList []int = []int{16, 64, 256, 1024, 4096, 16384, 65536}
 
 func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
-	// Create ciphers
+	// Construct ciphers outside timed benchmarks
 	var aesGcm cipher.AEAD = cryptography.NewAESGCM().AEAD
 	var ascon cipher.AEAD = cryptography.NewASCON().AEAD
 
-	// Create nonces
+	// Construct nonces outside timed benchmarks
+	// Normally reusing nonce is insecure, but acceptable here because ciphertexts are discarded benchmark artifacts
 	var aesGcmNonce []byte = utils.GenerateRandomBytes(aesGcm.NonceSize())
 	var asconNonce []byte = utils.GenerateRandomBytes(ascon.NonceSize())
 
-	for i := range payloadList {
+	for index := range payloadList {
 
-		var payloadSize int = payloadList[i]
+		var payloadSize int = payloadList[index]
 
-		// Create plaintext based on payload size
+		// Construct plaintext outside timed benchmarks
 		var plaintext []byte = utils.GenerateRandomBytes(payloadSize)
 
-		// Pre-allocate output buffers, to avoid allocation inside loop
-		var aesGcmBuffer []byte = make([]byte, 0, payloadSize+aesGcm.Overhead())
-		var asconBuffer []byte = make([]byte, 0, payloadSize+ascon.Overhead())
+		// Pre-allocate output destination buffers, to avoid allocation inside loop
+		var aesGcmCiphertext []byte = make([]byte, 0, payloadSize+aesGcm.Overhead())
+		var asconCiphertext []byte = make([]byte, 0, payloadSize+ascon.Overhead())
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
-			// Report bytes per operation so the framework can compute MB/s
+			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
+
 			for b.Loop() {
-				aesGcm.Seal(aesGcmBuffer[:0], aesGcmNonce, plaintext, nil)
+				aesGcm.Seal(aesGcmCiphertext[:0], aesGcmNonce, plaintext, nil)
 			}
 
-			b.ReportMetric(float64(aesGcm.Overhead()+aesGcm.NonceSize()), "overhead_bytes/op")
+			// Wire overhead = authentication tag size + nonce size
+			b.ReportMetric(float64(aesGcm.Overhead()+aesGcm.NonceSize()), "wire_overhead_bytes/op")
+
+			// Verify that benchmark measures cipher work, not any hidden memory allocations
+			b.ReportAllocs()
 		})
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
+			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
 
 			for b.Loop() {
-				ascon.Seal(asconBuffer[:0], asconNonce, plaintext, nil)
+				ascon.Seal(asconCiphertext[:0], asconNonce, plaintext, nil)
 			}
 
-			b.ReportMetric(float64(ascon.Overhead()+ascon.NonceSize()), "overhead_bytes/op")
+			// Wire overhead = authentication tag size + nonce size
+			b.ReportMetric(float64(ascon.Overhead()+ascon.NonceSize()), "wire_overhead_bytes/op")
+
+			// Verify that benchmark measures cipher work, not any hidden memory allocations
+			b.ReportAllocs()
 		})
 	}
 }
 
 func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
+	// Construct ciphers outside timed benchmarks
 	var aesGcm cipher.AEAD = cryptography.NewAESGCM().AEAD
 	var ascon cipher.AEAD = cryptography.NewASCON().AEAD
 
+	// Construct nonces outside timed benchmarks
 	var aesGcmNonce []byte = utils.GenerateRandomBytes(aesGcm.NonceSize())
 	var asconNonce []byte = utils.GenerateRandomBytes(ascon.NonceSize())
 
@@ -70,28 +83,38 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 		var aesGcmCiphertext []byte = aesGcm.Seal(nil, aesGcmNonce, plaintext, nil)
 		var asconCiphertext []byte = ascon.Seal(nil, asconNonce, plaintext, nil)
 
-		// Pre-allocate output buffers
-		var aesGcmBuffer []byte = make([]byte, 0, payloadSize)
-		var asconBuffer []byte = make([]byte, 0, payloadSize)
+		// Pre-allocate output decryption buffers, to avoid allocation inside loop
+		var aesGcmPlaintext []byte = make([]byte, 0, payloadSize)
+		var asconPlaintext []byte = make([]byte, 0, payloadSize)
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
+			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
 
 			for b.Loop() {
-				aesGcm.Open(aesGcmBuffer[:0], aesGcmNonce, aesGcmCiphertext, nil)
+				aesGcm.Open(aesGcmPlaintext[:0], aesGcmNonce, aesGcmCiphertext, nil)
 			}
 
-			b.ReportMetric(float64(aesGcm.Overhead()+aesGcm.NonceSize()), "overhead_bytes/op")
+			// Wire overhead = authentication tag size + nonce size
+			b.ReportMetric(float64(aesGcm.Overhead()+aesGcm.NonceSize()), "wire_overhead_bytes/op")
+
+			// Verify that benchmark measures cipher work, not any hidden memory allocations
+			b.ReportAllocs()
 		})
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
+			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
 
 			for b.Loop() {
-				ascon.Open(asconBuffer[:0], asconNonce, asconCiphertext, nil)
+				ascon.Open(asconPlaintext[:0], asconNonce, asconCiphertext, nil)
 			}
 
-			b.ReportMetric(float64(ascon.Overhead()+ascon.NonceSize()), "overhead_bytes/op")
+			// Wire overhead = authentication tag size + nonce size
+			b.ReportMetric(float64(ascon.Overhead()+ascon.NonceSize()), "wire_overhead_bytes/op")
+
+			// Verify that benchmark measures cipher work, not any hidden memory allocations
+			b.ReportAllocs()
 		})
 	}
 }

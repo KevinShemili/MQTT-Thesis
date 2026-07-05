@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>AES-GCM vs ASCON AEAD Microbenchmark Report</title>
+    <title>Microbenchmark Report</title>
 
     <style>
         :root {
@@ -300,11 +300,11 @@
         <section class="hero">
             <div class="hero-label">AEAD Microbenchmark Report</div>
 
-            <h1>AES-GCM vs ASCON</h1>
+            <h1>AES-GCM vs. ASCON</h1>
 
             <p>
-                Container-generated benchmark artifact comparing encryption latency, decryption latency,
-                throughput, and ciphertext overhead across MQTT-relevant payload sizes.
+                Benchmark comparing encryption latency, decryption latency, throughput, and ciphertext overhead across
+                MQTT relevant payload sizes.
             </p>
         </section>
 
@@ -331,11 +331,10 @@
         </section>
 
         <section class="note">
-            <strong>Methodological note:</strong>
-            latency is reported as mean ± {{ConfidenceLevel}} confidence interval across {{RunCount}}
+            <strong>Methodological Note:</strong>
+            Latency & throughput are reported as mean ± {{ConfidenceLevel}} confidence interval across {{RunCount}}
             independent Go benchmark runs. The confidence interval uses Student's t with
-            df={{DegreesOfFreedom}}. Overhead is reported as nonce + authentication tag bytes,
-            because the nonce must be transmitted or stored with the encrypted message.
+            df={{DegreesOfFreedom}}. Overhead is reported as nonce + authentication tag bytes.
         </section>
 
         <section class="section">
@@ -343,7 +342,7 @@
 
             <p>
                 The plots summarize the same measurements shown in the numerical table.
-                Latency is shown with confidence intervals. Throughput is reported as plaintext MB/s.
+                Latency and throughput are shown with confidence intervals.
             </p>
 
             <div class="legend-row">
@@ -360,7 +359,7 @@
 
             <div class="plots">
                 <article class="plot-card">
-                    <h3>Latency vs payload size</h3>
+                    <h3>Latency vs Payload Size</h3>
                     <p>
                         Lower values indicate faster encryption or decryption.
                         Error bars show the confidence interval.
@@ -369,39 +368,36 @@
                 </article>
 
                 <article class="plot-card">
-                    <h3>Throughput vs payload size</h3>
+                    <h3>Throughput vs Payload Size</h3>
                     <p>
                         Higher values indicate more plaintext bytes processed per second.
+                        Error bars show the confidence interval.
                     </p>
                     <img src="{{ThroughputPlot}}" alt="Throughput plot">
                 </article>
 
                 <article class="plot-card">
-                    <h3>Ciphertext overhead vs payload size</h3>
+                    <h3>Tag + Nonce Overhead vs Payload Size</h3>
                     <p>
                         Fixed per-message overhead becomes less significant as payload size increases.
                     </p>
-                    <img src="{{OverheadPlot}}" alt="Ciphertext overhead plot">
+                    <img src="{{OverheadPlot}}" alt="Tag and Nonce Overhead plot">
                 </article>
             </div>
         </section>
 
         <section class="section">
-            <h2>Numerical summary</h2>
+            <h2>Numerical Summary</h2>
 
             <p>
                 The table contains the full benchmark summary used by the plots.
-                Latency is expressed as mean ± confidence interval.
+                Latency and throughput are expressed as mean ± confidence interval.
             </p>
 
             <div class="table-wrapper">
                 {{SummaryTable}}
             </div>
         </section>
-
-        <div class="footer">
-            Generated from <code>bench_output.txt</code> inside the benchmark container.
-        </div>
     </main>
 </body>
 

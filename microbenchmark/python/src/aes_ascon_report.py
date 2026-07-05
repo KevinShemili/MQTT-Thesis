@@ -1,12 +1,14 @@
-import re
-import math
 import matplotlib
+import os
 
 matplotlib.use("Agg")
 
 import sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+from utils.statistics import GetStudentTCriticalValue95
+from utils.statistics import Mean
+from utils.statistics import MeanAndConfidenceInterval
 
 BENCH_FILE: str = "/results/aes-ascon/bench_output.txt"
 PNG_FILE: str = "/results/aes-ascon/plot.png"
@@ -15,8 +17,8 @@ OVERHEAD_PNG_FILE: str = "/results/aes-ascon/overhead.png"
 HTML_FILE: str = "/results/aes-ascon/report.html"
 HTML_TEMPLATE_FILE: str = "/app/template/aes_ascon_template.html"
 
-RUNS: int = 4
-T_95_D7: float = 3.182
+RUNS: int = int(os.environ["AES_ASCON_RUNS"])
+T_95: float = GetStudentTCriticalValue95(RUNS - 1)
 
 PAYLOAD_SIZES: list[int] = [16, 64, 256, 1024, 4096, 16384, 65536]
 ALGORITHMS: list[str] = ["AES-GCM", "ASCON"]
@@ -24,17 +26,6 @@ OPERATIONS: list[str] = ["encrypt", "decrypt"]
 
 AES_GCM_COLOR: str = "#be0c24"
 ASCON_COLOR: str = "#300bb6"
-
-LINE_PATTERN = re.compile(
-    r"^BenchmarkAESASCON(Encrypt|Decrypt)/([^/]+)/(\d+)B(?:-\d+)?\s+"
-    r"(\d+)\s+"
-    r"([\d.]+)\s+ns/op"
-    r"(?:\s+([\d.]+)\s+MB/s)?"
-    r"(?:\s+([\d.]+)\s+overhead_bytes/op)?"
-    r"(?:\s+\d+\s+B/op)?"
-    r"(?:\s+\d+\s+allocs/op)?"
-    r"$"
-)
 
 
 class BenchmarkMetrics:
@@ -74,16 +65,26 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
     results: dict[str, BenchmarkMetrics] = {}
 
-    with open(filepath, "r", encoding="utf-8") as file:
-        for line in file:
+    prefix: str = "BenchmarkAESASCON"
 
-            match = LINE_PATTERN.match(line.strip())
-            if match is None:
+    with open(filepath, "r", encoding="utf-8") as file:
+
+        for line in file:
+            fields: list[str] = line.strip().split()
+
+            if len(fields) == 0:
                 continue
 
-            operation: str = match.group(1).lower()
-            algorithm: str = match.group(2)
-            payloadSize: int = int(match.group(3))
+            benchmarkName: str = fields[0]
+
+            if not benchmarkName.startswith(prefix):
+                continue
+
+            operation, algorithm, payloadText, *_ = benchmarkName[len(prefix) :].split(
+                "/"
+            )
+            operation = operation.lower()
+            payloadSize: int = int(payloadText.split("-")[0].replace("B", ""))
 
             benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
 
@@ -96,44 +97,12 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
             metrics: BenchmarkMetrics = results[benchmarkCaseId]
 
-            metrics.Iterations.append(int(match.group(4)))
-            metrics.NsPerOperation.append(float(match.group(5)))
-            metrics.MbPerSecond.append(float(match.group(6)))
-            metrics.OverheadBytes.append(float(match.group(7)))
+            metrics.Iterations.append(int(fields[1]))
+            metrics.NsPerOperation.append(float(fields[2]))
+            metrics.MbPerSecond.append(float(fields[4]))
+            metrics.OverheadBytes.append(float(fields[6]))
 
     return results
-
-
-def Mean(values: list[float] | list[int]) -> float:
-    # Average repeated samples for one exact benchmark case.
-    return sum(values) / len(values)
-
-
-def MeanAndCI(values: list[float]) -> tuple[float, float]:
-    valueCount: int = len(values)
-
-    # Mean latency across RUNS independent executions of the same benchmark case.
-    mean: float = Mean(values)
-
-    # Accumulate how far each run is from the mean.
-    squaredDeviationSum: float = 0.0
-
-    for value in values:
-        squaredDeviationSum += (value - mean) ** 2
-
-    # Use n - 1 because these RUNS are a sample of possible benchmark runs.
-    variance: float = squaredDeviationSum / (valueCount - 1)
-
-    # Standard deviation describes run-to-run spread in ns/op.
-    standardDeviation: float = math.sqrt(variance)
-
-    # Standard error describes uncertainty of the mean, not individual run spread.
-    standardError: float = standardDeviation / math.sqrt(valueCount)
-
-    # 95% CI half-width around the mean using Student's t for df = RUNS - 1.
-    ciHalf: float = T_95_D7 * standardError
-
-    return mean, ciHalf
 
 
 def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
@@ -160,7 +129,9 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
                 if metrics is None:
                     continue
 
-                latencyMean, latencyCI = MeanAndCI(metrics.NsPerOperation)
+                latencyMean, latencyCI = MeanAndConfidenceInterval(
+                    metrics.NsPerOperation, T_95
+                )
 
                 sizes.append(payloadSize)
                 means.append(latencyMean / 1000.0)
@@ -210,6 +181,7 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
         for algorithm in ALGORITHMS:
 
             means: list[float] = []
+            ciHalfs: list[float] = []
             sizes: list[int] = []
 
             for payloadSize in PAYLOAD_SIZES:
@@ -219,19 +191,25 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
                 if metrics is None:
                     continue
 
-                throughputMean: float = Mean(metrics.MbPerSecond)
+                # Same mean-and-spread routine used for latency, applied to the per-run throughput samples
+                throughputMean, throughputCI = MeanAndConfidenceInterval(
+                    metrics.MbPerSecond, T_95
+                )
 
                 sizes.append(payloadSize)
                 means.append(throughputMean)
+                ciHalfs.append(throughputCI)
 
-            axis.plot(
+            axis.errorbar(
                 sizes,
                 means,
+                yerr=ciHalfs,
                 label=algorithm,
                 color=GetAlgorithmColor(algorithm),
                 marker="o",
                 linewidth=1.8,
                 markersize=5,
+                capsize=4,
             )
 
         axis.set_title(operation.capitalize(), fontsize=11)
@@ -257,7 +235,7 @@ def PlotOverhead(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axis = plt.subplots(figsize=(8, 5))
 
     figure.suptitle(
-        "AES-GCM vs ASCON (Ciphertext Overhead vs Payload Size)",
+        "AES-GCM vs ASCON (Tag + Nonce Overhead vs Payload Size)",
         fontsize=13,
     )
 
@@ -289,8 +267,8 @@ def PlotOverhead(results: dict[str, BenchmarkMetrics]) -> None:
             markersize=5,
         )
 
-    axis.set_xlabel("Payload size")
-    axis.set_ylabel("Ciphertext overhead (% of payload)")
+    axis.set_xlabel("Payload Size")
+    axis.set_ylabel("Tag + Nonce Overhead (% of payload)")
     axis.set_xscale("log", base=2)
     axis.set_yscale("log")
     axis.set_xticks(PAYLOAD_SIZES)
@@ -318,10 +296,10 @@ def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
     lines.append("<th>Payload</th>")
     lines.append("<th>Latency (ns/op)</th>")
     lines.append("<th>Throughput (MB/s)</th>")
-    lines.append("<th>Overhead (B)</th>")
-    lines.append("<th>Encrypted Size (B)</th>")
+    lines.append("<th>Tag + Nonce (B)</th>")
+    lines.append("<th>Message Size (B)</th>")
     lines.append("<th>Overhead (%)</th>")
-    lines.append("<th>Iters (Σ8 runs)</th>")
+    lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
     lines.append("</tr>")
     lines.append("</thead>")
     lines.append("<tbody>")
@@ -337,24 +315,29 @@ def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
                 if metrics is None:
                     continue
 
-                latencyMean, latencyCI = MeanAndCI(metrics.NsPerOperation)
+                latencyMean, latencyCI = MeanAndConfidenceInterval(
+                    metrics.NsPerOperation, T_95
+                )
 
                 throughput: float = 0.0
+                throughputCI: float = 0.0
 
                 if len(metrics.MbPerSecond) > 0:
-                    throughput = Mean(metrics.MbPerSecond)
+                    throughput, throughputCI = MeanAndConfidenceInterval(
+                        metrics.MbPerSecond, T_95
+                    )
 
                 overhead: float = 0.0
 
                 if len(metrics.OverheadBytes) > 0:
                     overhead = Mean(metrics.OverheadBytes)
 
-                encryptedSize: float = float(payloadSize) + overhead
+                messageSize: float = float(payloadSize) + overhead
 
                 overheadPercent: float = 0.0
 
-                if payloadSize > 0:
-                    overheadPercent = overhead / float(payloadSize) * 100.0
+                if messageSize > 0:
+                    overheadPercent = overhead / messageSize * 100.0
 
                 caseIterations: int = 0
 
@@ -362,6 +345,7 @@ def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
                     caseIterations += iterationCount
 
                 latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
+                throughputText: str = f"{throughput:.1f} ± {throughputCI:.1f}"
 
                 overheadText: str = "—"
 
@@ -373,9 +357,9 @@ def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
                 lines.append(f"<td>{algorithm}</td>")
                 lines.append(f"<td>{FormatBytes(payloadSize)}</td>")
                 lines.append(f"<td>{latencyText}</td>")
-                lines.append(f"<td>{throughput:.1f}</td>")
+                lines.append(f"<td>{throughputText}</td>")
                 lines.append(f"<td>{overheadText}</td>")
-                lines.append(f"<td>{encryptedSize:.0f}</td>")
+                lines.append(f"<td>{messageSize:.0f}</td>")
                 lines.append(f"<td>{overheadPercent:.2f}%</td>")
                 lines.append(f"<td>{caseIterations:,}</td>")
                 lines.append("</tr>")
@@ -403,7 +387,7 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
 
     report = report.replace("{{RunCount}}", str(RUNS))
     report = report.replace("{{ConfidenceLevel}}", "95%")
-    report = report.replace("{{TMultiplier}}", str(T_95_D7))
+    report = report.replace("{{TMultiplier}}", str(T_95))
     report = report.replace("{{DegreesOfFreedom}}", str(RUNS - 1))
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
     report = report.replace("{{SummaryTable}}", htmlTable)

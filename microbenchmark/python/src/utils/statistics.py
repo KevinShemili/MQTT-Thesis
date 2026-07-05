@@ -1,0 +1,63 @@
+import math
+
+
+def GetStudentTCriticalValue95(degreesOfFreedom: int) -> float:
+
+    studentTCriticalValues: dict[int, float] = {
+        1: 12.706,
+        2: 4.303,
+        3: 3.182,
+        4: 2.776,
+        5: 2.571,
+        6: 2.447,
+        7: 2.365,
+        8: 2.306,
+        9: 2.262,
+        10: 2.228,
+        11: 2.201,
+        12: 2.179,
+        13: 2.160,
+        14: 2.145,
+        15: 2.131,
+    }
+
+    if degreesOfFreedom not in studentTCriticalValues:
+        raise ValueError(f"Unsupported degrees of freedom: {degreesOfFreedom}")
+
+    return studentTCriticalValues[degreesOfFreedom]
+
+
+def Mean(values: list[float] | list[int]) -> float:
+    # Average repeated measurements for one benchmark case.
+    return sum(values) / len(values)
+
+
+def MeanAndConfidenceInterval(
+    values: list[float],
+    tCriticalValue: float,
+) -> tuple[float, float]:
+
+    valueCount: int = len(values)
+
+    # Mean gives the central estimate across repeated runs.
+    mean: float = Mean(values)
+
+    # Sum squared deviations to measure run-to-run spread.
+    squaredDeviationSum: float = 0.0
+
+    for value in values:
+        squaredDeviationSum += (value - mean) ** 2
+
+    # Sample variance uses n - 1 because runs are samples, not the full population.
+    variance: float = squaredDeviationSum / (valueCount - 1)
+
+    # Standard deviation describes spread between independent runs.
+    standardDeviation: float = math.sqrt(variance)
+
+    # Standard error describes uncertainty around the mean.
+    standardError: float = standardDeviation / math.sqrt(valueCount)
+
+    # CI half-width scales standard error by the chosen Student t value.
+    ciHalf: float = tCriticalValue * standardError
+
+    return mean, ciHalf

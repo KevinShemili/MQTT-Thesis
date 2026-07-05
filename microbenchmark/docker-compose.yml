@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: aes-ascon-benchmark
     restart: "no"
+    env_file:
+      - ./config/benchmark.env
     volumes:
       - ./results:/results
     command: ["./run-aes-ascon.sh"]
@@ -15,6 +17,8 @@ services:
       dockerfile: Dockerfile
     container_name: json-cbor-benchmark
     restart: "no"
+    env_file:
+      - ./config/benchmark.env
     volumes:
       - ./results:/results
     command: ["./run-json-cbor.sh"]

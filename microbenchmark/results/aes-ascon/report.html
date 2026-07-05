@@ -326,7 +326,7 @@
 
             <div class="card">
                 <div class="card-label">Cipher operations</div>
-                <div class="card-value">3,178,852,919</div>
+                <div class="card-value">2,954,040,204</div>
             </div>
         </section>
 
@@ -377,11 +377,11 @@
                 </article>
 
                 <article class="plot-card">
-                    <h3>Ciphertext overhead vs payload size</h3>
+                    <h3>Tag + Nonce Overhead vs Payload Size</h3>
                     <p>
                         Fixed per-message overhead becomes less significant as payload size increases.
                     </p>
-                    <img src="overhead.png" alt="Ciphertext overhead plot">
+                    <img src="overhead.png" alt="Tag and Nonce Overhead plot">
                 </article>
             </div>
         </section>
@@ -403,10 +403,10 @@
 <th>Payload</th>
 <th>Latency (ns/op)</th>
 <th>Throughput (MB/s)</th>
-<th>Overhead (B)</th>
-<th>Encrypted Size (B)</th>
+<th>Tag + Nonce (B)</th>
+<th>Message Size (B)</th>
 <th>Overhead (%)</th>
-<th>Iters (Σ8 runs)</th>
+<th>Iters (Σ$4$ runs)</th>
 </tr>
 </thead>
 <tbody>
@@ -414,8 +414,8 @@
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>16B</td>
-<td>52.99 ± 0.35</td>
-<td>301.9</td>
+<td>55.98 ± 1.56</td>
+<td>285.9</td>
 <td>28</td>
 <td>44</td>
 <td>175.00%</td>
@@ -425,298 +425,298 @@
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>64B</td>
-<td>78.61 ± 0.14</td>
-<td>814.1</td>
+<td>82.82 ± 1.89</td>
+<td>772.9</td>
 <td>28</td>
 <td>92</td>
 <td>43.75%</td>
-<td>302,818,195</td>
+<td>284,465,863</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>256B</td>
-<td>78.65 ± 0.77</td>
-<td>3255.0</td>
+<td>83.06 ± 3.35</td>
+<td>3083.5</td>
 <td>28</td>
 <td>284</td>
 <td>10.94%</td>
-<td>306,881,100</td>
+<td>289,649,618</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>1KB</td>
-<td>169.40 ± 2.85</td>
-<td>6044.7</td>
+<td>180.35 ± 3.41</td>
+<td>5679.1</td>
 <td>28</td>
 <td>1052</td>
 <td>2.73%</td>
-<td>144,208,651</td>
+<td>134,243,001</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>4KB</td>
-<td>537.02 ± 2.27</td>
-<td>7627.0</td>
+<td>577.00 ± 12.00</td>
+<td>7099.5</td>
 <td>28</td>
 <td>4124</td>
 <td>0.68%</td>
-<td>44,970,043</td>
+<td>41,706,818</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>16KB</td>
-<td>2123.75 ± 141.60</td>
-<td>7724.8</td>
+<td>2321.50 ± 50.54</td>
+<td>7058.1</td>
 <td>28</td>
 <td>16412</td>
 <td>0.17%</td>
-<td>11,346,739</td>
+<td>10,486,855</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>64KB</td>
-<td>8211.00 ± 108.49</td>
-<td>7981.9</td>
+<td>9636.75 ± 669.50</td>
+<td>6810.7</td>
 <td>28</td>
 <td>65564</td>
 <td>0.04%</td>
-<td>2,945,635</td>
+<td>2,372,342</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>16B</td>
-<td>170.45 ± 2.22</td>
-<td>93.9</td>
+<td>181.65 ± 5.54</td>
+<td>88.1</td>
 <td>32</td>
 <td>48</td>
 <td>200.00%</td>
-<td>141,050,013</td>
+<td>133,975,712</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>64B</td>
-<td>341.75 ± 0.30</td>
-<td>187.3</td>
+<td>363.88 ± 8.25</td>
+<td>175.9</td>
 <td>32</td>
 <td>96</td>
 <td>50.00%</td>
-<td>70,319,924</td>
+<td>67,156,448</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>256B</td>
-<td>1030.00 ± 3.18</td>
-<td>248.5</td>
+<td>1084.25 ± 29.32</td>
+<td>236.2</td>
 <td>32</td>
 <td>288</td>
 <td>12.50%</td>
-<td>23,372,557</td>
+<td>21,874,870</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>1KB</td>
-<td>3713.00 ± 18.69</td>
-<td>275.8</td>
+<td>3900.00 ± 90.03</td>
+<td>262.6</td>
 <td>32</td>
 <td>1056</td>
 <td>3.12%</td>
-<td>6,456,150</td>
+<td>6,206,460</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>4KB</td>
-<td>14598.25 ± 627.09</td>
-<td>280.7</td>
+<td>14979.00 ± 299.47</td>
+<td>273.5</td>
 <td>32</td>
 <td>4128</td>
 <td>0.78%</td>
-<td>1,655,432</td>
+<td>1,595,535</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>16KB</td>
-<td>57745.25 ± 856.82</td>
-<td>283.8</td>
+<td>65665.00 ± 2933.44</td>
+<td>249.7</td>
 <td>32</td>
 <td>16416</td>
 <td>0.20%</td>
-<td>418,488</td>
+<td>365,927</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>64KB</td>
-<td>231125.00 ± 1155.24</td>
-<td>283.6</td>
+<td>246854.75 ± 9224.15</td>
+<td>265.6</td>
 <td>32</td>
 <td>65568</td>
 <td>0.05%</td>
-<td>103,674</td>
+<td>99,100</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>16B</td>
-<td>42.58 ± 0.64</td>
-<td>375.8</td>
+<td>46.51 ± 0.84</td>
+<td>344.1</td>
 <td>28</td>
 <td>44</td>
 <td>175.00%</td>
-<td>563,503,014</td>
+<td>514,299,181</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>64B</td>
-<td>59.45 ± 0.19</td>
-<td>1076.6</td>
+<td>69.59 ± 1.51</td>
+<td>919.7</td>
 <td>28</td>
 <td>92</td>
 <td>43.75%</td>
-<td>400,000,000</td>
+<td>358,661,006</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>256B</td>
-<td>73.86 ± 0.60</td>
-<td>3466.2</td>
+<td>85.25 ± 2.31</td>
+<td>3003.7</td>
 <td>28</td>
 <td>284</td>
 <td>10.94%</td>
-<td>319,319,183</td>
+<td>294,272,404</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>1KB</td>
-<td>166.55 ± 5.91</td>
-<td>6150.6</td>
+<td>188.82 ± 6.07</td>
+<td>5424.8</td>
 <td>28</td>
 <td>1052</td>
 <td>2.73%</td>
-<td>143,472,200</td>
+<td>130,169,027</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>4KB</td>
-<td>527.27 ± 6.68</td>
-<td>7768.6</td>
+<td>617.12 ± 30.56</td>
+<td>6642.0</td>
 <td>28</td>
 <td>4124</td>
 <td>0.68%</td>
-<td>45,339,065</td>
+<td>39,938,891</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>16KB</td>
-<td>1986.75 ± 10.50</td>
-<td>8246.2</td>
+<td>2181.75 ± 37.55</td>
+<td>7509.6</td>
 <td>28</td>
 <td>16412</td>
 <td>0.17%</td>
-<td>12,000,859</td>
+<td>11,066,401</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>64KB</td>
-<td>7873.25 ± 57.60</td>
-<td>8324.2</td>
+<td>9247.75 ± 363.87</td>
+<td>7090.1</td>
 <td>28</td>
 <td>65564</td>
 <td>0.04%</td>
-<td>3,083,488</td>
+<td>2,673,623</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>16B</td>
-<td>176.18 ± 1.44</td>
-<td>90.8</td>
+<td>197.28 ± 2.33</td>
+<td>81.1</td>
 <td>32</td>
 <td>48</td>
 <td>200.00%</td>
-<td>135,627,566</td>
+<td>121,358,989</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>64B</td>
-<td>349.32 ± 2.02</td>
-<td>183.2</td>
+<td>399.52 ± 12.29</td>
+<td>160.2</td>
 <td>32</td>
 <td>96</td>
 <td>50.00%</td>
-<td>68,332,209</td>
+<td>59,351,995</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>256B</td>
-<td>1043.25 ± 19.37</td>
-<td>245.4</td>
+<td>1186.00 ± 53.29</td>
+<td>216.0</td>
 <td>32</td>
 <td>288</td>
 <td>12.50%</td>
-<td>22,976,872</td>
+<td>20,512,441</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>1KB</td>
-<td>3724.25 ± 32.09</td>
-<td>275.0</td>
+<td>4340.25 ± 129.13</td>
+<td>236.0</td>
 <td>32</td>
 <td>1056</td>
 <td>3.12%</td>
-<td>6,465,659</td>
+<td>5,501,349</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>4KB</td>
-<td>14436.50 ± 70.49</td>
-<td>283.7</td>
+<td>15499.00 ± 226.40</td>
+<td>264.3</td>
 <td>32</td>
 <td>4128</td>
 <td>0.78%</td>
-<td>1,658,577</td>
+<td>1,586,039</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>16KB</td>
-<td>57163.25 ± 690.14</td>
-<td>286.6</td>
+<td>67360.50 ± 2900.03</td>
+<td>243.4</td>
 <td>32</td>
 <td>16416</td>
 <td>0.20%</td>
-<td>423,691</td>
+<td>360,785</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>64KB</td>
-<td>230859.75 ± 2460.33</td>
-<td>283.9</td>
+<td>264274.75 ± 29435.58</td>
+<td>248.8</td>
 <td>32</td>
 <td>65568</td>
 <td>0.05%</td>
-<td>103,935</td>
+<td>89,524</td>
 </tr>
 </tbody>
 </table>

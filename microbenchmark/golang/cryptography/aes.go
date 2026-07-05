@@ -11,14 +11,17 @@ type AESGCM struct {
 }
 
 func NewAESGCM() AESGCM {
-	// 128 bits
+
+	// 128 bit key
 	key := utils.GenerateRandomBytes(16)
 
+	// AES provides the block cipher
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
 	}
 
+	// GCM adds confidentiality & integrity
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		panic(err)
