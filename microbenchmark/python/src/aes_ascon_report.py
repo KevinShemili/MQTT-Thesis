@@ -9,6 +9,7 @@ from matplotlib.ticker import FuncFormatter
 from utils.statistics import GetStudentTCriticalValue95
 from utils.statistics import Mean
 from utils.statistics import MeanAndConfidenceInterval
+from utils.env_parser import ParseIntListFromEnv
 
 BENCH_FILE: str = "/results/aes-ascon/bench_output.txt"
 PNG_FILE: str = "/results/aes-ascon/plot.png"
@@ -20,7 +21,7 @@ HTML_TEMPLATE_FILE: str = "/app/template/aes_ascon_template.html"
 RUNS: int = int(os.environ["AES_ASCON_RUNS"])
 T_95: float = GetStudentTCriticalValue95(RUNS - 1)
 
-PAYLOAD_SIZES: list[int] = [16, 64, 256, 1024, 4096, 16384, 65536]
+PAYLOAD_SIZES: list[int] = ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES")
 ALGORITHMS: list[str] = ["AES-GCM", "ASCON"]
 OPERATIONS: list[str] = ["encrypt", "decrypt"]
 
@@ -97,10 +98,17 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
             metrics: BenchmarkMetrics = results[benchmarkCaseId]
 
-            metrics.Iterations.append(int(fields[1]))
-            metrics.NsPerOperation.append(float(fields[2]))
-            metrics.MbPerSecond.append(float(fields[4]))
-            metrics.OverheadBytes.append(float(fields[6]))
+            iterationCount: int = int(fields[1])
+
+            metricsByUnit: dict[str, float] = {}
+            for index in range(2, len(fields) - 1, 2):
+                unitName: str = fields[index + 1]
+                metricsByUnit[unitName] = float(fields[index])
+
+            metrics.Iterations.append(iterationCount)
+            metrics.NsPerOperation.append(metricsByUnit["ns/op"])
+            metrics.MbPerSecond.append(metricsByUnit["MB/s"])
+            metrics.OverheadBytes.append(metricsByUnit["wire_overhead_bytes/op"])
 
     return results
 
@@ -235,7 +243,7 @@ def PlotOverhead(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axis = plt.subplots(figsize=(8, 5))
 
     figure.suptitle(
-        "AES-GCM vs ASCON (Tag + Nonce Overhead vs Payload Size)",
+        "AES-GCM vs ASCON (Tag + Nonce Share vs Payload Size)",
         fontsize=13,
     )
 
@@ -252,7 +260,8 @@ def PlotOverhead(results: dict[str, BenchmarkMetrics]) -> None:
                 continue
 
             overheadBytes: float = Mean(metrics.OverheadBytes)
-            overheadPercent: float = overheadBytes / payloadSize * 100.0
+            messageSize: float = float(payloadSize) + overheadBytes
+            overheadPercent: float = overheadBytes / messageSize * 100.0
 
             sizes.append(payloadSize)
             percentages.append(overheadPercent)
@@ -268,7 +277,7 @@ def PlotOverhead(results: dict[str, BenchmarkMetrics]) -> None:
         )
 
     axis.set_xlabel("Payload Size")
-    axis.set_ylabel("Tag + Nonce Overhead (% of payload)")
+    axis.set_ylabel("Tag + Nonce (% of message size)")
     axis.set_xscale("log", base=2)
     axis.set_yscale("log")
     axis.set_xticks(PAYLOAD_SIZES)

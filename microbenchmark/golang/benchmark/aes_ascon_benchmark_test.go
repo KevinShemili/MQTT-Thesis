@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var payloadList []int = []int{16, 64, 256, 1024, 4096, 16384, 65536}
+var payloadList []int = utils.ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES")
 
 func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 

@@ -13,8 +13,10 @@ type ASCON struct {
 
 func NewASCON() ASCON {
 
+	keySize := utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE")
+
 	// 128 bit key
-	key := utils.GenerateRandomBytes(16)
+	key := utils.GenerateRandomBytes(keySize)
 
 	// ASCON exposes itself directly as AEAD
 	aeadCipher, err := ascon.New(key, ascon.Ascon128)

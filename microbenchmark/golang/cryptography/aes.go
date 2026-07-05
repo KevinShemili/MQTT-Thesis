@@ -12,8 +12,9 @@ type AESGCM struct {
 
 func NewAESGCM() AESGCM {
 
-	// 128 bit key
-	key := utils.GenerateRandomBytes(16)
+	keySize := utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE")
+
+	key := utils.GenerateRandomBytes(keySize)
 
 	// AES provides the block cipher
 	block, err := aes.NewCipher(key)

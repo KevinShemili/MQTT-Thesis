@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: aes-ascon-benchmark
     restart: "no"
+    tty: true
     env_file:
       - ./config/benchmark.env
     volumes:

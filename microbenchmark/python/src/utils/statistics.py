@@ -4,7 +4,7 @@ import math
 def GetStudentTCriticalValue95(degreesOfFreedom: int) -> float:
 
     studentTCriticalValues: dict[int, float] = {
-        1: 12.706,
+        1: 12.71,
         2: 4.303,
         3: 3.182,
         4: 2.776,

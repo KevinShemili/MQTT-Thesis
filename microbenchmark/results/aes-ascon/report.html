@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>AES-GCM vs ASCON AEAD Microbenchmark Report</title>
+    <title>Microbenchmark Report</title>
 
     <style>
         :root {
@@ -300,18 +300,18 @@
         <section class="hero">
             <div class="hero-label">AEAD Microbenchmark Report</div>
 
-            <h1>AES-GCM vs ASCON</h1>
+            <h1>AES-GCM vs. ASCON</h1>
 
             <p>
-                Container-generated benchmark artifact comparing encryption latency, decryption latency,
-                throughput, and ciphertext overhead across MQTT-relevant payload sizes.
+                Benchmark comparing encryption latency, decryption latency, throughput, and ciphertext overhead across
+                MQTT relevant payload sizes.
             </p>
         </section>
 
         <section class="metadata">
             <div class="card">
                 <div class="card-label">Independent runs</div>
-                <div class="card-value">4</div>
+                <div class="card-value">8</div>
             </div>
 
             <div class="card">
@@ -321,21 +321,20 @@
 
             <div class="card">
                 <div class="card-label">Student t</div>
-                <div class="card-value">3.182</div>
+                <div class="card-value">2.365</div>
             </div>
 
             <div class="card">
                 <div class="card-label">Cipher operations</div>
-                <div class="card-value">2,954,040,204</div>
+                <div class="card-value">5,688,116,421</div>
             </div>
         </section>
 
         <section class="note">
-            <strong>Methodological note:</strong>
-            latency is reported as mean ± 95% confidence interval across 4
+            <strong>Methodological Note:</strong>
+            Latency & throughput are reported as mean ± 95% confidence interval across 8
             independent Go benchmark runs. The confidence interval uses Student's t with
-            df=3. Overhead is reported as nonce + authentication tag bytes,
-            because the nonce must be transmitted or stored with the encrypted message.
+            df=7. Overhead is reported as nonce + authentication tag bytes.
         </section>
 
         <section class="section">
@@ -343,7 +342,7 @@
 
             <p>
                 The plots summarize the same measurements shown in the numerical table.
-                Latency is shown with confidence intervals. Throughput is reported as plaintext MB/s.
+                Latency and throughput are shown with confidence intervals.
             </p>
 
             <div class="legend-row">
@@ -360,7 +359,7 @@
 
             <div class="plots">
                 <article class="plot-card">
-                    <h3>Latency vs payload size</h3>
+                    <h3>Latency vs Payload Size</h3>
                     <p>
                         Lower values indicate faster encryption or decryption.
                         Error bars show the confidence interval.
@@ -369,9 +368,10 @@
                 </article>
 
                 <article class="plot-card">
-                    <h3>Throughput vs payload size</h3>
+                    <h3>Throughput vs Payload Size</h3>
                     <p>
                         Higher values indicate more plaintext bytes processed per second.
+                        Error bars show the confidence interval.
                     </p>
                     <img src="throughput.png" alt="Throughput plot">
                 </article>
@@ -387,11 +387,11 @@
         </section>
 
         <section class="section">
-            <h2>Numerical summary</h2>
+            <h2>Numerical Summary</h2>
 
             <p>
                 The table contains the full benchmark summary used by the plots.
-                Latency is expressed as mean ± confidence interval.
+                Latency and throughput are expressed as mean ± confidence interval.
             </p>
 
             <div class="table-wrapper">
@@ -406,7 +406,7 @@
 <th>Tag + Nonce (B)</th>
 <th>Message Size (B)</th>
 <th>Overhead (%)</th>
-<th>Iters (Σ$4$ runs)</th>
+<th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
@@ -414,318 +414,314 @@
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>16B</td>
-<td>55.98 ± 1.56</td>
-<td>285.9</td>
+<td>59.66 ± 0.54</td>
+<td>268.2 ± 2.4</td>
 <td>28</td>
 <td>44</td>
-<td>175.00%</td>
-<td>400,000,000</td>
+<td>63.64%</td>
+<td>785,442,740</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>64B</td>
-<td>82.82 ± 1.89</td>
-<td>772.9</td>
+<td>88.37 ± 0.85</td>
+<td>724.3 ± 7.0</td>
 <td>28</td>
 <td>92</td>
-<td>43.75%</td>
-<td>284,465,863</td>
+<td>30.43%</td>
+<td>548,615,472</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>256B</td>
-<td>83.06 ± 3.35</td>
-<td>3083.5</td>
+<td>88.05 ± 0.66</td>
+<td>2907.6 ± 21.9</td>
 <td>28</td>
 <td>284</td>
-<td>10.94%</td>
-<td>289,649,618</td>
+<td>9.86%</td>
+<td>562,551,184</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>1KB</td>
-<td>180.35 ± 3.41</td>
-<td>5679.1</td>
+<td>190.60 ± 2.33</td>
+<td>5373.3 ± 64.6</td>
 <td>28</td>
 <td>1052</td>
-<td>2.73%</td>
-<td>134,243,001</td>
+<td>2.66%</td>
+<td>256,852,546</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>4KB</td>
-<td>577.00 ± 12.00</td>
-<td>7099.5</td>
+<td>600.86 ± 4.52</td>
+<td>6817.4 ± 51.8</td>
 <td>28</td>
 <td>4124</td>
 <td>0.68%</td>
-<td>41,706,818</td>
+<td>79,934,673</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>16KB</td>
-<td>2321.50 ± 50.54</td>
-<td>7058.1</td>
+<td>2293.75 ± 41.05</td>
+<td>7145.9 ± 125.8</td>
 <td>28</td>
 <td>16412</td>
 <td>0.17%</td>
-<td>10,486,855</td>
+<td>20,777,302</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>AES-GCM</td>
 <td>64KB</td>
-<td>9636.75 ± 669.50</td>
-<td>6810.7</td>
+<td>9176.50 ± 111.49</td>
+<td>7142.9 ± 85.5</td>
 <td>28</td>
 <td>65564</td>
 <td>0.04%</td>
-<td>2,372,342</td>
+<td>5,253,205</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>16B</td>
-<td>181.65 ± 5.54</td>
-<td>88.1</td>
+<td>191.89 ± 2.20</td>
+<td>83.4 ± 0.9</td>
 <td>32</td>
 <td>48</td>
-<td>200.00%</td>
-<td>133,975,712</td>
+<td>66.67%</td>
+<td>250,768,368</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>64B</td>
-<td>363.88 ± 8.25</td>
-<td>175.9</td>
+<td>383.52 ± 3.45</td>
+<td>166.9 ± 1.5</td>
 <td>32</td>
 <td>96</td>
-<td>50.00%</td>
-<td>67,156,448</td>
+<td>33.33%</td>
+<td>126,724,118</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>256B</td>
-<td>1084.25 ± 29.32</td>
-<td>236.2</td>
+<td>1162.62 ± 13.21</td>
+<td>220.2 ± 2.5</td>
 <td>32</td>
 <td>288</td>
-<td>12.50%</td>
-<td>21,874,870</td>
+<td>11.11%</td>
+<td>41,277,406</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>1KB</td>
-<td>3900.00 ± 90.03</td>
-<td>262.6</td>
+<td>4183.00 ± 43.01</td>
+<td>244.8 ± 2.5</td>
 <td>32</td>
 <td>1056</td>
-<td>3.12%</td>
-<td>6,206,460</td>
+<td>3.03%</td>
+<td>11,412,605</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>4KB</td>
-<td>14979.00 ± 299.47</td>
-<td>273.5</td>
+<td>16279.12 ± 150.96</td>
+<td>251.6 ± 2.3</td>
 <td>32</td>
 <td>4128</td>
 <td>0.78%</td>
-<td>1,595,535</td>
+<td>2,999,638</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>16KB</td>
-<td>65665.00 ± 2933.44</td>
-<td>249.7</td>
+<td>64609.25 ± 277.89</td>
+<td>253.6 ± 1.1</td>
 <td>32</td>
 <td>16416</td>
-<td>0.20%</td>
-<td>365,927</td>
+<td>0.19%</td>
+<td>755,389</td>
 </tr>
 <tr>
 <td>encrypt</td>
 <td>ASCON</td>
 <td>64KB</td>
-<td>246854.75 ± 9224.15</td>
-<td>265.6</td>
+<td>260313.25 ± 3075.78</td>
+<td>251.8 ± 2.9</td>
 <td>32</td>
 <td>65568</td>
 <td>0.05%</td>
-<td>99,100</td>
+<td>183,060</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>16B</td>
-<td>46.51 ± 0.84</td>
-<td>344.1</td>
+<td>49.24 ± 0.91</td>
+<td>325.1 ± 6.0</td>
 <td>28</td>
 <td>44</td>
-<td>175.00%</td>
-<td>514,299,181</td>
+<td>63.64%</td>
+<td>916,939,278</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>64B</td>
-<td>69.59 ± 1.51</td>
-<td>919.7</td>
+<td>67.29 ± 0.60</td>
+<td>951.2 ± 8.4</td>
 <td>28</td>
 <td>92</td>
-<td>43.75%</td>
-<td>358,661,006</td>
+<td>30.43%</td>
+<td>716,127,784</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>256B</td>
-<td>85.25 ± 2.31</td>
-<td>3003.7</td>
+<td>85.31 ± 0.92</td>
+<td>3001.1 ± 32.5</td>
 <td>28</td>
 <td>284</td>
-<td>10.94%</td>
-<td>294,272,404</td>
+<td>9.86%</td>
+<td>576,973,134</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>1KB</td>
-<td>188.82 ± 6.07</td>
-<td>5424.8</td>
+<td>186.88 ± 1.28</td>
+<td>5479.9 ± 37.8</td>
 <td>28</td>
 <td>1052</td>
-<td>2.73%</td>
-<td>130,169,027</td>
+<td>2.66%</td>
+<td>251,909,513</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>4KB</td>
-<td>617.12 ± 30.56</td>
-<td>6642.0</td>
+<td>606.24 ± 5.84</td>
+<td>6757.2 ± 64.8</td>
 <td>28</td>
 <td>4124</td>
 <td>0.68%</td>
-<td>39,938,891</td>
+<td>79,864,955</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>16KB</td>
-<td>2181.75 ± 37.55</td>
-<td>7509.6</td>
+<td>2289.12 ± 19.05</td>
+<td>7157.8 ± 59.6</td>
 <td>28</td>
 <td>16412</td>
 <td>0.17%</td>
-<td>11,066,401</td>
+<td>20,655,249</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>AES-GCM</td>
 <td>64KB</td>
-<td>9247.75 ± 363.87</td>
-<td>7090.1</td>
+<td>9362.12 ± 142.17</td>
+<td>7002.2 ± 106.0</td>
 <td>28</td>
 <td>65564</td>
 <td>0.04%</td>
-<td>2,673,623</td>
+<td>5,370,161</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>16B</td>
-<td>197.28 ± 2.33</td>
-<td>81.1</td>
+<td>198.00 ± 3.24</td>
+<td>80.8 ± 1.3</td>
 <td>32</td>
 <td>48</td>
-<td>200.00%</td>
-<td>121,358,989</td>
+<td>66.67%</td>
+<td>247,036,238</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>64B</td>
-<td>399.52 ± 12.29</td>
-<td>160.2</td>
+<td>392.93 ± 2.85</td>
+<td>162.9 ± 1.2</td>
 <td>32</td>
 <td>96</td>
-<td>50.00%</td>
-<td>59,351,995</td>
+<td>33.33%</td>
+<td>123,297,682</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>256B</td>
-<td>1186.00 ± 53.29</td>
-<td>216.0</td>
+<td>1176.62 ± 10.92</td>
+<td>217.6 ± 2.0</td>
 <td>32</td>
 <td>288</td>
-<td>12.50%</td>
-<td>20,512,441</td>
+<td>11.11%</td>
+<td>41,179,224</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>1KB</td>
-<td>4340.25 ± 129.13</td>
-<td>236.0</td>
+<td>4231.12 ± 24.03</td>
+<td>242.0 ± 1.4</td>
 <td>32</td>
 <td>1056</td>
-<td>3.12%</td>
-<td>5,501,349</td>
+<td>3.03%</td>
+<td>11,309,267</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>4KB</td>
-<td>15499.00 ± 226.40</td>
-<td>264.3</td>
+<td>16167.75 ± 212.80</td>
+<td>253.4 ± 3.3</td>
 <td>32</td>
 <td>4128</td>
 <td>0.78%</td>
-<td>1,586,039</td>
+<td>2,985,970</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>16KB</td>
-<td>67360.50 ± 2900.03</td>
-<td>243.4</td>
+<td>65808.88 ± 732.11</td>
+<td>249.0 ± 2.7</td>
 <td>32</td>
 <td>16416</td>
-<td>0.20%</td>
-<td>360,785</td>
+<td>0.19%</td>
+<td>738,843</td>
 </tr>
 <tr>
 <td>decrypt</td>
 <td>ASCON</td>
 <td>64KB</td>
-<td>264274.75 ± 29435.58</td>
-<td>248.8</td>
+<td>263998.38 ± 2845.45</td>
+<td>248.3 ± 2.7</td>
 <td>32</td>
 <td>65568</td>
 <td>0.05%</td>
-<td>89,524</td>
+<td>181,417</td>
 </tr>
 </tbody>
 </table>
             </div>
         </section>
-
-        <div class="footer">
-            Generated from <code>bench_output.txt</code> inside the benchmark container.
-        </div>
     </main>
 </body>
 

@@ -4,6 +4,9 @@ mkdir -p /results/aes-ascon
 
 echo 'Running AES vs ASCON benchmark...'
 
+PayloadSizeCount=$(echo "${AES_ASCON_PAYLOAD_SIZES}" | tr ',' '\n' | wc -l)
+TotalLines=$((2 * 2 * PayloadSizeCount * AES_ASCON_RUNS))
+
 ./benchmark-binary \
   -test.run=^$ \
   -test.bench=^BenchmarkAESASCON \
@@ -11,7 +14,14 @@ echo 'Running AES vs ASCON benchmark...'
   -test.benchmem \
   -test.count=${AES_ASCON_RUNS} \
   -test.cpu=1 \
-  > /results/aes-ascon/bench_output.txt
+  | pv \
+      --force \
+      --wait \
+      --line-mode \
+      --size "${TotalLines}" \
+      --interval 5 \
+      --format "AES vs ASCON: %p %e" \
+      > /results/aes-ascon/bench_output.txt
 
 echo 'Generating AES vs ASCON HTML report...'
 

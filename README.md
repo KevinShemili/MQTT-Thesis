@@ -40,7 +40,7 @@ docker compose up --build
 Run AES vs ASCON benchmark:
 
 ```sh
-docker compose up --build aes-ascon
+docker compose run --rm aes-ascon
 ```
 
 Run JSON vs CBOR benchmark:
@@ -57,8 +57,8 @@ docker compose down
 
 ## Services
 
-| Service | Container | Output |
-| --- | --- | --- |
+| Service     | Container             | Output                              |
+| ----------- | --------------------- | ----------------------------------- |
 | `aes-ascon` | `aes-ascon-benchmark` | `microbenchmark/results/aes-ascon/` |
 | `json-cbor` | `json-cbor-benchmark` | `microbenchmark/results/json-cbor/` |
 
