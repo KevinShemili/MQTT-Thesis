@@ -46,7 +46,7 @@ docker compose run --rm aes-ascon
 Run JSON vs CBOR benchmark:
 
 ```sh
-docker compose up --build json-cbor
+docker compose run --rm json-cbor
 ```
 
 Clean stopped benchmark containers:

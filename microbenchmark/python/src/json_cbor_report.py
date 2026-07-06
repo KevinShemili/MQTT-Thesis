@@ -1,11 +1,14 @@
-import re
-import math
 import matplotlib
+import os
 
 matplotlib.use("Agg")
 
 import sys
 import matplotlib.pyplot as plt
+from utils.statistics import GetStudentTCriticalValue95
+from utils.statistics import Mean
+from utils.statistics import MeanAndConfidenceInterval
+from utils.parser import ParseIntListFromEnv
 
 BENCH_FILE: str = "/results/json-cbor/bench_output.txt"
 PNG_FILE: str = "/results/json-cbor/plot.png"
@@ -16,27 +19,14 @@ ALLOCS_PNG_FILE: str = "/results/json-cbor/allocs.png"
 HTML_FILE: str = "/results/json-cbor/report.html"
 HTML_TEMPLATE_FILE: str = "/app/template/json_cbor_template.html"
 
-RUNS: int = 4
-T_95_D3: float = 3.182
-
-ATTRIBUTE_COUNTS: list[int] = [1, 2, 5, 10, 20, 50]
+RUNS: int = int(os.environ["JSON_CBOR_RUNS"])
+T_95: float = GetStudentTCriticalValue95(RUNS - 1)
+ATTRIBUTE_COUNTS: list[int] = ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS")
 FORMATS: list[str] = ["JSON", "CBOR"]
 OPERATIONS: list[str] = ["serialize", "deserialize"]
 
 JSON_COLOR: str = "#be0c24"
 CBOR_COLOR: str = "#300bb6"
-
-# Order after ns/op follows Go's alphabetical sort of custom metrics: envelope_bytes/op, raw_bytes/op, then B/op, allocs/op.
-LINE_PATTERN = re.compile(
-    r"^BenchmarkEnvelope(Serialize|Deserialize)/([^/]+)/(\d+)Attrs(?:-\d+)?\s+"
-    r"(\d+)\s+"
-    r"([\d.]+)\s+ns/op"
-    r"(?:\s+([\d.]+)\s+envelope_bytes/op)?"
-    r"(?:\s+([\d.]+)\s+raw_bytes/op)?"
-    r"(?:\s+([\d.]+)\s+B/op)?"
-    r"(?:\s+([\d.]+)\s+allocs/op)?"
-    r"$"
-)
 
 
 class BenchmarkMetrics:
@@ -55,10 +45,8 @@ class BenchmarkMetrics:
         self.Iterations: list[int] = []
         self.NsPerOperation: list[float] = []
         self.EnvelopeBytes: list[float] = []
-        # Raw field size before serialization, used to isolate format overhead.
         self.RawBytes: list[float] = []
         self.BytesPerOperation: list[float] = []
-        # Allocation count per op, from -test.benchmem.
         self.AllocsPerOperation: list[float] = []
 
 
@@ -73,16 +61,29 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
     results: dict[str, BenchmarkMetrics] = {}
 
-    with open(filepath, "r", encoding="utf-8") as file:
-        for line in file:
+    prefix: str = "BenchmarkEnvelope"
 
-            match = LINE_PATTERN.match(line.strip())
-            if match is None:
+    with open(filepath, "r", encoding="utf-8") as file:
+
+        for line in file:
+            fields: list[str] = line.strip().split()
+
+            if len(fields) == 0:
                 continue
 
-            operation: str = match.group(1).lower()
-            formatName: str = match.group(2)
-            attributeCount: int = int(match.group(3))
+            benchmarkName: str = fields[0]
+
+            if not benchmarkName.startswith(prefix):
+                continue
+
+            # "Serialize/JSON/1Attrs" -> operation, format, attribute text.
+            operation, formatName, attributeText, *_ = benchmarkName[
+                len(prefix) :
+            ].split("/")
+            operation = operation.lower()
+
+            # Strip GOMAXPROCS suffix (e.g. "-8") first, then the "Attrs" unit label.
+            attributeCount: int = int(attributeText.split("-")[0].replace("Attrs", ""))
 
             benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
 
@@ -95,46 +96,22 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
             metrics: BenchmarkMetrics = results[benchmarkCaseId]
 
-            metrics.Iterations.append(int(match.group(4)))
-            metrics.NsPerOperation.append(float(match.group(5)))
-            metrics.EnvelopeBytes.append(float(match.group(6)))
-            metrics.RawBytes.append(float(match.group(7)))
-            metrics.BytesPerOperation.append(float(match.group(8)))
-            metrics.AllocsPerOperation.append(float(match.group(9)))
+            iterationCount: int = int(fields[1])
+
+            # Reads each "<value> <unit>" pair after ns/op, regardless of which metrics are present.
+            metricsByUnit: dict[str, float] = {}
+            for index in range(2, len(fields) - 1, 2):
+                unitName: str = fields[index + 1]
+                metricsByUnit[unitName] = float(fields[index])
+
+            metrics.Iterations.append(iterationCount)
+            metrics.NsPerOperation.append(metricsByUnit["ns/op"])
+            metrics.EnvelopeBytes.append(metricsByUnit["envelope_bytes/op"])
+            metrics.RawBytes.append(metricsByUnit["raw_bytes/op"])
+            metrics.BytesPerOperation.append(metricsByUnit["B/op"])
+            metrics.AllocsPerOperation.append(metricsByUnit["allocs/op"])
 
     return results
-
-
-def Mean(values: list[float] | list[int]) -> float:
-    # Average repeated samples for one exact benchmark case.
-    return sum(values) / len(values)
-
-
-def MeanAndCI(values: list[float]) -> tuple[float, float]:
-    valueCount: int = len(values)
-
-    # Mean latency across RUNS independent executions of the same benchmark case.
-    mean: float = Mean(values)
-
-    # Accumulate how far each run is from the mean.
-    squaredDeviationSum: float = 0.0
-
-    for value in values:
-        squaredDeviationSum += (value - mean) ** 2
-
-    # Use n - 1 because these RUNS are a sample of possible benchmark runs.
-    variance: float = squaredDeviationSum / (valueCount - 1)
-
-    # Standard deviation describes run-to-run spread in ns/op.
-    standardDeviation: float = math.sqrt(variance)
-
-    # Standard error describes uncertainty of the mean, not individual run spread.
-    standardError: float = standardDeviation / math.sqrt(valueCount)
-
-    # 95% CI half-width around the mean using Student's t for df = RUNS - 1.
-    ciHalf: float = T_95_D3 * standardError
-
-    return mean, ciHalf
 
 
 def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
@@ -161,7 +138,9 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
                 if metrics is None:
                     continue
 
-                latencyMean, latencyCI = MeanAndCI(metrics.NsPerOperation)
+                latencyMean, latencyCI = MeanAndConfidenceInterval(
+                    metrics.NsPerOperation, T_95
+                )
 
                 counts.append(attributeCount)
                 means.append(latencyMean / 1000.0)
@@ -313,7 +292,7 @@ def PlotFormatOverhead(results: dict[str, BenchmarkMetrics]) -> None:
             envelopeSize: float = Mean(metrics.EnvelopeBytes)
             rawSize: float = Mean(metrics.RawBytes)
 
-            # Overhead is the extra bytes the format adds beyond the raw fields, as a percentage of the raw size.
+            # Percentage growth from raw to envelope — X% such that raw + X% of raw = envelope.
             overheadPercent: float = (envelopeSize - rawSize) / rawSize * 100.0
 
             counts.append(attributeCount)
@@ -330,7 +309,7 @@ def PlotFormatOverhead(results: dict[str, BenchmarkMetrics]) -> None:
         )
 
     axis.set_xlabel("Attribute count")
-    axis.set_ylabel("Format overhead (% of raw fields)")
+    axis.set_ylabel("Format overhead (% growth over raw)")
     axis.set_xticks(ATTRIBUTE_COUNTS)
     axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
     axis.legend(fontsize=10)
@@ -390,15 +369,17 @@ def PlotAllocs(results: dict[str, BenchmarkMetrics]) -> None:
     print(f"Saved -> {ALLOCS_PNG_FILE}")
 
 
-def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
+def BuildOperationFormatTable(
+    results: dict[str, BenchmarkMetrics],
+    operation: str,
+    formatName: str,
+) -> str:
 
     lines: list[str] = []
 
     lines.append("<table>")
     lines.append("<thead>")
     lines.append("<tr>")
-    lines.append("<th>Op</th>")
-    lines.append("<th>Format</th>")
     lines.append("<th>Attributes</th>")
     lines.append("<th>Latency (ns/op)</th>")
     lines.append("<th>Raw (B)</th>")
@@ -406,54 +387,45 @@ def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
     lines.append("<th>Format Overhead (%)</th>")
     lines.append("<th>Memory (B/op)</th>")
     lines.append("<th>Allocs/op</th>")
-    lines.append("<th>Iters (Σ4 runs)</th>")
+    lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
     lines.append("</tr>")
     lines.append("</thead>")
     lines.append("<tbody>")
 
-    for operation in OPERATIONS:
+    for attributeCount in ATTRIBUTE_COUNTS:
 
-        for formatName in FORMATS:
+        benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
+        metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+        if metrics is None:
+            continue
 
-            for attributeCount in ATTRIBUTE_COUNTS:
+        latencyMean, latencyCI = MeanAndConfidenceInterval(metrics.NsPerOperation, T_95)
 
-                benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-                if metrics is None:
-                    continue
+        envelopeSize: float = Mean(metrics.EnvelopeBytes)
+        rawSize: float = Mean(metrics.RawBytes)
 
-                latencyMean, latencyCI = MeanAndCI(metrics.NsPerOperation)
+        overheadPercent: float = (envelopeSize - rawSize) / rawSize * 100.0
 
-                envelopeSize: float = Mean(metrics.EnvelopeBytes)
+        bytesPerOp: float = Mean(metrics.BytesPerOperation)
+        allocsPerOp: float = Mean(metrics.AllocsPerOperation)
 
-                rawSize: float = Mean(metrics.RawBytes)
+        caseIterations: int = 0
 
-                # Overhead is computed the same way on every row since raw and envelope size are both reported unconditionally.
-                overheadPercent: float = (envelopeSize - rawSize) / rawSize * 100.0
+        for iterationCount in metrics.Iterations:
+            caseIterations += iterationCount
 
-                bytesPerOp: float = Mean(metrics.BytesPerOperation)
+        latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
 
-                allocsPerOp: float = Mean(metrics.AllocsPerOperation)
-
-                caseIterations: int = 0
-
-                for iterationCount in metrics.Iterations:
-                    caseIterations += iterationCount
-
-                latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
-
-                lines.append("<tr>")
-                lines.append(f"<td>{operation}</td>")
-                lines.append(f"<td>{formatName}</td>")
-                lines.append(f"<td>{attributeCount}</td>")
-                lines.append(f"<td>{latencyText}</td>")
-                lines.append(f"<td>{rawSize:.0f}</td>")
-                lines.append(f"<td>{envelopeSize:.0f}</td>")
-                lines.append(f"<td>{overheadPercent:.2f}%</td>")
-                lines.append(f"<td>{bytesPerOp:.0f}</td>")
-                lines.append(f"<td>{allocsPerOp:.1f}</td>")
-                lines.append(f"<td>{caseIterations:,}</td>")
-                lines.append("</tr>")
+        lines.append("<tr>")
+        lines.append(f"<td>{attributeCount}</td>")
+        lines.append(f"<td>{latencyText}</td>")
+        lines.append(f"<td>{rawSize:.0f}</td>")
+        lines.append(f"<td>{envelopeSize:.0f}</td>")
+        lines.append(f"<td>{overheadPercent:.2f}%</td>")
+        lines.append(f"<td>{bytesPerOp:.0f}</td>")
+        lines.append(f"<td>{allocsPerOp:.1f}</td>")
+        lines.append(f"<td>{caseIterations:,}</td>")
+        lines.append("</tr>")
 
     lines.append("</tbody>")
     lines.append("</table>")
@@ -469,7 +441,15 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
         for iterationCount in metrics.Iterations:
             totalIterations += iterationCount
 
-    htmlTable: str = BuildHtmlTable(results)
+    # Four filtered tables instead of one crowded table — one per operation/format pair.
+    serializeJsonTable: str = BuildOperationFormatTable(results, "serialize", "JSON")
+    serializeCborTable: str = BuildOperationFormatTable(results, "serialize", "CBOR")
+    deserializeJsonTable: str = BuildOperationFormatTable(
+        results, "deserialize", "JSON"
+    )
+    deserializeCborTable: str = BuildOperationFormatTable(
+        results, "deserialize", "CBOR"
+    )
 
     with open(HTML_TEMPLATE_FILE, "r", encoding="utf-8") as file:
         template: str = file.read()
@@ -478,10 +458,13 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
 
     report = report.replace("{{RunCount}}", str(RUNS))
     report = report.replace("{{ConfidenceLevel}}", "95%")
-    report = report.replace("{{TMultiplier}}", str(T_95_D3))
+    report = report.replace("{{TMultiplier}}", str(T_95))
     report = report.replace("{{DegreesOfFreedom}}", str(RUNS - 1))
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
-    report = report.replace("{{SummaryTable}}", htmlTable)
+    report = report.replace("{{SerializeJsonTable}}", serializeJsonTable)
+    report = report.replace("{{SerializeCborTable}}", serializeCborTable)
+    report = report.replace("{{DeserializeJsonTable}}", deserializeJsonTable)
+    report = report.replace("{{DeserializeCborTable}}", deserializeCborTable)
     report = report.replace("{{LatencyPlot}}", "plot.png")
     report = report.replace("{{SizePlot}}", "size.png")
     report = report.replace("{{MemoryPlot}}", "memory.png")

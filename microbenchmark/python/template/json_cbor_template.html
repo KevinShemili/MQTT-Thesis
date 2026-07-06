@@ -194,18 +194,43 @@
             background: var(--cbor);
         }
 
+        /* Two tables side by side per row (Serialize row, Deserialize row). */
+        .table-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .table-row+.table-row {
+            margin-top: 18px;
+        }
+
+        .table-block {
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px;
+            /* Grid items default to min-width:auto, which blocks shrinking below content size and forces the whole page to scroll instead of just this card. Overriding to 0 lets the wrapper below actually contain overflow. */
+            min-width: 0;
+        }
+
+        .table-block h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+        }
+
         .table-wrapper {
             overflow-x: auto;
             border: 1px solid var(--border);
-            border-radius: 16px;
+            border-radius: 14px;
         }
 
         table {
+            /* No fixed min-width here — the table shrinks to fit its half of the two-column row. */
             width: 100%;
             border-collapse: collapse;
-            min-width: 980px;
             background: var(--surface);
-            font-size: 13px;
+            font-size: 12.5px;
         }
 
         thead {
@@ -214,19 +239,23 @@
 
         th {
             color: #26384d;
-            font-size: 12px;
-            letter-spacing: 0.04em;
+            font-size: 11px;
+            letter-spacing: 0.03em;
             text-transform: uppercase;
-            text-align: left;
-            padding: 12px 14px;
+            text-align: right;
+            padding: 10px 8px;
             border-bottom: 1px solid var(--border);
-            white-space: nowrap;
+            /* Headers wrap to two lines instead of forcing the table wider than its card. */
+            white-space: normal;
+            line-height: 1.25;
         }
 
         td {
-            padding: 11px 14px;
+            padding: 9px 8px;
             border-bottom: 1px solid #edf1f5;
             white-space: nowrap;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
         tbody tr:nth-child(even) {
@@ -235,17 +264,6 @@
 
         tbody tr:hover {
             background: #f1f7fd;
-        }
-
-        td:nth-child(3),
-        td:nth-child(4),
-        td:nth-child(5),
-        td:nth-child(6),
-        td:nth-child(7),
-        td:nth-child(8),
-        td:nth-child(9) {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
         }
 
         code {
@@ -291,6 +309,10 @@
             .section {
                 padding: 20px;
             }
+
+            .table-row {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -305,28 +327,28 @@
             <p>
                 Container-generated benchmark artifact comparing envelope serialize and deserialize latency,
                 encoded size, format overhead, and memory cost across CP-ABE policy attribute counts, with
-                the AES-GCM payload fixed at 256 bytes.
+                the AES-GCM payload held at a fixed size.
             </p>
         </section>
 
         <section class="metadata">
             <div class="card">
-                <div class="card-label">Independent runs</div>
+                <div class="card-label">Independent Runs</div>
                 <div class="card-value">{{RunCount}}</div>
             </div>
 
             <div class="card">
-                <div class="card-label">Confidence interval</div>
+                <div class="card-label">Confidence Interval</div>
                 <div class="card-value">{{ConfidenceLevel}}</div>
             </div>
 
             <div class="card">
-                <div class="card-label">Student t</div>
+                <div class="card-label">Student T</div>
                 <div class="card-value">{{TMultiplier}}</div>
             </div>
 
             <div class="card">
-                <div class="card-label">Serialization operations</div>
+                <div class="card-label">Total Operations</div>
                 <div class="card-value">{{TotalIterations}}</div>
             </div>
         </section>
@@ -338,14 +360,15 @@
             df={{DegreesOfFreedom}}. Each envelope bundles a real CP-ABE ciphertext (grown from an
             actual TKN20 policy of the given attribute count) with a fixed-size AES-GCM nonce and
             ciphertext; only the marshal/unmarshal cost is timed, not the cryptography that produced
-            the fields. Format overhead is the extra bytes each format adds beyond those raw fields.
+            the fields. Format overhead is the percentage by which serialization grows the raw field
+            bytes.
         </section>
 
         <section class="section">
             <h2>Figures</h2>
 
             <p>
-                The plots summarize the same measurements shown in the numerical table.
+                The plots summarize the same measurements shown in the numerical tables.
                 Latency is shown with confidence intervals.
             </p>
 
@@ -392,7 +415,7 @@
                 <article class="plot-card">
                     <h3>Format overhead vs attribute count</h3>
                     <p>
-                        Extra bytes each format adds beyond the raw field lengths, as a percentage.
+                        Percentage growth from raw field bytes to serialized envelope bytes.
                         Isolates the packing cost from CP-ABE ciphertext growth.
                     </p>
                     <img src="{{OverheadPlot}}" alt="Format overhead plot">
@@ -413,12 +436,40 @@
             <h2>Numerical summary</h2>
 
             <p>
-                The table contains the full benchmark summary used by the plots.
-                Latency is expressed as mean ± confidence interval.
+                Serialize results appear first, deserialize results below. JSON and CBOR sit
+                side by side within each row for direct comparison.
             </p>
 
-            <div class="table-wrapper">
-                {{SummaryTable}}
+            <div class="table-row">
+                <div class="table-block">
+                    <h3>Serialize — JSON</h3>
+                    <div class="table-wrapper">
+                        {{SerializeJsonTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Serialize — CBOR</h3>
+                    <div class="table-wrapper">
+                        {{SerializeCborTable}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-row">
+                <div class="table-block">
+                    <h3>Deserialize — JSON</h3>
+                    <div class="table-wrapper">
+                        {{DeserializeJsonTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Deserialize — CBOR</h3>
+                    <div class="table-wrapper">
+                        {{DeserializeCborTable}}
+                    </div>
+                </div>
             </div>
         </section>
 

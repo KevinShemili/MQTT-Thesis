@@ -3,18 +3,13 @@ package cryptography
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"project/utils"
 )
 
 type AESGCM struct {
 	cipher.AEAD
 }
 
-func NewAESGCM() AESGCM {
-
-	keySize := utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE")
-
-	key := utils.GenerateRandomBytes(keySize)
+func NewAESGCM(key []byte) AESGCM {
 
 	// AES provides the block cipher
 	block, err := aes.NewCipher(key)

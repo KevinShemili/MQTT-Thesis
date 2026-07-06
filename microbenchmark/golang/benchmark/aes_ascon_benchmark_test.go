@@ -13,8 +13,8 @@ var payloadList []int = utils.ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES")
 func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
 	// Construct ciphers outside timed benchmarks
-	var aesGcm cipher.AEAD = cryptography.NewAESGCM().AEAD
-	var ascon cipher.AEAD = cryptography.NewASCON().AEAD
+	var aesGcm cipher.AEAD = cryptography.NewAESGCM(utils.GenerateRandomBytes(utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"))).AEAD
+	var ascon cipher.AEAD = cryptography.NewASCON(utils.GenerateRandomBytes(utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"))).AEAD
 
 	// Construct nonces outside timed benchmarks
 	// Normally reusing nonce is insecure, but acceptable here because ciphertexts are discarded benchmark artifacts
@@ -67,8 +67,8 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
 	// Construct ciphers outside timed benchmarks
-	var aesGcm cipher.AEAD = cryptography.NewAESGCM().AEAD
-	var ascon cipher.AEAD = cryptography.NewASCON().AEAD
+	var aesGcm cipher.AEAD = cryptography.NewAESGCM(utils.GenerateRandomBytes(utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"))).AEAD
+	var ascon cipher.AEAD = cryptography.NewASCON(utils.GenerateRandomBytes(utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"))).AEAD
 
 	// Construct nonces outside timed benchmarks
 	var aesGcmNonce []byte = utils.GenerateRandomBytes(aesGcm.NonceSize())

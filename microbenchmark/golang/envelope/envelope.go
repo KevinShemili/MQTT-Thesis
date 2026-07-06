@@ -6,19 +6,15 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-// Envelope bundles the CP-ABE protected session key with the AES-GCM protected payload for one MQTT message.
 type Envelope struct {
-	CpAbeCiphertext []byte `json:"cpAbeCiphertext" cbor:"cpAbeCiphertext"`
-	Nonce           []byte `json:"nonce" cbor:"nonce"`
-	Ciphertext      []byte `json:"ciphertext" cbor:"ciphertext"`
+	ABECiphertext []byte `json:"ABECiphertext" cbor:"ABECiphertext"`
+	Nonce         []byte `json:"nonce" cbor:"nonce"`
+	AESCiphertext []byte `json:"AESCiphertext" cbor:"AESCiphertext"`
 }
 
-// SerializeJson marshals the envelope into JSON bytes; []byte fields are base64-encoded by encoding/json by default.
-func SerializeJson(env Envelope) []byte {
-	var data []byte
-	var err error
+func SerializeJSON(env Envelope) []byte {
 
-	data, err = json.Marshal(env)
+	data, err := json.Marshal(env)
 	if err != nil {
 		panic(err)
 	}
@@ -26,10 +22,10 @@ func SerializeJson(env Envelope) []byte {
 	return data
 }
 
-// DeserializeJson unmarshals JSON bytes back into an Envelope.
-func DeserializeJson(data []byte) Envelope {
+func DeserializeJSON(data []byte) Envelope {
+
 	var env Envelope
-	var err error = json.Unmarshal(data, &env)
+	err := json.Unmarshal(data, &env)
 	if err != nil {
 		panic(err)
 	}
@@ -37,12 +33,9 @@ func DeserializeJson(data []byte) Envelope {
 	return env
 }
 
-// SerializeCbor marshals the envelope into CBOR bytes; []byte fields are encoded natively, no base64 expansion.
-func SerializeCbor(env Envelope) []byte {
-	var data []byte
-	var err error
+func SerializeCBOR(env Envelope) []byte {
 
-	data, err = cbor.Marshal(env)
+	data, err := cbor.Marshal(env)
 	if err != nil {
 		panic(err)
 	}
@@ -50,10 +43,10 @@ func SerializeCbor(env Envelope) []byte {
 	return data
 }
 
-// DeserializeCbor unmarshals CBOR bytes back into an Envelope.
-func DeserializeCbor(data []byte) Envelope {
+func DeserializeCBOR(data []byte) Envelope {
+
 	var env Envelope
-	var err error = cbor.Unmarshal(data, &env)
+	err := cbor.Unmarshal(data, &env)
 	if err != nil {
 		panic(err)
 	}

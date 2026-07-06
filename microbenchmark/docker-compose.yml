@@ -18,6 +18,7 @@ services:
       dockerfile: Dockerfile
     container_name: json-cbor-benchmark
     restart: "no"
+    tty: true
     env_file:
       - ./config/benchmark.env
     volumes:

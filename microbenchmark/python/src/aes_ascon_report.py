@@ -9,7 +9,7 @@ from matplotlib.ticker import FuncFormatter
 from utils.statistics import GetStudentTCriticalValue95
 from utils.statistics import Mean
 from utils.statistics import MeanAndConfidenceInterval
-from utils.env_parser import ParseIntListFromEnv
+from utils.parser import ParseIntListFromEnv
 
 BENCH_FILE: str = "/results/aes-ascon/bench_output.txt"
 PNG_FILE: str = "/results/aes-ascon/plot.png"
