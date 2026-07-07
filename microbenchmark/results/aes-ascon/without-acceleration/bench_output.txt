@@ -1,0 +1,61 @@
+goos: linux
+goarch: amd64
+pkg: project/benchmark
+cpu: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
+BenchmarkAESASCONEncrypt/AES-GCM/16B         	17354295	       343.8 ns/op	  46.54 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/16B         	16786370	       339.1 ns/op	  47.19 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/16B           	32649058	       188.3 ns/op	  84.98 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/16B           	32086819	       189.4 ns/op	  84.50 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/64B         	 9143079	       671.1 ns/op	  95.36 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/64B         	 9063544	       670.8 ns/op	  95.41 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/64B           	15926803	       374.4 ns/op	 170.92 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/64B           	16199329	       378.8 ns/op	 168.94 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/256B        	 2983581	      2035 ns/op	 125.80 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/256B        	 2959050	      2015 ns/op	 127.06 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/256B          	 5339936	      1126 ns/op	 227.42 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/256B          	 5302473	      1133 ns/op	 225.93 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/1024B       	  789663	      7315 ns/op	 139.99 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/1024B       	  812272	      7537 ns/op	 135.86 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/1024B         	 1479849	      4061 ns/op	 252.16 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/1024B         	 1473790	      4067 ns/op	 251.80 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/4096B       	  213640	     28736 ns/op	 142.54 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/4096B       	  205620	     28638 ns/op	 143.03 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/4096B         	  386685	     15773 ns/op	 259.69 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/4096B         	  386334	     15791 ns/op	 259.39 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/16384B      	   52926	    113458 ns/op	 144.41 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/16384B      	   53198	    113084 ns/op	 144.88 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/16384B        	   94914	     62247 ns/op	 263.21 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/16384B        	   97704	     62081 ns/op	 263.91 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/65536B      	   13017	    459755 ns/op	 142.55 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/AES-GCM/65536B      	   13137	    456418 ns/op	 143.59 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/65536B        	   23865	    252002 ns/op	 260.06 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONEncrypt/ASCON/65536B        	   23599	    254749 ns/op	 257.26 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/16B         	16864306	       342.3 ns/op	  46.75 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/16B         	17791177	       345.5 ns/op	  46.31 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/16B           	30890881	       192.1 ns/op	  83.27 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/16B           	31269636	       191.9 ns/op	  83.40 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/64B         	 8776740	       669.0 ns/op	  95.67 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/64B         	 8578980	       676.3 ns/op	  94.63 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/64B           	15752949	       381.4 ns/op	 167.81 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/64B           	15829033	       381.1 ns/op	 167.95 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/256B        	 2919879	      2060 ns/op	 124.26 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/256B        	 2986960	      2002 ns/op	 127.90 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/256B          	 5354534	      1129 ns/op	 226.74 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/256B          	 5277670	      1130 ns/op	 226.50 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/1024B       	  839193	      7360 ns/op	 139.13 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/1024B       	  762916	      7368 ns/op	 138.98 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/1024B         	 1477956	      4092 ns/op	 250.26 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/1024B         	 1433392	      4141 ns/op	 247.29 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/4096B       	  208489	     28968 ns/op	 141.40 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/4096B       	  212086	     29286 ns/op	 139.86 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/4096B         	  374551	     16389 ns/op	 249.93 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/4096B         	  358333	     16436 ns/op	 249.20 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/16384B      	   51240	    118493 ns/op	 138.27 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/16384B      	   50166	    117826 ns/op	 139.05 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/16384B        	   93876	     63532 ns/op	 257.89 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/16384B        	   89264	     63963 ns/op	 256.15 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/65536B      	   12813	    468179 ns/op	 139.98 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/AES-GCM/65536B      	   12842	    463211 ns/op	 141.48 MB/s	        28.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/65536B        	   23886	    253265 ns/op	 258.76 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+BenchmarkAESASCONDecrypt/ASCON/65536B        	   23160	    255246 ns/op	 256.76 MB/s	        32.00 wire_overhead_bytes/op	       0 B/op	       0 allocs/op
+PASS

@@ -6,16 +6,17 @@ matplotlib.use("Agg")
 import sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+from utils.parser import ParseIntListFromEnv
 from utils.statistics import GetStudentTCriticalValue95
 from utils.statistics import Mean
 from utils.statistics import MeanAndConfidenceInterval
-from utils.parser import ParseIntListFromEnv
 
-BENCH_FILE: str = "/results/aes-ascon/bench_output.txt"
-PNG_FILE: str = "/results/aes-ascon/plot.png"
-THROUGHPUT_PNG_FILE: str = "/results/aes-ascon/throughput.png"
-OVERHEAD_PNG_FILE: str = "/results/aes-ascon/overhead.png"
-HTML_FILE: str = "/results/aes-ascon/report.html"
+RESULT_DIR: str = os.environ.get("AES_ASCON_RESULT_DIR", "/results/aes-ascon")
+
+BENCH_FILE: str = os.path.join(RESULT_DIR, "bench_output.txt")
+PNG_FILE: str = os.path.join(RESULT_DIR, "plot.png")
+THROUGHPUT_PNG_FILE: str = os.path.join(RESULT_DIR, "throughput.png")
+HTML_FILE: str = os.path.join(RESULT_DIR, "report.html")
 HTML_TEMPLATE_FILE: str = "/app/template/aes_ascon_template.html"
 
 RUNS: int = int(os.environ["AES_ASCON_RUNS"])
@@ -81,10 +82,12 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
             if not benchmarkName.startswith(prefix):
                 continue
 
-            operation, algorithm, payloadText, *_ = benchmarkName[len(prefix) :].split(
-                "/"
-            )
-            operation = operation.lower()
+            benchmarkParts: list[str] = benchmarkName[len(prefix) :].split("/")
+
+            operation: str = benchmarkParts[0].lower()
+            algorithm: str = benchmarkParts[1]
+            payloadText: str = benchmarkParts[2]
+
             payloadSize: int = int(payloadText.split("-")[0].replace("B", ""))
 
             benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
@@ -101,6 +104,7 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
             iterationCount: int = int(fields[1])
 
             metricsByUnit: dict[str, float] = {}
+
             for index in range(2, len(fields) - 1, 2):
                 unitName: str = fields[index + 1]
                 metricsByUnit[unitName] = float(fields[index])
@@ -134,11 +138,13 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
 
                 benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
                 metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+
                 if metrics is None:
                     continue
 
                 latencyMean, latencyCI = MeanAndConfidenceInterval(
-                    metrics.NsPerOperation, T_95
+                    metrics.NsPerOperation,
+                    T_95,
                 )
 
                 sizes.append(payloadSize)
@@ -196,12 +202,13 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
 
                 benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
                 metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+
                 if metrics is None:
                     continue
 
-                # Same mean-and-spread routine used for latency, applied to the per-run throughput samples
                 throughputMean, throughputCI = MeanAndConfidenceInterval(
-                    metrics.MbPerSecond, T_95
+                    metrics.MbPerSecond,
+                    T_95,
                 )
 
                 sizes.append(payloadSize)
@@ -222,7 +229,7 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
 
         axis.set_title(operation.capitalize(), fontsize=11)
         axis.set_xlabel("Payload size")
-        axis.set_ylabel("Throughput (MB/s)")
+        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
         axis.set_xscale("log", base=2)
         axis.set_yscale("log")
         axis.set_xticks(PAYLOAD_SIZES)
@@ -238,140 +245,73 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
     print(f"Saved -> {THROUGHPUT_PNG_FILE}")
 
 
-def PlotOverhead(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axis = plt.subplots(figsize=(8, 5))
-
-    figure.suptitle(
-        "AES-GCM vs ASCON (Tag + Nonce Share vs Payload Size)",
-        fontsize=13,
-    )
-
-    for algorithm in ALGORITHMS:
-
-        percentages: list[float] = []
-        sizes: list[int] = []
-
-        for payloadSize in PAYLOAD_SIZES:
-
-            benchmarkCaseId: str = f"encrypt/{algorithm}/{payloadSize}"
-            metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-            if metrics is None:
-                continue
-
-            overheadBytes: float = Mean(metrics.OverheadBytes)
-            messageSize: float = float(payloadSize) + overheadBytes
-            overheadPercent: float = overheadBytes / messageSize * 100.0
-
-            sizes.append(payloadSize)
-            percentages.append(overheadPercent)
-
-        axis.plot(
-            sizes,
-            percentages,
-            label=algorithm,
-            color=GetAlgorithmColor(algorithm),
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
-
-    axis.set_xlabel("Payload Size")
-    axis.set_ylabel("Tag + Nonce (% of message size)")
-    axis.set_xscale("log", base=2)
-    axis.set_yscale("log")
-    axis.set_xticks(PAYLOAD_SIZES)
-    axis.xaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: FormatBytes(int(value)))
-    )
-    axis.tick_params(axis="x", rotation=30)
-    axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
-    axis.legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(OVERHEAD_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {OVERHEAD_PNG_FILE}")
-
-
-def BuildHtmlTable(results: dict[str, BenchmarkMetrics]) -> str:
+def BuildOperationAlgorithmTable(
+    results: dict[str, BenchmarkMetrics],
+    operation: str,
+    algorithm: str,
+) -> str:
 
     lines: list[str] = []
 
     lines.append("<table>")
     lines.append("<thead>")
     lines.append("<tr>")
-    lines.append("<th>Op</th>")
-    lines.append("<th>Algorithm</th>")
     lines.append("<th>Payload</th>")
     lines.append("<th>Latency (ns/op)</th>")
     lines.append("<th>Throughput (MB/s)</th>")
     lines.append("<th>Tag + Nonce (B)</th>")
-    lines.append("<th>Message Size (B)</th>")
-    lines.append("<th>Overhead (%)</th>")
     lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
     lines.append("</tr>")
     lines.append("</thead>")
     lines.append("<tbody>")
 
-    for operation in OPERATIONS:
+    for payloadSize in PAYLOAD_SIZES:
 
-        for algorithm in ALGORITHMS:
+        benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
+        metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
 
-            for payloadSize in PAYLOAD_SIZES:
+        if metrics is None:
+            continue
 
-                benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-                if metrics is None:
-                    continue
+        latencyMean, latencyCI = MeanAndConfidenceInterval(
+            metrics.NsPerOperation,
+            T_95,
+        )
 
-                latencyMean, latencyCI = MeanAndConfidenceInterval(
-                    metrics.NsPerOperation, T_95
-                )
+        throughput: float = 0.0
+        throughputCI: float = 0.0
 
-                throughput: float = 0.0
-                throughputCI: float = 0.0
+        if len(metrics.MbPerSecond) > 0:
+            throughput, throughputCI = MeanAndConfidenceInterval(
+                metrics.MbPerSecond,
+                T_95,
+            )
 
-                if len(metrics.MbPerSecond) > 0:
-                    throughput, throughputCI = MeanAndConfidenceInterval(
-                        metrics.MbPerSecond, T_95
-                    )
+        overhead: float = 0.0
 
-                overhead: float = 0.0
+        if len(metrics.OverheadBytes) > 0:
+            overhead = Mean(metrics.OverheadBytes)
 
-                if len(metrics.OverheadBytes) > 0:
-                    overhead = Mean(metrics.OverheadBytes)
+        caseIterations: int = 0
 
-                messageSize: float = float(payloadSize) + overhead
+        for iterationCount in metrics.Iterations:
+            caseIterations += iterationCount
 
-                overheadPercent: float = 0.0
+        latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
+        throughputText: str = f"{throughput:.1f} ± {throughputCI:.1f}"
 
-                if messageSize > 0:
-                    overheadPercent = overhead / messageSize * 100.0
+        overheadText: str = "—"
 
-                caseIterations: int = 0
+        if overhead != 0.0:
+            overheadText = f"{overhead:.0f}"
 
-                for iterationCount in metrics.Iterations:
-                    caseIterations += iterationCount
-
-                latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
-                throughputText: str = f"{throughput:.1f} ± {throughputCI:.1f}"
-
-                overheadText: str = "—"
-
-                if overhead != 0.0:
-                    overheadText = f"{overhead:.0f}"
-
-                lines.append("<tr>")
-                lines.append(f"<td>{operation}</td>")
-                lines.append(f"<td>{algorithm}</td>")
-                lines.append(f"<td>{FormatBytes(payloadSize)}</td>")
-                lines.append(f"<td>{latencyText}</td>")
-                lines.append(f"<td>{throughputText}</td>")
-                lines.append(f"<td>{overheadText}</td>")
-                lines.append(f"<td>{messageSize:.0f}</td>")
-                lines.append(f"<td>{overheadPercent:.2f}%</td>")
-                lines.append(f"<td>{caseIterations:,}</td>")
-                lines.append("</tr>")
+        lines.append("<tr>")
+        lines.append(f"<td>{FormatBytes(payloadSize)}</td>")
+        lines.append(f"<td>{latencyText}</td>")
+        lines.append(f"<td>{throughputText}</td>")
+        lines.append(f"<td>{overheadText}</td>")
+        lines.append(f"<td>{caseIterations:,}</td>")
+        lines.append("</tr>")
 
     lines.append("</tbody>")
     lines.append("</table>")
@@ -387,7 +327,29 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
         for iterationCount in metrics.Iterations:
             totalIterations += iterationCount
 
-    htmlTable: str = BuildHtmlTable(results)
+    encryptAesTable: str = BuildOperationAlgorithmTable(
+        results,
+        "encrypt",
+        "AES-GCM",
+    )
+
+    encryptAsconTable: str = BuildOperationAlgorithmTable(
+        results,
+        "encrypt",
+        "ASCON",
+    )
+
+    decryptAesTable: str = BuildOperationAlgorithmTable(
+        results,
+        "decrypt",
+        "AES-GCM",
+    )
+
+    decryptAsconTable: str = BuildOperationAlgorithmTable(
+        results,
+        "decrypt",
+        "ASCON",
+    )
 
     with open(HTML_TEMPLATE_FILE, "r", encoding="utf-8") as file:
         template: str = file.read()
@@ -399,10 +361,12 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
     report = report.replace("{{TMultiplier}}", str(T_95))
     report = report.replace("{{DegreesOfFreedom}}", str(RUNS - 1))
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
-    report = report.replace("{{SummaryTable}}", htmlTable)
+    report = report.replace("{{EncryptAesTable}}", encryptAesTable)
+    report = report.replace("{{EncryptAsconTable}}", encryptAsconTable)
+    report = report.replace("{{DecryptAesTable}}", decryptAesTable)
+    report = report.replace("{{DecryptAsconTable}}", decryptAsconTable)
     report = report.replace("{{LatencyPlot}}", "plot.png")
     report = report.replace("{{ThroughputPlot}}", "throughput.png")
-    report = report.replace("{{OverheadPlot}}", "overhead.png")
 
     with open(HTML_FILE, "w", encoding="utf-8") as file:
         file.write(report)
@@ -419,7 +383,6 @@ def Main() -> None:
 
     PlotLatency(results)
     PlotThroughput(results)
-    PlotOverhead(results)
     WriteHtmlReport(results)
 
 

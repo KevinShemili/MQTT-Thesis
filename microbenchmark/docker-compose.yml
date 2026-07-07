@@ -1,16 +1,29 @@
 services:
-  aes-ascon:
+  aes-ascon-with-acceleration:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: aes-ascon-benchmark
+    container_name: aes-ascon-with-acceleration-benchmark
     restart: "no"
     tty: true
     env_file:
       - ./config/benchmark.env
     volumes:
       - ./results:/results
-    command: ["./run-aes-ascon.sh"]
+    command: ["./run-aes-ascon-with-acceleration.sh"]
+
+  aes-ascon-without-acceleration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aes-ascon-without-acceleration-benchmark
+    restart: "no"
+    tty: true
+    env_file:
+      - ./config/benchmark.env
+    volumes:
+      - ./results:/results
+    command: ["./run-aes-ascon-without-acceleration.sh"]
 
   json-cbor:
     build:
