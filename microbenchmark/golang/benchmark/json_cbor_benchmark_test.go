@@ -41,8 +41,14 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			AESCiphertext: aesCiphertext,
 		}
 
+		envKeyAsInt := envelope.EnvelopeIntKeys{
+			ABECiphertext: abeCiphertext,
+			Nonce:         nonce,
+			AESCiphertext: aesCiphertext,
+		}
+
 		// Size before JSON / CBOR overhead is added
-		rawSize := len(env.ABECiphertext) + len(env.Nonce) + len(env.AESCiphertext)
+		rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
 
 		benchmark.Run(fmt.Sprintf("JSON/%dAttrs", attributeCount), func(b *testing.B) {
 
@@ -55,7 +61,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
-			b.ReportAllocs()
 		})
 
 		benchmark.Run(fmt.Sprintf("CBOR/%dAttrs", attributeCount), func(b *testing.B) {
@@ -68,7 +73,18 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
-			b.ReportAllocs()
+		})
+
+		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dAttrs", attributeCount), func(b *testing.B) {
+
+			cborKeyAsIntEnvelopeSize := len(envelope.SerializeCBORKeyAsInt(envKeyAsInt))
+
+			for b.Loop() {
+				envelope.SerializeCBORKeyAsInt(envKeyAsInt)
+			}
+
+			b.ReportMetric(float64(cborKeyAsIntEnvelopeSize), "envelope_bytes/op")
+			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 		})
 	}
 }
@@ -103,12 +119,19 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			AESCiphertext: aesCiphertext,
 		}
 
+		envKeyAsInt := envelope.EnvelopeIntKeys{
+			ABECiphertext: abeCiphertext,
+			Nonce:         nonce,
+			AESCiphertext: aesCiphertext,
+		}
+
 		// Size before JSON / CBOR overhead is added
 		rawSize := len(env.ABECiphertext) + len(env.Nonce) + len(env.AESCiphertext)
 
 		// Serialize the envelope to JSON and CBOR outside timed benchmarks
 		jsonSerializedEnvelope := envelope.SerializeJSON(env)
 		cborSerializedEnvelope := envelope.SerializeCBOR(env)
+		cborKeyAsIntSerializedEnvelope := envelope.SerializeCBORKeyAsInt(envKeyAsInt)
 
 		benchmark.Run(fmt.Sprintf("JSON/%dAttrs", attributeCount), func(b *testing.B) {
 
@@ -118,7 +141,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(len(jsonSerializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
-			b.ReportAllocs()
 		})
 
 		benchmark.Run(fmt.Sprintf("CBOR/%dAttrs", attributeCount), func(b *testing.B) {
@@ -129,7 +151,16 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(len(cborSerializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
-			b.ReportAllocs()
+		})
+
+		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dAttrs", attributeCount), func(b *testing.B) {
+
+			for b.Loop() {
+				envelope.DeserializeCBORKeyAsInt(cborKeyAsIntSerializedEnvelope)
+			}
+
+			b.ReportMetric(float64(len(cborKeyAsIntSerializedEnvelope)), "envelope_bytes/op")
+			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 		})
 	}
 }

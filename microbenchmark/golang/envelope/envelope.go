@@ -7,9 +7,17 @@ import (
 )
 
 type Envelope struct {
-	ABECiphertext []byte `json:"ABECiphertext" cbor:"ABECiphertext"`
+	ABECiphertext []byte `json:"abeCiphertext" cbor:"abeCiphertext"`
 	Nonce         []byte `json:"nonce" cbor:"nonce"`
-	AESCiphertext []byte `json:"AESCiphertext" cbor:"AESCiphertext"`
+	AESCiphertext []byte `json:"aesCiphertext" cbor:"aesCiphertext"`
+}
+
+// Same, but each field is tagged with a small integer CBOR key
+// instead of a string name
+type EnvelopeIntKeys struct {
+	ABECiphertext []byte `cbor:"0,keyasint"`
+	Nonce         []byte `cbor:"1,keyasint"`
+	AESCiphertext []byte `cbor:"2,keyasint"`
 }
 
 func SerializeJSON(env Envelope) []byte {
@@ -46,6 +54,27 @@ func SerializeCBOR(env Envelope) []byte {
 func DeserializeCBOR(data []byte) Envelope {
 
 	var env Envelope
+	err := cbor.Unmarshal(data, &env)
+	if err != nil {
+		panic(err)
+	}
+
+	return env
+}
+
+func SerializeCBORKeyAsInt(env EnvelopeIntKeys) []byte {
+
+	data, err := cbor.Marshal(env)
+	if err != nil {
+		panic(err)
+	}
+
+	return data
+}
+
+func DeserializeCBORKeyAsInt(data []byte) EnvelopeIntKeys {
+
+	var env EnvelopeIntKeys
 	err := cbor.Unmarshal(data, &env)
 	if err != nil {
 		panic(err)

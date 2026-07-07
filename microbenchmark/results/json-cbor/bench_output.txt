@@ -2,196 +2,292 @@ goos: linux
 goarch: amd64
 pkg: project/benchmark
 cpu: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1834369	      3147 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1903416	      3060 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1827860	      3211 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1927422	      3042 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1876748	      3096 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1868408	      3253 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1718386	      3304 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/1Attrs         	 1880810	      3115 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	10859726	       566.4 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 9346006	       600.5 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 9142791	       594.5 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 8530554	       619.5 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 9759628	       597.2 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 8887714	       601.0 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 9508815	       619.8 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/1Attrs         	 9390555	       622.7 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1827991	      3309 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1690725	      3444 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1742182	      3374 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1700677	      3439 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1711453	      3458 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1700644	      3459 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1696491	      3513 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1712037	      3470 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    4176 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 9163054	       600.8 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 9142842	       641.9 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 8642283	       620.9 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 9040149	       620.3 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 8560161	       612.1 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 9363045	       610.7 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 9039885	       612.4 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/2Attrs         	 9307999	       618.3 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3152 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1335074	      4457 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1326708	      4486 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1325608	      4509 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1320034	      4480 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1289752	      4594 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1254652	      4709 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1310314	      4529 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1323369	      4483 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 8072106	       762.1 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 6874428	       800.4 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7034526	       787.8 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 6989977	       800.5 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 6845395	       858.5 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 6093213	       893.7 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 6746988	       855.0 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 6602539	       878.7 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4944 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  883527	      6958 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  848379	      7227 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  856773	      6989 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  890913	      7277 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  939489	      7112 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  812175	      7247 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  880908	      6949 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/10Attrs        	  977534	      6938 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    8272 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 6060822	      1012 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5130770	      1083 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5312853	      1044 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5622765	       988.8 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5121258	      1015 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5432662	       998.4 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5466766	       991.9 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 5614622	       977.9 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6224 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  632563	      9571 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  618696	      9843 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  602796	      9930 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  604947	     10034 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  594201	     10074 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  587913	      9923 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  609564	      9805 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/20Attrs        	  600436	     10478 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   13648 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4970419	      1193 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4410153	      1231 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4560331	      1201 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4506001	      1230 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4394163	      1210 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4203061	      1287 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4150802	      1244 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/20Attrs        	 4400425	      1244 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9552 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  261393	     20421 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  299366	     20708 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  276855	     20814 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  308998	     20949 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  278776	     20605 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  307273	     20692 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  307312	     20447 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/JSON/50Attrs        	  304069	     20484 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   27345 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2316680	      2559 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2238458	      2582 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2207629	      2648 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2111944	      2649 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2158077	      2693 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2197700	      2632 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2206042	      2719 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeSerialize/CBOR/50Attrs        	 2160870	      2625 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20560 B/op	       2 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  335151	     18670 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  322586	     18956 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  324408	     18959 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  330429	     18869 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  328442	     18797 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  322851	     18991 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  305991	     19007 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/1Attrs       	  305755	     18922 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op	    3288 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 5322984	      1102 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4771630	      1153 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4955929	      1135 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4764657	      1150 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4962297	      1153 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4932356	      1128 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4809757	      1172 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/1Attrs       	 4811626	      1139 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op	    3072 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  290124	     20949 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  297366	     21260 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  285643	     20820 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  286972	     20783 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  286228	     20822 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  284520	     21760 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  287538	     21113 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/2Attrs       	  283033	     21168 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op	    3672 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5668365	      1034 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5210262	      1080 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5281461	      1078 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5046516	      1086 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 4977121	      1091 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5289906	      1085 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5312406	      1061 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/2Attrs       	 5127195	      1066 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op	    3456 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  220459	     28199 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  186888	     28692 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  225595	     27889 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  211653	     27747 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  199267	     28181 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  208288	     28686 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  214974	     28425 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/5Attrs       	  215344	     27764 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op	    4696 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4571338	      1322 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4159801	      1334 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4094715	      1352 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4107176	      1367 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4036575	      1382 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4275086	      1318 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4091794	      1346 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/5Attrs       	 4140078	      1379 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op	    4480 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  152497	     38820 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  152714	     38792 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  153422	     38611 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  143060	     40050 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  155433	     39442 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  144142	     39843 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  148384	     38989 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/10Attrs      	  149774	     40206 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op	    6744 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 4290457	      1391 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3893271	      1414 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3835356	      1456 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3875155	      1415 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3941443	      1438 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3918627	      1433 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3885572	      1435 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/10Attrs      	 3902860	      1431 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op	    6528 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   97533	     62326 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   92497	     60994 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   91993	     61934 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   94696	     63911 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   95208	     62725 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   91084	     64073 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   92443	     63167 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/20Attrs      	   93166	     61524 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op	   10072 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3769945	      1599 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3326970	      1661 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3399781	      1668 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3307014	      1656 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3365412	      1654 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3299242	      1672 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3296599	      1680 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/20Attrs      	 3263104	      1703 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op	    9856 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   45661	    130952 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   42460	    132474 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   43030	    131260 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   42346	    130163 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   43375	    131463 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   41046	    132541 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   44462	    129871 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/JSON/50Attrs      	   42942	    130588 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op	   21080 B/op	       8 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 2149765	      2776 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 2020508	      2899 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 2040529	      2954 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 1996923	      2877 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 1978881	      2919 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 1999992	      2887 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 1906002	      3044 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
-BenchmarkEnvelopeDeserialize/CBOR/50Attrs      	 1963783	      2994 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op	   20864 B/op	       4 allocs/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2177770	      2760 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2179010	      2748 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2176798	      2752 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2161100	      2787 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2150493	      2788 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2161585	      2770 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2127547	      2777 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/1Attrs         	 2154640	      2773 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11577499	       522.9 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11404666	       525.1 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11388998	       518.9 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11049180	       525.1 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11615436	       523.0 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11882739	       516.2 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11310360	       542.6 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/1Attrs         	11238408	       526.9 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10509069	       566.5 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10846048	       553.1 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10864274	       564.5 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10426884	       567.2 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10571994	       569.5 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10833798	       571.2 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	10590960	       570.5 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/1Attrs 	11008022	       563.5 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1952391	      3055 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1955853	      3129 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1936306	      3076 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1981944	      3037 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1974577	      3049 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1920325	      3081 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1982169	      3023 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/2Attrs         	 1930309	      3090 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11531340	       522.0 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11463333	       533.0 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11184198	       528.6 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11642229	       528.3 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11262621	       530.4 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11086024	       540.2 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11259777	       530.8 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/2Attrs         	11559372	       528.3 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11819068	       517.5 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11744692	       515.9 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11627913	       516.4 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11889799	       536.8 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	10366936	       542.2 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11344990	       528.3 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11845064	       528.2 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/2Attrs 	11125988	       548.5 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1336477	      4424 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1400240	      4260 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1434469	      4181 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1394641	      4296 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1406593	      4269 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1395136	      4291 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1379953	      4423 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/5Attrs         	 1311406	      4605 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7780550	       800.0 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7827043	       750.7 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7738662	       792.2 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 8013079	       787.6 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7654210	       773.2 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7783209	       786.4 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7831338	       772.0 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/5Attrs         	 7431416	       774.2 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 7414084	       828.8 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 7403629	       829.2 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 7095902	       772.2 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 8033608	       750.0 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 7544835	       754.3 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 8211549	       748.2 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 8056032	       748.0 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/5Attrs 	 7532978	       772.4 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	 1000000	      5871 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	  995838	      5905 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	 1000000	      5772 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	 1000000	      5984 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	  995397	      5880 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	 1000000	      5854 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	 1000000	      5779 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/10Attrs        	 1000000	      5817 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7215403	       820.4 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7127551	       824.7 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7154691	       846.6 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7406532	       822.5 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7236315	       829.4 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7385166	       819.4 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7485788	       826.6 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/10Attrs        	 7358643	       826.2 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7333551	       828.5 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7296601	       816.2 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7235730	       815.2 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7420069	       866.4 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7053342	       856.2 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7345308	       855.9 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 5937028	       906.5 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/10Attrs         	 7294530	       850.9 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  682560	      8943 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  659187	      9154 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  683032	      9766 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  599024	      9335 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  648378	      9579 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  661881	      9002 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  705354	      9160 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/20Attrs                 	  691035	      8949 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5872864	      1040 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5370603	      1084 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5417623	      1067 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5524303	      1064 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5658495	      1058 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5716202	      1044 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5663619	      1057 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/20Attrs                 	 5804178	      1052 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5891020	      1020 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5713591	      1060 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5783688	      1041 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5850597	      1042 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5848472	      1062 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5715615	      1033 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5841241	      1044 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/20Attrs         	 5765427	      1037 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  331652	     18305 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  328844	     18529 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  328597	     18357 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  319030	     18581 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  326844	     19276 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  306818	     19394 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  341726	     18385 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/JSON/50Attrs                 	  312102	     18331 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2632762	      2256 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2591449	      2534 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2381540	      2559 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2544685	      2353 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2574499	      2355 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2281362	      2443 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2615730	      2290 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBOR/50Attrs                 	 2624696	      2340 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2372773	      2388 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2349193	      2428 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2494231	      2548 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2449693	      2347 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2602597	      2323 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2521352	      2357 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2158832	      2650 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeSerialize/CBORKeyAsInt/50Attrs         	 2463771	      2549 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  319726	     20137 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  334848	     18115 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  354165	     17907 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  314886	     17621 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  354496	     17481 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  355939	     17453 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  339388	     17693 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/1Attrs                	  358374	     18061 ns/op	      3598 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5423433	      1054 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5810814	      1041 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5947428	      1026 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5512786	      1123 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5813378	      1101 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 4779127	      1135 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5896112	      1087 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/1Attrs                	 5331987	      1079 ns/op	      2702 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 6072460	       971.6 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 6234524	       972.8 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 6086164	       965.9 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 6256041	       973.9 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 6085758	      1009 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 5034902	      1051 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 5786455	       992.0 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/1Attrs        	 6205538	       961.1 ns/op	      2671 envelope_bytes/op	      2660 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  315057	     19445 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  309662	     19294 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  303390	     19516 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  330603	     19399 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  287118	     19706 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  299360	     20575 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  314280	     19662 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/2Attrs                	  309222	     20109 ns/op	      4070 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 5481514	      1053 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 5781064	      1028 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 6150103	       970.4 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 6323752	       976.1 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 6168021	       993.3 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 6091106	       980.7 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 6220372	       966.8 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/2Attrs                	 6166311	       989.9 ns/op	      3055 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6885165	       905.8 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6709674	       954.6 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6464521	       966.9 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6193376	       936.1 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6534218	       923.7 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6669133	       911.0 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6330609	       919.9 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/2Attrs        	 6689235	       938.8 ns/op	      3024 envelope_bytes/op	      3013 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  181659	     28666 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  214574	     27544 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  223983	     27985 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  232939	     26538 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  196768	     26282 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  223597	     26651 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  236446	     25677 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/5Attrs                	  232176	     25792 ns/op	      5482 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4978196	      1211 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4825112	      1212 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4954014	      1241 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4869774	      1229 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4809020	      1246 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4826329	      1227 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 5072715	      1235 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/5Attrs                	 4728786	      1230 ns/op	      4114 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5237424	      1167 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5267940	      1130 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5274499	      1135 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5194252	      1125 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5279973	      1151 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5483031	      1121 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5296196	      1128 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/5Attrs        	 5310939	      1133 ns/op	      4083 envelope_bytes/op	      4072 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  169921	     35411 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  171384	     35316 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  168468	     36891 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  168330	     40159 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  141307	     38017 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  161275	     36791 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  155952	     36284 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/10Attrs               	  169540	     38086 ns/op	      7834 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4735034	      1354 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4524543	      1307 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4683410	      1304 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4644568	      1295 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4402458	      1305 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4402526	      1405 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4423755	      1317 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/10Attrs               	 4591400	      1312 ns/op	      5879 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 5076981	      1197 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 5083628	      1218 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 4820182	      1235 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 4796418	      1222 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 4997806	      1220 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 5003311	      1237 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 4890818	      1202 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/10Attrs       	 4986597	      1205 ns/op	      5848 envelope_bytes/op	      5837 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  107128	     56993 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  100503	     58073 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  106050	     57826 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  104622	     57505 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  107760	     56542 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  104805	     56556 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  104242	     57022 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/20Attrs               	  103431	     56926 ns/op	     12570 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4023612	      1503 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4045693	      1496 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 3582134	      1586 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4076815	      1482 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4078404	      1491 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4002534	      1464 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4080433	      1459 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/20Attrs               	 4129172	      1552 ns/op	      9429 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 4100252	      1427 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 4407044	      1426 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 3797241	      1472 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 4275564	      1420 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 3923964	      1518 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 4171772	      1440 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 3689418	      1492 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/20Attrs       	 4160818	      1464 ns/op	      9398 envelope_bytes/op	      9387 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   50706	    120380 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   50254	    120688 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   50965	    118368 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   50005	    122316 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   50334	    120357 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   49586	    119544 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   49683	    118891 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/JSON/50Attrs               	   51063	    117324 ns/op	     26770 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2418498	      2504 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2386588	      2509 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2355825	      2556 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2323491	      2543 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2298662	      2577 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2418114	      2508 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2371552	      2527 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBOR/50Attrs               	 2386911	      2509 ns/op	     20079 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2432022	      2428 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2373633	      2502 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2431045	      2623 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 1977259	      2858 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2358229	      2500 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2426648	      2465 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2363578	      2476 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
+BenchmarkEnvelopeDeserialize/CBORKeyAsInt/50Attrs       	 2468000	      2450 ns/op	     20048 envelope_bytes/op	     20037 raw_bytes/op
 PASS

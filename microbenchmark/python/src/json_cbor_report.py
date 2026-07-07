@@ -13,20 +13,18 @@ from utils.parser import ParseIntListFromEnv
 BENCH_FILE: str = "/results/json-cbor/bench_output.txt"
 PNG_FILE: str = "/results/json-cbor/plot.png"
 SIZE_PNG_FILE: str = "/results/json-cbor/size.png"
-MEMORY_PNG_FILE: str = "/results/json-cbor/memory.png"
-OVERHEAD_PNG_FILE: str = "/results/json-cbor/overhead.png"
-ALLOCS_PNG_FILE: str = "/results/json-cbor/allocs.png"
 HTML_FILE: str = "/results/json-cbor/report.html"
 HTML_TEMPLATE_FILE: str = "/app/template/json_cbor_template.html"
 
 RUNS: int = int(os.environ["JSON_CBOR_RUNS"])
 T_95: float = GetStudentTCriticalValue95(RUNS - 1)
 ATTRIBUTE_COUNTS: list[int] = ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS")
-FORMATS: list[str] = ["JSON", "CBOR"]
+FORMATS: list[str] = ["JSON", "CBOR", "CBORKeyAsInt"]
 OPERATIONS: list[str] = ["serialize", "deserialize"]
 
 JSON_COLOR: str = "#be0c24"
 CBOR_COLOR: str = "#300bb6"
+CBOR_KEYASINT_COLOR: str = "#e08e0b"
 
 
 class BenchmarkMetrics:
@@ -46,15 +44,16 @@ class BenchmarkMetrics:
         self.NsPerOperation: list[float] = []
         self.EnvelopeBytes: list[float] = []
         self.RawBytes: list[float] = []
-        self.BytesPerOperation: list[float] = []
-        self.AllocsPerOperation: list[float] = []
 
 
 def GetFormatColor(formatName: str) -> str:
     if formatName == "JSON":
         return JSON_COLOR
 
-    return CBOR_COLOR
+    if formatName == "CBOR":
+        return CBOR_COLOR
+
+    return CBOR_KEYASINT_COLOR
 
 
 def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
@@ -98,7 +97,8 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
             iterationCount: int = int(fields[1])
 
-            # Reads each "<value> <unit>" pair after ns/op, regardless of which metrics are present.
+            # Reads each "<value> <unit>" pair after ns/op. B/op and allocs/op may still be
+            # present in this dict (Go still reports them), they are just not used below.
             metricsByUnit: dict[str, float] = {}
             for index in range(2, len(fields) - 1, 2):
                 unitName: str = fields[index + 1]
@@ -108,8 +108,6 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
             metrics.NsPerOperation.append(metricsByUnit["ns/op"])
             metrics.EnvelopeBytes.append(metricsByUnit["envelope_bytes/op"])
             metrics.RawBytes.append(metricsByUnit["raw_bytes/op"])
-            metrics.BytesPerOperation.append(metricsByUnit["B/op"])
-            metrics.AllocsPerOperation.append(metricsByUnit["allocs/op"])
 
     return results
 
@@ -119,7 +117,7 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "JSON vs CBOR (Latency vs Attribute Count)",
+        "JSON vs CBOR vs CBOR-Int (Latency vs Attribute Count)",
         fontsize=13,
     )
 
@@ -173,113 +171,18 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
 
 def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
 
-    figure, axis = plt.subplots(figsize=(8, 5))
+    # Two panels: absolute envelope size on the left, format tax (bytes added over raw) on the right.
+    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "JSON vs CBOR (Envelope Size vs Attribute Count)",
+        "JSON vs CBOR vs CBOR-Int (Envelope Size vs Attribute Count)",
         fontsize=13,
     )
 
     for formatName in FORMATS:
 
         sizes: list[float] = []
-        counts: list[int] = []
-
-        for attributeCount in ATTRIBUTE_COUNTS:
-
-            benchmarkCaseId: str = f"serialize/{formatName}/{attributeCount}"
-            metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-            if metrics is None:
-                continue
-
-            sizeMean: float = Mean(metrics.EnvelopeBytes)
-
-            counts.append(attributeCount)
-            sizes.append(sizeMean)
-
-        axis.plot(
-            counts,
-            sizes,
-            label=formatName,
-            color=GetFormatColor(formatName),
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
-
-    axis.set_xlabel("Attribute count")
-    axis.set_ylabel("Envelope size (bytes)")
-    axis.set_xticks(ATTRIBUTE_COUNTS)
-    axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
-    axis.legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(SIZE_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {SIZE_PNG_FILE}")
-
-
-def PlotMemory(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    figure.suptitle(
-        "JSON vs CBOR (Memory vs Attribute Count)",
-        fontsize=13,
-    )
-
-    for axis, operation in zip(axes, OPERATIONS):
-
-        for formatName in FORMATS:
-
-            counts: list[int] = []
-            bytesPerOp: list[float] = []
-
-            for attributeCount in ATTRIBUTE_COUNTS:
-
-                benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-                if metrics is None:
-                    continue
-
-                memoryMean: float = Mean(metrics.BytesPerOperation)
-
-                counts.append(attributeCount)
-                bytesPerOp.append(memoryMean)
-
-            axis.plot(
-                counts,
-                bytesPerOp,
-                label=formatName,
-                color=GetFormatColor(formatName),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Attribute count")
-        axis.set_ylabel("Memory (B/op)")
-        axis.set_xticks(ATTRIBUTE_COUNTS)
-        axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
-        axis.legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(MEMORY_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {MEMORY_PNG_FILE}")
-
-
-def PlotFormatOverhead(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axis = plt.subplots(figsize=(8, 5))
-
-    figure.suptitle(
-        "JSON vs CBOR (Format Overhead vs Attribute Count)",
-        fontsize=13,
-    )
-
-    for formatName in FORMATS:
-
-        percentages: list[float] = []
+        overheadBytesList: list[float] = []
         counts: list[int] = []
 
         for attributeCount in ATTRIBUTE_COUNTS:
@@ -292,15 +195,16 @@ def PlotFormatOverhead(results: dict[str, BenchmarkMetrics]) -> None:
             envelopeSize: float = Mean(metrics.EnvelopeBytes)
             rawSize: float = Mean(metrics.RawBytes)
 
-            # Percentage growth from raw to envelope — X% such that raw + X% of raw = envelope.
-            overheadPercent: float = (envelopeSize - rawSize) / rawSize * 100.0
+            # Bytes added by the format over the raw payload — the fixed "tax" this format charges.
+            overheadBytesValue: float = envelopeSize - rawSize
 
             counts.append(attributeCount)
-            percentages.append(overheadPercent)
+            sizes.append(envelopeSize)
+            overheadBytesList.append(overheadBytesValue)
 
-        axis.plot(
+        axes[0].plot(
             counts,
-            percentages,
+            sizes,
             label=formatName,
             color=GetFormatColor(formatName),
             marker="o",
@@ -308,65 +212,35 @@ def PlotFormatOverhead(results: dict[str, BenchmarkMetrics]) -> None:
             markersize=5,
         )
 
-    axis.set_xlabel("Attribute count")
-    axis.set_ylabel("Format overhead (% growth over raw)")
-    axis.set_xticks(ATTRIBUTE_COUNTS)
-    axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
-    axis.legend(fontsize=10)
+        axes[1].plot(
+            counts,
+            overheadBytesList,
+            label=formatName,
+            color=GetFormatColor(formatName),
+            marker="o",
+            linewidth=1.8,
+            markersize=5,
+        )
+
+    axes[0].set_title("Absolute Size", fontsize=11)
+    axes[0].set_xlabel("Attribute count")
+    axes[0].set_ylabel("Envelope size (bytes)")
+    axes[0].set_xticks(ATTRIBUTE_COUNTS)
+    axes[0].grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+    axes[0].legend(fontsize=10)
+
+    axes[1].set_title("Format Tax", fontsize=11)
+    axes[1].set_xlabel("Attribute count")
+    axes[1].set_ylabel("Bytes added over raw payload")
+    # Log scale: CBOR/CBORKeyAsInt sit flat near 11-42 bytes while JSON's tax climbs into the thousands.
+    axes[1].set_yscale("log")
+    axes[1].set_xticks(ATTRIBUTE_COUNTS)
+    axes[1].grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+    axes[1].legend(fontsize=10)
 
     plt.tight_layout()
-    plt.savefig(OVERHEAD_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {OVERHEAD_PNG_FILE}")
-
-
-def PlotAllocs(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    figure.suptitle(
-        "JSON vs CBOR (Allocations vs Attribute Count)",
-        fontsize=13,
-    )
-
-    for axis, operation in zip(axes, OPERATIONS):
-
-        for formatName in FORMATS:
-
-            counts: list[int] = []
-            allocs: list[float] = []
-
-            for attributeCount in ATTRIBUTE_COUNTS:
-
-                benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-                if metrics is None:
-                    continue
-
-                allocsMean: float = Mean(metrics.AllocsPerOperation)
-
-                counts.append(attributeCount)
-                allocs.append(allocsMean)
-
-            axis.plot(
-                counts,
-                allocs,
-                label=formatName,
-                color=GetFormatColor(formatName),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Attribute count")
-        axis.set_ylabel("Allocations (allocs/op)")
-        axis.set_xticks(ATTRIBUTE_COUNTS)
-        axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
-        axis.legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(ALLOCS_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {ALLOCS_PNG_FILE}")
+    plt.savefig(SIZE_PNG_FILE, dpi=150, bbox_inches="tight")
+    print(f"Saved -> {SIZE_PNG_FILE}")
 
 
 def BuildOperationFormatTable(
@@ -385,8 +259,6 @@ def BuildOperationFormatTable(
     lines.append("<th>Raw (B)</th>")
     lines.append("<th>Envelope Size (B)</th>")
     lines.append("<th>Format Overhead (%)</th>")
-    lines.append("<th>Memory (B/op)</th>")
-    lines.append("<th>Allocs/op</th>")
     lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
     lines.append("</tr>")
     lines.append("</thead>")
@@ -406,9 +278,6 @@ def BuildOperationFormatTable(
 
         overheadPercent: float = (envelopeSize - rawSize) / rawSize * 100.0
 
-        bytesPerOp: float = Mean(metrics.BytesPerOperation)
-        allocsPerOp: float = Mean(metrics.AllocsPerOperation)
-
         caseIterations: int = 0
 
         for iterationCount in metrics.Iterations:
@@ -422,8 +291,6 @@ def BuildOperationFormatTable(
         lines.append(f"<td>{rawSize:.0f}</td>")
         lines.append(f"<td>{envelopeSize:.0f}</td>")
         lines.append(f"<td>{overheadPercent:.2f}%</td>")
-        lines.append(f"<td>{bytesPerOp:.0f}</td>")
-        lines.append(f"<td>{allocsPerOp:.1f}</td>")
         lines.append(f"<td>{caseIterations:,}</td>")
         lines.append("</tr>")
 
@@ -441,14 +308,20 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
         for iterationCount in metrics.Iterations:
             totalIterations += iterationCount
 
-    # Four filtered tables instead of one crowded table — one per operation/format pair.
+    # Six filtered tables — one per operation/format pair.
     serializeJsonTable: str = BuildOperationFormatTable(results, "serialize", "JSON")
     serializeCborTable: str = BuildOperationFormatTable(results, "serialize", "CBOR")
+    serializeCborKeyAsIntTable: str = BuildOperationFormatTable(
+        results, "serialize", "CBORKeyAsInt"
+    )
     deserializeJsonTable: str = BuildOperationFormatTable(
         results, "deserialize", "JSON"
     )
     deserializeCborTable: str = BuildOperationFormatTable(
         results, "deserialize", "CBOR"
+    )
+    deserializeCborKeyAsIntTable: str = BuildOperationFormatTable(
+        results, "deserialize", "CBORKeyAsInt"
     )
 
     with open(HTML_TEMPLATE_FILE, "r", encoding="utf-8") as file:
@@ -463,13 +336,16 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
     report = report.replace("{{SerializeJsonTable}}", serializeJsonTable)
     report = report.replace("{{SerializeCborTable}}", serializeCborTable)
+    report = report.replace(
+        "{{SerializeCborKeyAsIntTable}}", serializeCborKeyAsIntTable
+    )
     report = report.replace("{{DeserializeJsonTable}}", deserializeJsonTable)
     report = report.replace("{{DeserializeCborTable}}", deserializeCborTable)
+    report = report.replace(
+        "{{DeserializeCborKeyAsIntTable}}", deserializeCborKeyAsIntTable
+    )
     report = report.replace("{{LatencyPlot}}", "plot.png")
     report = report.replace("{{SizePlot}}", "size.png")
-    report = report.replace("{{MemoryPlot}}", "memory.png")
-    report = report.replace("{{OverheadPlot}}", "overhead.png")
-    report = report.replace("{{AllocsPlot}}", "allocs.png")
 
     with open(HTML_FILE, "w", encoding="utf-8") as file:
         file.write(report)
@@ -486,9 +362,6 @@ def Main() -> None:
 
     PlotLatency(results)
     PlotSize(results)
-    PlotMemory(results)
-    PlotFormatOverhead(results)
-    PlotAllocs(results)
     WriteHtmlReport(results)
 
 

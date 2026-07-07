@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>JSON vs CBOR Envelope Serialization Microbenchmark Report</title>
+    <title>JSON vs CBOR vs CBOR-Int Envelope Serialization Microbenchmark Report</title>
 
     <style>
         :root {
@@ -18,6 +18,7 @@
             --accent-soft: #e8f2fb;
             --json: #be0c24;
             --cbor: #300bb6;
+            --cborkeyasint: #e08e0b;
             --shadow: 0 18px 45px rgba(15, 35, 55, 0.10);
         }
 
@@ -194,10 +195,14 @@
             background: var(--cbor);
         }
 
-        /* Two tables side by side per row (Serialize row, Deserialize row). */
+        .legend-dot-cborkeyasint {
+            background: var(--cborkeyasint);
+        }
+
+        /* Three tables side by side per row (Serialize row, Deserialize row). */
         .table-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 18px;
         }
 
@@ -226,7 +231,7 @@
         }
 
         table {
-            /* No fixed min-width here — the table shrinks to fit its half of the two-column row. */
+            /* No fixed min-width here — the table shrinks to fit its share of the three-column row. */
             width: 100%;
             border-collapse: collapse;
             background: var(--surface);
@@ -322,33 +327,34 @@
         <section class="hero">
             <div class="hero-label">Envelope Serialization Microbenchmark Report</div>
 
-            <h1>JSON vs CBOR</h1>
+            <h1>JSON vs CBOR vs CBOR-Int</h1>
 
             <p>
-                Container-generated benchmark artifact comparing envelope serialize and deserialize latency,
-                encoded size, format overhead, and memory cost across CP-ABE policy attribute counts, with
-                the AES-GCM payload held at a fixed size.
+                Container-generated benchmark artifact comparing envelope serialize and deserialize latency
+                and format tax across CP-ABE policy attribute counts, with the AES-GCM payload held at a
+                fixed size. CBOR-Int uses CBOR's integer struct-tag keys instead of string field names, to
+                isolate the extra savings from compact map keys.
             </p>
         </section>
 
         <section class="metadata">
             <div class="card">
-                <div class="card-label">Independent Runs</div>
+                <div class="card-label">Independent runs</div>
                 <div class="card-value">{{RunCount}}</div>
             </div>
 
             <div class="card">
-                <div class="card-label">Confidence Interval</div>
+                <div class="card-label">Confidence interval</div>
                 <div class="card-value">{{ConfidenceLevel}}</div>
             </div>
 
             <div class="card">
-                <div class="card-label">Student T</div>
+                <div class="card-label">Student t</div>
                 <div class="card-value">{{TMultiplier}}</div>
             </div>
 
             <div class="card">
-                <div class="card-label">Total Operations</div>
+                <div class="card-label">Marshal operations</div>
                 <div class="card-value">{{TotalIterations}}</div>
             </div>
         </section>
@@ -360,8 +366,7 @@
             df={{DegreesOfFreedom}}. Each envelope bundles a real CP-ABE ciphertext (grown from an
             actual TKN20 policy of the given attribute count) with a fixed-size AES-GCM nonce and
             ciphertext; only the marshal/unmarshal cost is timed, not the cryptography that produced
-            the fields. Format overhead is the percentage by which serialization grows the raw field
-            bytes.
+            the fields. Format tax is the number of bytes serialization adds over the raw field bytes.
         </section>
 
         <section class="section">
@@ -382,6 +387,11 @@
                     <span class="legend-dot legend-dot-cbor"></span>
                     CBOR
                 </span>
+
+                <span class="legend-item">
+                    <span class="legend-dot legend-dot-cborkeyasint"></span>
+                    CBOR (int keys)
+                </span>
             </div>
 
             <div class="plots">
@@ -397,37 +407,13 @@
                 <article class="plot-card">
                     <h3>Envelope size vs attribute count</h3>
                     <p>
-                        Bytes on the wire per message. JSON's base64 encoding of binary fields is
-                        expected to grow faster than CBOR's native byte strings.
+                        Left: absolute envelope size, dominated by the CP-ABE ciphertext, which is why
+                        all three formats track closely together. Right: the format tax alone — bytes
+                        added over the raw payload, on a log scale. CBOR's tax is a fixed 42 bytes and
+                        CBOR-Int's is a fixed 11 bytes at every attribute count, while JSON's base64
+                        overhead grows with payload size.
                     </p>
-                    <img src="{{SizePlot}}" alt="Envelope size plot">
-                </article>
-
-                <article class="plot-card">
-                    <h3>Memory vs attribute count</h3>
-                    <p>
-                        Bytes allocated per marshal or unmarshal operation, from Go's benchmark memory
-                        profiler.
-                    </p>
-                    <img src="{{MemoryPlot}}" alt="Memory plot">
-                </article>
-
-                <article class="plot-card">
-                    <h3>Format overhead vs attribute count</h3>
-                    <p>
-                        Percentage growth from raw field bytes to serialized envelope bytes.
-                        Isolates the packing cost from CP-ABE ciphertext growth.
-                    </p>
-                    <img src="{{OverheadPlot}}" alt="Format overhead plot">
-                </article>
-
-                <article class="plot-card">
-                    <h3>Allocations vs attribute count</h3>
-                    <p>
-                        Heap allocations per operation. A proxy for GC pressure that latency alone
-                        does not reveal.
-                    </p>
-                    <img src="{{AllocsPlot}}" alt="Allocations plot">
+                    <img src="{{SizePlot}}" alt="Envelope size and format tax plot">
                 </article>
             </div>
         </section>
@@ -436,8 +422,8 @@
             <h2>Numerical summary</h2>
 
             <p>
-                Serialize results appear first, deserialize results below. JSON and CBOR sit
-                side by side within each row for direct comparison.
+                Serialize results appear first, deserialize results below. JSON, CBOR, and CBOR
+                (int keys) sit side by side within each row for direct comparison.
             </p>
 
             <div class="table-row">
@@ -454,6 +440,13 @@
                         {{SerializeCborTable}}
                     </div>
                 </div>
+
+                <div class="table-block">
+                    <h3>Serialize — CBOR (int keys)</h3>
+                    <div class="table-wrapper">
+                        {{SerializeCborKeyAsIntTable}}
+                    </div>
+                </div>
             </div>
 
             <div class="table-row">
@@ -468,6 +461,13 @@
                     <h3>Deserialize — CBOR</h3>
                     <div class="table-wrapper">
                         {{DeserializeCborTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Deserialize — CBOR (int keys)</h3>
+                    <div class="table-wrapper">
+                        {{DeserializeCborKeyAsIntTable}}
                     </div>
                 </div>
             </div>
