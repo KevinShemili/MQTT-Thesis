@@ -195,18 +195,40 @@
             background: var(--ascon);
         }
 
+        .table-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .table-row+.table-row {
+            margin-top: 18px;
+        }
+
+        .table-block {
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px;
+            min-width: 0;
+        }
+
+        .table-block h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+        }
+
         .table-wrapper {
             overflow-x: auto;
             border: 1px solid var(--border);
-            border-radius: 16px;
+            border-radius: 14px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 860px;
             background: var(--surface);
-            font-size: 13px;
+            font-size: 12.5px;
         }
 
         thead {
@@ -215,19 +237,22 @@
 
         th {
             color: #26384d;
-            font-size: 12px;
-            letter-spacing: 0.04em;
+            font-size: 11px;
+            letter-spacing: 0.03em;
             text-transform: uppercase;
-            text-align: left;
-            padding: 12px 14px;
+            text-align: right;
+            padding: 10px 8px;
             border-bottom: 1px solid var(--border);
-            white-space: nowrap;
+            white-space: normal;
+            line-height: 1.25;
         }
 
         td {
-            padding: 11px 14px;
+            padding: 9px 8px;
             border-bottom: 1px solid #edf1f5;
             white-space: nowrap;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
         tbody tr:nth-child(even) {
@@ -236,15 +261,6 @@
 
         tbody tr:hover {
             background: #f1f7fd;
-        }
-
-        td:nth-child(3),
-        td:nth-child(4),
-        td:nth-child(5),
-        td:nth-child(6),
-        td:nth-child(7) {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
         }
 
         code {
@@ -290,6 +306,10 @@
             .section {
                 padding: 20px;
             }
+
+            .table-row {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -310,7 +330,7 @@
         <section class="metadata">
             <div class="card">
                 <div class="card-label">Independent Runs</div>
-                <div class="card-value">3</div>
+                <div class="card-value">8</div>
             </div>
 
             <div class="card">
@@ -320,19 +340,19 @@
 
             <div class="card">
                 <div class="card-label">Student T</div>
-                <div class="card-value">4.303</div>
+                <div class="card-value">2.365</div>
             </div>
 
             <div class="card">
                 <div class="card-label">Total Operations</div>
-                <div class="card-value">2,206,326,892</div>
+                <div class="card-value">5,738,042,559</div>
             </div>
         </section>
 
         <section class="note">
             <strong>Methodological Note:</strong>
-            Latency and throughput are reported as mean ± 95% confidence interval across 3
-            independent Go benchmark runs. The confidence interval uses Student's t with df=2.
+            Latency and throughput are reported as mean ± 95% confidence interval across 8
+            independent Go benchmark runs. The confidence interval uses Student's t with df=7.
             Tag + nonce is reported as absolute bytes per message. It is not plotted because it is constant for each
             AEAD primitive.
         </section>
@@ -342,7 +362,7 @@
 
             <p>
                 The plots summarize latency and throughput. Fixed tag + nonce bytes are reported only in the numerical
-                table.
+                tables.
             </p>
 
             <div class="legend-row">
@@ -382,280 +402,291 @@
             <h2>Numerical Summary</h2>
 
             <p>
-                The table contains the full benchmark summary used by the plots.
-                Latency and throughput are expressed as mean ± confidence interval.
+                Encryption results appear first, decryption results below. AES-GCM and ASCON sit side by side
+                within each row for direct comparison. Latency and throughput are expressed as mean ± confidence
+                interval.
             </p>
 
-            <div class="table-wrapper">
-                <table>
+            <div class="table-row">
+                <div class="table-block">
+                    <h3>Encrypt — AES-GCM</h3>
+                    <div class="table-wrapper">
+                        <table>
 <thead>
 <tr>
-<th>Op</th>
-<th>Algorithm</th>
 <th>Payload</th>
 <th>Latency (ns/op)</th>
 <th>Throughput (MB/s)</th>
 <th>Tag + Nonce (B)</th>
-<th>Iters (Σ3 runs)</th>
+<th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>16B</td>
-<td>60.22 ± 3.01</td>
-<td>265.8 ± 13.5</td>
+<td>59.62 ± 1.62</td>
+<td>268.6 ± 7.3</td>
 <td>28</td>
-<td>297,255,126</td>
+<td>787,401,971</td>
 </tr>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>64B</td>
-<td>86.08 ± 0.64</td>
-<td>743.5 ± 5.5</td>
+<td>85.34 ± 1.46</td>
+<td>750.2 ± 12.5</td>
 <td>28</td>
-<td>210,501,788</td>
+<td>557,792,308</td>
 </tr>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>256B</td>
-<td>86.45 ± 0.36</td>
-<td>2961.2 ± 12.0</td>
+<td>85.73 ± 0.82</td>
+<td>2986.5 ± 28.4</td>
 <td>28</td>
-<td>209,180,922</td>
+<td>561,296,155</td>
 </tr>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>1KB</td>
-<td>186.13 ± 1.23</td>
-<td>5501.4 ± 37.7</td>
+<td>187.01 ± 2.85</td>
+<td>5476.8 ± 83.0</td>
 <td>28</td>
-<td>96,560,389</td>
+<td>258,985,461</td>
 </tr>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>4KB</td>
-<td>589.43 ± 4.10</td>
-<td>6949.0 ± 47.4</td>
+<td>605.00 ± 11.57</td>
+<td>6773.3 ± 127.9</td>
 <td>28</td>
-<td>30,423,106</td>
+<td>78,752,883</td>
 </tr>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>16KB</td>
-<td>2214.33 ± 30.66</td>
-<td>7399.1 ± 99.4</td>
+<td>2266.12 ± 31.64</td>
+<td>7231.7 ± 99.2</td>
 <td>28</td>
-<td>8,155,446</td>
+<td>21,184,524</td>
 </tr>
 <tr>
-<td>encrypt</td>
-<td>AES-GCM</td>
 <td>64KB</td>
-<td>8800.00 ± 105.66</td>
-<td>7447.4 ± 89.1</td>
+<td>9041.88 ± 137.46</td>
+<td>7250.0 ± 109.9</td>
 <td>28</td>
-<td>2,035,218</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>16B</td>
-<td>189.10 ± 7.24</td>
-<td>84.6 ± 3.2</td>
-<td>32</td>
-<td>96,931,704</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>64B</td>
-<td>384.13 ± 19.88</td>
-<td>166.7 ± 8.6</td>
-<td>32</td>
-<td>47,749,303</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>256B</td>
-<td>1128.67 ± 3.79</td>
-<td>226.8 ± 0.9</td>
-<td>32</td>
-<td>16,036,910</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>1KB</td>
-<td>4073.67 ± 63.89</td>
-<td>251.4 ± 3.9</td>
-<td>32</td>
-<td>4,421,310</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>4KB</td>
-<td>15678.00 ± 106.83</td>
-<td>261.3 ± 1.8</td>
-<td>32</td>
-<td>1,146,747</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>16KB</td>
-<td>62568.67 ± 682.84</td>
-<td>261.9 ± 2.8</td>
-<td>32</td>
-<td>286,504</td>
-</tr>
-<tr>
-<td>encrypt</td>
-<td>ASCON</td>
-<td>64KB</td>
-<td>252017.67 ± 2673.83</td>
-<td>260.1 ± 2.7</td>
-<td>32</td>
-<td>71,604</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>16B</td>
-<td>46.39 ± 0.10</td>
-<td>344.9 ± 0.7</td>
-<td>28</td>
-<td>388,057,421</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>64B</td>
-<td>65.27 ± 1.05</td>
-<td>980.5 ± 15.7</td>
-<td>28</td>
-<td>275,623,991</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>256B</td>
-<td>83.02 ± 4.16</td>
-<td>3084.2 ± 153.9</td>
-<td>28</td>
-<td>218,290,010</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>1KB</td>
-<td>178.90 ± 1.31</td>
-<td>5723.9 ± 39.1</td>
-<td>28</td>
-<td>99,410,499</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>4KB</td>
-<td>583.60 ± 12.61</td>
-<td>7018.9 ± 152.0</td>
-<td>28</td>
-<td>30,999,310</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>16KB</td>
-<td>2178.67 ± 10.04</td>
-<td>7520.1 ± 38.5</td>
-<td>28</td>
-<td>8,267,554</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>AES-GCM</td>
-<td>64KB</td>
-<td>8646.33 ± 192.51</td>
-<td>7579.9 ± 167.7</td>
-<td>28</td>
-<td>2,087,874</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>16B</td>
-<td>192.40 ± 3.88</td>
-<td>83.2 ± 1.7</td>
-<td>32</td>
-<td>94,150,505</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>64B</td>
-<td>382.97 ± 2.74</td>
-<td>167.1 ± 1.2</td>
-<td>32</td>
-<td>46,915,370</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>256B</td>
-<td>1133.67 ± 5.17</td>
-<td>225.8 ± 1.0</td>
-<td>32</td>
-<td>15,862,072</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>1KB</td>
-<td>4080.00 ± 19.87</td>
-<td>251.0 ± 1.2</td>
-<td>32</td>
-<td>4,409,265</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>4KB</td>
-<td>15699.00 ± 32.30</td>
-<td>260.9 ± 0.5</td>
-<td>32</td>
-<td>1,136,078</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>16KB</td>
-<td>62333.00 ± 345.13</td>
-<td>262.8 ± 1.5</td>
-<td>32</td>
-<td>289,050</td>
-</tr>
-<tr>
-<td>decrypt</td>
-<td>ASCON</td>
-<td>64KB</td>
-<td>250751.33 ± 1460.69</td>
-<td>261.4 ± 1.5</td>
-<td>32</td>
-<td>71,816</td>
+<td>5,299,678</td>
 </tr>
 </tbody>
 </table>
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Encrypt — ASCON</h3>
+                    <div class="table-wrapper">
+                        <table>
+<thead>
+<tr>
+<th>Payload</th>
+<th>Latency (ns/op)</th>
+<th>Throughput (MB/s)</th>
+<th>Tag + Nonce (B)</th>
+<th>Iters (Σ8 runs)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16B</td>
+<td>186.62 ± 2.13</td>
+<td>85.7 ± 1.0</td>
+<td>32</td>
+<td>254,214,669</td>
+</tr>
+<tr>
+<td>64B</td>
+<td>377.25 ± 4.30</td>
+<td>169.7 ± 1.9</td>
+<td>32</td>
+<td>129,100,467</td>
+</tr>
+<tr>
+<td>256B</td>
+<td>1126.88 ± 14.59</td>
+<td>227.2 ± 2.9</td>
+<td>32</td>
+<td>42,225,168</td>
+</tr>
+<tr>
+<td>1KB</td>
+<td>4162.12 ± 60.69</td>
+<td>246.1 ± 3.5</td>
+<td>32</td>
+<td>11,548,331</td>
+</tr>
+<tr>
+<td>4KB</td>
+<td>15757.00 ± 187.93</td>
+<td>260.0 ± 3.0</td>
+<td>32</td>
+<td>3,011,131</td>
+</tr>
+<tr>
+<td>16KB</td>
+<td>63820.88 ± 1089.76</td>
+<td>256.8 ± 4.3</td>
+<td>32</td>
+<td>751,549</td>
+</tr>
+<tr>
+<td>64KB</td>
+<td>252450.88 ± 1107.94</td>
+<td>259.6 ± 1.1</td>
+<td>32</td>
+<td>190,035</td>
+</tr>
+</tbody>
+</table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-row">
+                <div class="table-block">
+                    <h3>Decrypt — AES-GCM</h3>
+                    <div class="table-wrapper">
+                        <table>
+<thead>
+<tr>
+<th>Payload</th>
+<th>Latency (ns/op)</th>
+<th>Throughput (MB/s)</th>
+<th>Tag + Nonce (B)</th>
+<th>Iters (Σ8 runs)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16B</td>
+<td>47.54 ± 0.52</td>
+<td>336.6 ± 3.7</td>
+<td>28</td>
+<td>1,009,644,849</td>
+</tr>
+<tr>
+<td>64B</td>
+<td>69.25 ± 2.48</td>
+<td>925.7 ± 32.4</td>
+<td>28</td>
+<td>675,394,592</td>
+</tr>
+<tr>
+<td>256B</td>
+<td>84.86 ± 1.82</td>
+<td>3018.6 ± 62.5</td>
+<td>28</td>
+<td>562,767,350</td>
+</tr>
+<tr>
+<td>1KB</td>
+<td>192.47 ± 4.46</td>
+<td>5323.5 ± 121.6</td>
+<td>28</td>
+<td>249,527,219</td>
+</tr>
+<tr>
+<td>4KB</td>
+<td>613.81 ± 9.81</td>
+<td>6675.1 ± 106.7</td>
+<td>28</td>
+<td>79,203,275</td>
+</tr>
+<tr>
+<td>16KB</td>
+<td>2322.50 ± 37.85</td>
+<td>7056.9 ± 113.7</td>
+<td>28</td>
+<td>20,832,626</td>
+</tr>
+<tr>
+<td>64KB</td>
+<td>9167.50 ± 70.51</td>
+<td>7149.2 ± 55.3</td>
+<td>28</td>
+<td>5,348,865</td>
+</tr>
+</tbody>
+</table>
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Decrypt — ASCON</h3>
+                    <div class="table-wrapper">
+                        <table>
+<thead>
+<tr>
+<th>Payload</th>
+<th>Latency (ns/op)</th>
+<th>Throughput (MB/s)</th>
+<th>Tag + Nonce (B)</th>
+<th>Iters (Σ8 runs)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16B</td>
+<td>198.47 ± 4.23</td>
+<td>80.7 ± 1.7</td>
+<td>32</td>
+<td>249,085,051</td>
+</tr>
+<tr>
+<td>64B</td>
+<td>401.20 ± 10.91</td>
+<td>159.7 ± 4.2</td>
+<td>32</td>
+<td>119,882,824</td>
+</tr>
+<tr>
+<td>256B</td>
+<td>1203.50 ± 30.43</td>
+<td>212.9 ± 5.4</td>
+<td>32</td>
+<td>39,437,031</td>
+</tr>
+<tr>
+<td>1KB</td>
+<td>4252.50 ± 90.86</td>
+<td>240.9 ± 5.1</td>
+<td>32</td>
+<td>11,266,037</td>
+</tr>
+<tr>
+<td>4KB</td>
+<td>16349.25 ± 169.42</td>
+<td>250.6 ± 2.6</td>
+<td>32</td>
+<td>2,982,588</td>
+</tr>
+<tr>
+<td>16KB</td>
+<td>65553.12 ± 1184.50</td>
+<td>250.0 ± 4.5</td>
+<td>32</td>
+<td>730,549</td>
+</tr>
+<tr>
+<td>64KB</td>
+<td>261009.12 ± 3172.46</td>
+<td>251.1 ± 3.0</td>
+<td>32</td>
+<td>185,373</td>
+</tr>
+</tbody>
+</table>
+                    </div>
+                </div>
             </div>
         </section>
+
+        <div class="footer">
+            Generated from <code>bench_output.txt</code> inside the benchmark container.
+        </div>
     </main>
 </body>
 
