@@ -8,31 +8,34 @@ import (
 	"testing"
 )
 
-var attributeCountList []int = utils.ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS")
-var fixedPayloadSize int = utils.ParseIntFromEnv("JSON_CBOR_PAYLOAD_SIZE")
+type JSONCBORConfig struct {
+	AttributeSizes []int
+	PayloadSize    int
+	AESKeySize     int
+}
 
 func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
+	config := loadJSONCBORConfig()
+
 	// Define key of AES-GCM
-	sessionKey := utils.GenerateRandomBytes(utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"))
+	symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
 	// Construct CP-ABE & AES-GCM outside timed benchmarks
-	cpAbe := cryptography.NewCPABE()
-	aesGcm := cryptography.NewAESGCM(sessionKey)
+	cpAbe := cryptography.NewCPABEAuthority()
+	aesGcm := cryptography.NewAESGCM(symmetricKey)
 
-	plaintext := utils.GenerateRandomBytes(fixedPayloadSize)
+	plaintext := utils.GenerateRandomBytes(config.PayloadSize)
 	nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
 	aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-	for index := range attributeCountList {
-
-		attributeCount := attributeCountList[index]
+	for _, attributeCount := range config.AttributeSizes {
 
 		// Stick to synthetic `AND` policies so that ciphertext size grows with every added attribute
-		abePolicy := cryptography.BuildSyntheticConjunctivePolicy(attributeCount)
+		abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 		// Encrypt the session key under policy
-		abeCiphertext := cpAbe.Encrypt(abePolicy, sessionKey)
+		abeCiphertext := cpAbe.Encrypt(abePolicy, symmetricKey)
 
 		// Construct the envelope outside timed benchmarks
 		env := envelope.Envelope{
@@ -91,29 +94,29 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
+	config := loadJSONCBORConfig()
+
 	// Define key of AES-GCM
-	sessionKey := utils.GenerateRandomBytes(utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"))
+	symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
 	// Construct CP-ABE & AES-GCM outside timed benchmarks
-	cpAbe := cryptography.NewCPABE()
-	aesGcm := cryptography.NewAESGCM(sessionKey)
+	cpAbe := cryptography.NewCPABEAuthority()
+	aesGcm := cryptography.NewAESGCM(symmetricKey)
 
-	plaintext := utils.GenerateRandomBytes(fixedPayloadSize)
+	plaintext := utils.GenerateRandomBytes(config.PayloadSize)
 	nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
 	aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-	for index := range attributeCountList {
-
-		attributeCount := attributeCountList[index]
+	for _, attributeCount := range config.AttributeSizes {
 
 		// Stick to synthetic `AND` policies so that ciphertext size grows with every added attribute
-		abePolicy := cryptography.BuildSyntheticConjunctivePolicy(attributeCount)
+		abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 		// Encrypt the session key under policy
-		abeCiphertext := cpAbe.Encrypt(abePolicy, sessionKey)
+		abeCiphertext := cpAbe.Encrypt(abePolicy, symmetricKey)
 
 		// Construct the envelope outside timed benchmarks
-		var env envelope.Envelope = envelope.Envelope{
+		env := envelope.Envelope{
 			ABECiphertext: abeCiphertext,
 			Nonce:         nonce,
 			AESCiphertext: aesCiphertext,
@@ -162,5 +165,14 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			b.ReportMetric(float64(len(cborKeyAsIntSerializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 		})
+	}
+}
+
+func loadJSONCBORConfig() JSONCBORConfig {
+
+	return JSONCBORConfig{
+		AttributeSizes: utils.ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS"),
+		PayloadSize:    utils.ParseIntFromEnv("JSON_CBOR_PAYLOAD_SIZE"),
+		AESKeySize:     utils.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}
 }

@@ -37,3 +37,16 @@ services:
     volumes:
       - ./results:/results
     command: ["./run-json-cbor.sh"]
+
+  payload-scaling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payload-scaling-benchmark
+    restart: "no"
+    tty: true
+    env_file:
+      - ./config/benchmark.env
+    volumes:
+      - ./results:/results
+    command: ["./run-payload-scaling.sh"]

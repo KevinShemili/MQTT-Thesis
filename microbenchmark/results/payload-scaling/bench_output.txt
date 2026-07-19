@@ -1,0 +1,149 @@
+goos: linux
+goarch: amd64
+pkg: project/benchmark
+cpu: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
+BenchmarkPayloadScalingEncrypt/PSK/16B         	53210248	       109.6 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/16B         	54671526	       111.3 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/16B         	57254877	       110.6 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/16B         	  205953	     29413 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/16B         	  208018	     30311 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/16B         	  198915	     29793 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/16B       	     123	  48459375 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/16B       	     100	  50603436 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/16B       	     100	  50405878 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/256B        	41554600	       146.8 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/256B        	39503943	       150.9 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/256B        	41995998	       148.6 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/256B        	  208279	     29968 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/256B        	  202682	     30028 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/256B        	  196348	     30405 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/256B      	     122	  48586406 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/256B      	     100	  50221563 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/256B      	     100	  51367554 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/4096B       	 9462324	       654.8 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/4096B       	 9485829	       656.3 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/4096B       	 9064422	       651.8 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/4096B       	  199831	     30388 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/4096B       	  198848	     31259 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/4096B       	  196741	     31093 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/4096B     	     120	  49850706 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/4096B     	     100	  50367006 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/4096B     	     100	  50316921 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/65536B      	  697177	      8876 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/65536B      	  672231	      9093 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/65536B      	  676617	      9113 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/65536B      	  143878	     40808 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/65536B      	  153876	     40123 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/65536B      	  146648	     40405 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/65536B    	     120	  49845495 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/65536B    	     100	  50661147 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/65536B    	     100	  51887299 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/262144B     	  164506	     35272 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/262144B     	  180513	     35693 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/262144B     	  169552	     36204 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/262144B     	   87998	     71061 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/262144B     	   92302	     68051 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/262144B     	   86367	     68276 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/262144B   	     100	  53712379 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/262144B   	     100	  53879252 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/262144B   	     100	  53528134 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/1048576B    	   36369	    158739 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/1048576B    	   34334	    163417 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/1048576B    	   36787	    164156 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/1048576B    	   26805	    216095 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/1048576B    	   29569	    200271 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/1048576B    	   29727	    201955 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/1048576B  	     100	  56077078 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/1048576B  	     100	  58097887 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/1048576B  	     100	  54955232 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/4194304B    	    8794	    665581 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/4194304B    	    8200	    667327 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/4194304B    	    8544	    710459 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/4194304B    	    6588	    781539 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/4194304B    	    8691	    751110 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/4194304B    	    7443	    760971 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/4194304B  	      99	  61427389 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/4194304B  	     100	  58312235 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/4194304B  	      91	  61661112 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/16777216B   	    1833	   3387259 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/16777216B   	    1682	   3461521 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/PSK/16777216B   	    1836	   3596410 ns/op	        28.00 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/16777216B   	    1945	   3307096 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/16777216B   	    1735	   3337188 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/RSA/16777216B   	    1864	   3868123 ns/op	       284.0 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/16777216B 	      82	  71431500 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/16777216B 	      97	  60582214 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingEncrypt/CPABE/16777216B 	      99	  58801386 ns/op	      3816 wire_overhead_bytes/op
+BenchmarkPayloadScalingDecrypt/PSK/16B         	120595464	        49.88 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/16B         	100000000	        51.42 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/16B         	100000000	        51.16 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/16B         	    5676	   1062804 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/16B         	    5812	   1068005 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/16B         	    5833	   1050277 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/16B       	     474	  12744710 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/16B       	     460	  13027130 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/16B       	     468	  13006601 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/256B        	69945871	        83.96 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/256B        	75760366	        84.27 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/256B        	61950120	        85.22 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/256B        	    5895	   1019506 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/256B        	    6181	   1030732 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/256B        	    5924	   1042230 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/256B      	     460	  12787061 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/256B      	     480	  12848244 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/256B      	     472	  12890387 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/4096B       	 9959061	       612.6 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/4096B       	 9610202	       620.0 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/4096B       	 9858850	       622.3 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/4096B       	    5667	   1022336 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/4096B       	    6129	   1052352 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/4096B       	    5936	   1055809 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/4096B     	     468	  12541506 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/4096B     	     471	  13140592 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/4096B     	     433	  13154463 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/65536B      	  690668	      9076 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/65536B      	  673249	      9211 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/65536B      	  712837	      9191 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/65536B      	    5326	   1047924 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/65536B      	    5866	   1052346 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/65536B      	    5953	   1054285 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/65536B    	     468	  12550936 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/65536B    	     477	  12707127 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/65536B    	     474	  12964647 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/262144B     	  171807	     36409 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/262144B     	  169683	     36815 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/262144B     	  161692	     36928 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/262144B     	    5703	   1067146 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/262144B     	    5176	   1084367 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/262144B     	    5131	   1095659 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/262144B   	     471	  12453805 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/262144B   	     471	  12707665 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/262144B   	     463	  12925604 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/1048576B    	   40494	    148779 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/1048576B    	   39765	    150465 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/1048576B    	   38914	    150910 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/1048576B    	    5118	   1204200 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/1048576B    	    5011	   1186297 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/1048576B    	    5232	   1185245 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/1048576B  	     480	  12488814 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/1048576B  	     466	  12806076 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/1048576B  	     458	  12810046 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/4194304B    	   10000	    635104 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/4194304B    	    9048	    627944 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/4194304B    	   10000	    618685 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/4194304B    	    3585	   1642181 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/4194304B    	    3504	   1740933 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/4194304B    	    3578	   1700605 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/4194304B  	     450	  13255622 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/4194304B  	     447	  13539638 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/4194304B  	     439	  13420367 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/16777216B   	    2007	   2838386 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/16777216B   	    2188	   3018894 ns/op
+BenchmarkPayloadScalingDecrypt/PSK/16777216B   	    1926	   3212959 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/16777216B   	    1332	   4454271 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/16777216B   	    1318	   4640076 ns/op
+BenchmarkPayloadScalingDecrypt/RSA/16777216B   	    1274	   4568589 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/16777216B 	     349	  18213687 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/16777216B 	     304	  19894640 ns/op
+BenchmarkPayloadScalingDecrypt/CPABE/16777216B 	     286	  19721817 ns/op
+PASS

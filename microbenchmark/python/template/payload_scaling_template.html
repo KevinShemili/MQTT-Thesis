@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>PSK vs RSA vs CP-ABE Payload Size Scaling Microbenchmark Report</title>
+
+    <style>
+        :root {
+            --background: #f4f7fb;
+            --surface: #ffffff;
+            --surface-muted: #f8fafc;
+            --border: #d9e2ec;
+            --text-main: #182230;
+            --text-muted: #5f6c7b;
+            --accent: #155e9f;
+            --accent-dark: #0f4777;
+            --accent-soft: #e8f2fb;
+            --psk: #0b7a3d;
+            --rsa: #300bb6;
+            --cpabe: #be0c24;
+            --shadow: 0 18px 45px rgba(15, 35, 55, 0.10);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--background);
+            color: var(--text-main);
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.45;
+        }
+
+        .page {
+            width: min(1280px, calc(100% - 48px));
+            margin: 32px auto;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #0f4777 0%, #155e9f 52%, #233876 100%);
+            color: #ffffff;
+            border-radius: 22px;
+            padding: 34px 38px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero-label {
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            opacity: 0.78;
+            margin-bottom: 12px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 34px;
+            line-height: 1.15;
+            letter-spacing: -0.03em;
+        }
+
+        .hero p {
+            max-width: 850px;
+            margin: 16px 0 0 0;
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 16px;
+        }
+
+        .metadata {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(160px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 10px 28px rgba(15, 35, 55, 0.07);
+        }
+
+        .card-label {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .card-value {
+            margin-top: 8px;
+            font-size: 23px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section {
+            margin-top: 22px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 26px;
+            box-shadow: 0 10px 28px rgba(15, 35, 55, 0.06);
+        }
+
+        .section h2 {
+            margin: 0 0 10px 0;
+            font-size: 23px;
+            letter-spacing: -0.02em;
+        }
+
+        .section p {
+            margin: 0 0 18px 0;
+            color: var(--text-muted);
+        }
+
+        .note {
+            margin-top: 22px;
+            background: var(--accent-soft);
+            border: 1px solid #bfd9ef;
+            border-left: 5px solid var(--accent);
+            border-radius: 16px;
+            padding: 16px 18px;
+            color: #20364d;
+        }
+
+        .note strong {
+            color: var(--accent-dark);
+        }
+
+        .plots {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 22px;
+        }
+
+        .plot-card {
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .plot-card h3 {
+            margin: 0 0 6px 0;
+            font-size: 18px;
+        }
+
+        .plot-card p {
+            margin: 0 0 14px 0;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .plot-card img {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+
+        /* Single square-ish figures get capped instead of stretched full width. */
+        .plot-card img.plot-narrow {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .legend-row {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .legend-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 999px;
+        }
+
+        .legend-dot-psk {
+            background: var(--psk);
+        }
+
+        .legend-dot-rsa {
+            background: var(--rsa);
+        }
+
+        .legend-dot-cpabe {
+            background: var(--cpabe);
+        }
+
+        /* Three tables side by side per row (Encrypt row, Decrypt row). */
+        .table-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 18px;
+        }
+
+        .table-row+.table-row {
+            margin-top: 18px;
+        }
+
+        .table-block {
+            background: var(--surface-muted);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px;
+            /* Grid items default to min-width:auto, which blocks shrinking below content size and forces the whole page to scroll instead of just this card. Overriding to 0 lets the wrapper below actually contain overflow. */
+            min-width: 0;
+        }
+
+        .table-block h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+
+        table {
+            /* No fixed min-width here — the table shrinks to fit its share of the three-column row. */
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            font-size: 12.5px;
+        }
+
+        thead {
+            background: #eef3f8;
+        }
+
+        th {
+            color: #26384d;
+            font-size: 11px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            text-align: right;
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border);
+            /* Headers wrap to two lines instead of forcing the table wider than its card. */
+            white-space: normal;
+            line-height: 1.25;
+        }
+
+        td {
+            padding: 9px 8px;
+            border-bottom: 1px solid #edf1f5;
+            white-space: nowrap;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fbfdff;
+        }
+
+        tbody tr:hover {
+            background: #f1f7fd;
+        }
+
+        code {
+            background: #edf2f7;
+            border: 1px solid #d7e2ec;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 0.95em;
+        }
+
+        .footer {
+            margin: 24px 0 8px 0;
+            color: var(--text-muted);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            .metadata {
+                grid-template-columns: repeat(2, minmax(160px, 1fr));
+            }
+
+            .hero h1 {
+                font-size: 28px;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .page {
+                width: min(100% - 24px, 1280px);
+                margin: 18px auto;
+            }
+
+            .hero {
+                padding: 26px 24px;
+            }
+
+            .metadata {
+                grid-template-columns: 1fr;
+            }
+
+            .section {
+                padding: 20px;
+            }
+
+            .table-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <section class="hero">
+            <div class="hero-label">Payload Size Scaling Microbenchmark Report</div>
+
+            <h1>PSK vs RSA vs CP-ABE</h1>
+
+            <p>
+                Container-generated benchmark artifact comparing per-message encrypt and decrypt latency
+                and wire overhead as the payload size grows, with the CP-ABE policy attribute count and
+                RSA key size held fixed. Each scheme performs its full realistic per-message work: PSK
+                draws a fresh nonce, while RSA and CP-ABE additionally wrap a fresh AES-GCM session key.
+            </p>
+        </section>
+
+        <section class="metadata">
+            <div class="card">
+                <div class="card-label">Independent runs</div>
+                <div class="card-value">{{RunCount}}</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">Confidence interval</div>
+                <div class="card-value">{{ConfidenceLevel}}</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">Student t</div>
+                <div class="card-value">{{TMultiplier}}</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">Crypto operations</div>
+                <div class="card-value">{{TotalIterations}}</div>
+            </div>
+        </section>
+
+        <section class="note">
+            <strong>Methodological note:</strong>
+            latency is reported as mean ± {{ConfidenceLevel}} confidence interval across {{RunCount}}
+            independent Go benchmark runs, converted from Go's ns/op to µs for readability. The
+            confidence interval uses Student's t with df={{DegreesOfFreedom}}. Wire overhead is the
+            fixed number of bytes each scheme adds beyond the raw payload — nonce and AEAD tag for
+            PSK, plus the encrypted session-key material for RSA and CP-ABE — measured once per case
+            outside the timed loop. It is a property of the published envelope, not of the direction,
+            so the decrypt tables reuse the overhead measured on the matching encrypt cases. The
+            largest payload sizes exceed realistic MQTT message sizes and are included as a synthetic
+            probe of asymptotic behavior.
+        </section>
+
+        <section class="section">
+            <h2>Figures</h2>
+
+            <p>
+                The plots summarize the same measurements shown in the numerical tables.
+                Latency is shown with confidence intervals.
+            </p>
+
+            <div class="legend-row">
+                <span class="legend-item">
+                    <span class="legend-dot legend-dot-psk"></span>
+                    PSK + AES-GCM
+                </span>
+
+                <span class="legend-item">
+                    <span class="legend-dot legend-dot-rsa"></span>
+                    RSA + AES-GCM
+                </span>
+
+                <span class="legend-item">
+                    <span class="legend-dot legend-dot-cpabe"></span>
+                    CP-ABE + AES-GCM
+                </span>
+            </div>
+
+            <div class="plots">
+                <article class="plot-card">
+                    <h3>Latency vs payload size</h3>
+                    <p>
+                        Lower values indicate faster encryption or decryption. Error bars show the
+                        confidence interval. At smaller payload sizes, RSA and CP-ABE are dominated
+                        by their fixed per-message session-key setup and asymmetric cryptographic
+                        work. As payload size increases, AES-GCM processing contributes a larger
+                        share of total latency, causing the RSA and PSK curves to move closer
+                        together. CP-ABE remains dominated by its asymmetric operation across the
+                        tested payload sizes.
+                    </p>
+                    <img src="{{LatencyPlot}}" alt="Latency plot">
+                </article>
+
+                <article class="plot-card">
+                    <h3>Encrypt vs decrypt asymmetry</h3>
+                    <p>
+                        Which side of the pipeline each scheme punishes, at the smallest payload so
+                        the asymmetric cost is isolated. RSA is cheap to encrypt but expensive to decrypt, penalizing
+                        constrained subscribers; CP-ABE is the opposite, with
+                        encryption several times more expensive than decryption, penalizing constrained publishers. The
+                        ratio is stated
+                        explicitly above each pair, since the logarithmic axis compresses visual bar-height differences.
+                        PSK is near-symmetric and orders of magnitude
+                        below both.
+                    </p>
+                    <img src="{{AsymmetryPlot}}" alt="Encrypt vs decrypt asymmetry bar chart" class="plot-narrow">
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Numerical summary</h2>
+
+            <p>
+                Encrypt results appear first, decrypt results below. PSK, RSA, and CP-ABE sit
+                side by side within each row for direct comparison.
+            </p>
+
+            <div class="table-row">
+                <div class="table-block">
+                    <h3>Encrypt — PSK</h3>
+                    <div class="table-wrapper">
+                        {{EncryptPskTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Encrypt — RSA</h3>
+                    <div class="table-wrapper">
+                        {{EncryptRsaTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Encrypt — CP-ABE</h3>
+                    <div class="table-wrapper">
+                        {{EncryptCpabeTable}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-row">
+                <div class="table-block">
+                    <h3>Decrypt — PSK</h3>
+                    <div class="table-wrapper">
+                        {{DecryptPskTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Decrypt — RSA</h3>
+                    <div class="table-wrapper">
+                        {{DecryptRsaTable}}
+                    </div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Decrypt — CP-ABE</h3>
+                    <div class="table-wrapper">
+                        {{DecryptCpabeTable}}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="footer">
+            Generated from <code>bench_output.txt</code> inside the benchmark container.
+        </div>
+    </main>
+</body>
+
+</html>
