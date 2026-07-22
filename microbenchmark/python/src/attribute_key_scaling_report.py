@@ -264,7 +264,6 @@ def PlotSweep(
     xLabel: str,
     figureTitle: str,
     pngFile: str,
-    constantDecryptMicros: float | None = None,
 ) -> None:
 
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
@@ -306,17 +305,6 @@ def PlotSweep(
             linewidth=1.8,
             markersize=5,
             capsize=4,
-        )
-
-    # Drawn flat on purpose: subscriber-side decrypt does not vary with audience size, so the
-    # value comes from the key-size sweep instead of a per-N measurement that cannot move.
-    if constantDecryptMicros is not None:
-        latencyAxis.axhline(
-            constantDecryptMicros,
-            color=DECRYPT_COLOR,
-            linestyle="--",
-            linewidth=1.8,
-            label=f"Decrypt (Constant)",
         )
 
     latencyAxis.set_title("Latency", fontsize=11)
@@ -499,35 +487,30 @@ def ComputeRsaSubscriberMarginalSlopes(
     totalCiphertextBytesValues: list[float] = []
     decryptMicrosValues: list[float] = []
 
-    rsaDecryptMicros: float = GetMeanLatencyMicros(
-        results, f"decrypt/RSAKeyBits/{FIXED_RSA_KEY_BITS}"
-    )
-
     for subscriberCount in SUBSCRIBER_COUNTS:
 
         encryptMetrics: BenchmarkMetrics | None = results.get(
             f"encrypt/RSASubscribers/{subscriberCount}"
         )
-        if encryptMetrics is None:
+        decryptMetrics: BenchmarkMetrics | None = results.get(
+            f"decrypt/RSASubscribers/{subscriberCount}"
+        )
+        if encryptMetrics is None or decryptMetrics is None:
             continue
 
         subscriberValues.append(float(subscriberCount))
         encryptMicrosValues.append(Mean(encryptMetrics.NsPerOperation) / 1000.0)
         totalCiphertextBytesValues.append(Mean(encryptMetrics.TotalCiphertextBytes))
 
-        # One subscriber always unwraps one session key, regardless of total audience size.
-        decryptMicrosValues.append(rsaDecryptMicros)
+        # Measured independently at every audience size, so a flat slope is a finding.
+        decryptMicrosValues.append(Mean(decryptMetrics.NsPerOperation) / 1000.0)
 
-    # Each slope is the approximate change caused by one additional subscriber.
+    # Each slope is the measured change caused by one additional subscriber.
     encryptSlopeMicros, _ = FitLinear(subscriberValues, encryptMicrosValues)
     totalCiphertextSlopeBytes, _ = FitLinear(
         subscriberValues, totalCiphertextBytesValues
     )
     decryptSlopeMicros, _ = FitLinear(subscriberValues, decryptMicrosValues)
-
-    # Avoid displaying negative zero when the fitted constant series is numerically flat.
-    if abs(decryptSlopeMicros) < 0.000001:
-        decryptSlopeMicros = 0.0
 
     return encryptSlopeMicros, totalCiphertextSlopeBytes, decryptSlopeMicros
 
@@ -837,59 +820,6 @@ def BuildSweepOperationTable(
     return "\n".join(lines)
 
 
-def BuildRepeatedLatencyTable(
-    results: dict[str, BenchmarkMetrics],
-    sourceBenchmarkCaseId: str,
-    sweepValues: list[int],
-    valueHeader: str,
-) -> str:
-
-    metrics: BenchmarkMetrics | None = results.get(sourceBenchmarkCaseId)
-
-    if metrics is None:
-        sys.exit(
-            f"[error] missing benchmark case '{sourceBenchmarkCaseId}' in {BENCH_FILE}"
-        )
-
-    latencyMean: float
-    latencyCI: float
-    latencyMean, latencyCI = MeanAndConfidenceInterval(
-        metrics.NsPerOperation,
-        T_95,
-    )
-
-    caseIterations: int = 0
-    for iterationCount in metrics.Iterations:
-        caseIterations += iterationCount
-
-    latencyText: str = f"{latencyMean / 1000.0:.2f} ± {latencyCI / 1000.0:.2f}"
-
-    lines: list[str] = []
-
-    lines.append("<table>")
-    lines.append("<thead>")
-    lines.append("<tr>")
-    lines.append(f"<th>{valueHeader.upper()}</th>")
-    lines.append("<th>LATENCY (µs/op)</th>")
-    lines.append(f"<th>ITERS (Σ{RUNS} RUNS)</th>")
-    lines.append("</tr>")
-    lines.append("</thead>")
-    lines.append("<tbody>")
-
-    # Repeat the fixed RSA decrypt measurement to show that audience size does not change it.
-    for sweepValue in sweepValues:
-        lines.append("<tr>")
-        lines.append(f"<td>{sweepValue}</td>")
-        lines.append(f"<td>{latencyText}</td>")
-        lines.append(f"<td>{caseIterations:,}</td>")
-        lines.append("</tr>")
-
-    lines.append("</tbody>")
-    lines.append("</table>")
-
-    return "\n".join(lines)
-
-
 def WriteHtmlReport(
     results: dict[str, BenchmarkMetrics],
     crossoverSummary: CrossoverSummary,
@@ -941,11 +871,15 @@ def WriteHtmlReport(
         True,
         False,
     )
-    rsaSubscribersDecryptTable: str = BuildRepeatedLatencyTable(
+    rsaSubscribersDecryptTable: str = BuildSweepOperationTable(
         results,
-        f"decrypt/RSAKeyBits/{FIXED_RSA_KEY_BITS}",
+        "RSASubscribers",
         SUBSCRIBER_COUNTS,
+        "decrypt",
         "Subscribers",
+        False,
+        False,
+        False,
     )
     rsaKeyBitsEncryptTable: str = BuildSweepOperationTable(
         results,
@@ -1144,17 +1078,16 @@ def Main() -> None:
         CPABE_PNG_FILE,
     )
 
-    # Decrypt is passed as a constant rather than a swept series, because it does not vary with
-    # audience size. Keygen is absent because the key size is fixed across this sweep.
+    # Decrypt is swept alongside encrypt so audience-independence is observed, not asserted.
+    # Keygen is absent because the key size is fixed across this sweep.
     PlotSweep(
         results,
         "RSASubscribers",
         SUBSCRIBER_COUNTS,
-        ["encrypt"],
+        ["encrypt", "decrypt"],
         "Subscribers",
         f"RSA Scaling with Subscriber Count (Fixed Key: {FIXED_RSA_KEY_BITS} bits)",
         RSA_SUBSCRIBERS_PNG_FILE,
-        GetMeanLatencyMicros(results, f"decrypt/RSAKeyBits/{FIXED_RSA_KEY_BITS}"),
     )
 
     PlotSweep(
