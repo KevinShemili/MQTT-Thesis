@@ -1,0 +1,84 @@
+goos: linux
+goarch: amd64
+pkg: project/benchmark
+cpu: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/1         	     183	  32435296 ns/op	      2376 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/1         	     184	  32129970 ns/op	      2376 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/2         	     148	  39997940 ns/op	      2729 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/2         	     150	  39671943 ns/op	      2729 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/4         	     100	  53057106 ns/op	      3435 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/4         	     100	  52771869 ns/op	      3435 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/8         	      70	  82746702 ns/op	      4847 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/8         	      72	  84261210 ns/op	      4847 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/16        	      40	 140526010 ns/op	      7683 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/16        	      44	 139448705 ns/op	      7683 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/32        	      24	 251931277 ns/op	     13363 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/CPABEAttributes/32        	      22	 256865267 ns/op	     13363 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/1          	  172095	     35811 ns/op	       256.0 ciphertext_bytes	       256.0 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/1          	  159775	     36660 ns/op	       256.0 ciphertext_bytes	       256.0 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/2          	   85717	     70918 ns/op	       256.0 ciphertext_bytes	       512.0 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/2          	   84058	     70972 ns/op	       256.0 ciphertext_bytes	       512.0 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/4          	   41902	    142923 ns/op	       256.0 ciphertext_bytes	      1024 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/4          	   42285	    141359 ns/op	       256.0 ciphertext_bytes	      1024 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/8          	   20995	    284785 ns/op	       256.0 ciphertext_bytes	      2048 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/8          	   21267	    283855 ns/op	       256.0 ciphertext_bytes	      2048 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/16         	   10000	    566663 ns/op	       256.0 ciphertext_bytes	      4096 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/16         	   10000	    573524 ns/op	       256.0 ciphertext_bytes	      4096 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/32         	    5395	   1137187 ns/op	       256.0 ciphertext_bytes	      8192 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/32         	    4874	   1141702 ns/op	       256.0 ciphertext_bytes	      8192 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/64         	    2660	   2287305 ns/op	       256.0 ciphertext_bytes	     16384 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSASubscribers/64         	    2618	   2255192 ns/op	       256.0 ciphertext_bytes	     16384 total_ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/1024           	  480660	     12735 ns/op	       128.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/1024           	  433138	     12552 ns/op	       128.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/2048           	  173724	     34983 ns/op	       256.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/2048           	  173986	     35177 ns/op	       256.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/3072           	   29553	    195956 ns/op	       384.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/3072           	   31052	    196897 ns/op	       384.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/4096           	   17383	    343665 ns/op	       512.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingEncrypt/RSAKeyBits/4096           	   17529	    342240 ns/op	       512.0 ciphertext_bytes
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/1         	     481	  12510742 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/1         	     487	  12703950 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/2         	     452	  13077526 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/2         	     442	  13262936 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/4         	     439	  13701746 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/4         	     429	  14083264 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/8         	     396	  15601950 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/8         	     382	  15523267 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/16        	     315	  18740855 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/16        	     320	  18719401 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/32        	     237	  24956518 ns/op
+BenchmarkAttributeKeyScalingDecrypt/CPABEAttributes/32        	     240	  24941432 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/1024           	   16820	    364483 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/1024           	   16707	    359200 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/2048           	    5018	   1155650 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/2048           	    5244	   1135790 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/3072           	    1863	   3183547 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/3072           	    1906	   3229257 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/4096           	     910	   6572871 ns/op
+BenchmarkAttributeKeyScalingDecrypt/RSAKeyBits/4096           	     938	   6450510 ns/op
+PASS
+goos: linux
+goarch: amd64
+pkg: project/benchmark
+cpu: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/1         	      20	  39114225 ns/op	      2353 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/1         	      20	  38331540 ns/op	      2353 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/2         	      20	  54423738 ns/op	      2790 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/2         	      20	  53331430 ns/op	      2790 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/4         	      20	  81058714 ns/op	      3664 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/4         	      20	  81471019 ns/op	      3664 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/8         	      20	 134799774 ns/op	      5412 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/8         	      20	 136497129 ns/op	      5412 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/16        	      20	 247855885 ns/op	      8920 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/16        	      20	 253429328 ns/op	      8920 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/32        	      20	 463125740 ns/op	     15944 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/CPABEAttributes/32        	      20	 467765062 ns/op	     15944 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/1024           	      20	  12196863 ns/op	       609.0 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/1024           	      20	  13170741 ns/op	       609.0 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/2048           	      20	  75047142 ns/op	      1191 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/2048           	      20	  69673893 ns/op	      1191 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/3072           	      20	 194258567 ns/op	      1769 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/3072           	      20	 248446049 ns/op	      1769 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/4096           	      20	 670818611 ns/op	      2348 stored_key_bytes
+BenchmarkAttributeKeyScalingKeyGen/RSAKeyBits/4096           	      20	 541482001 ns/op	      2348 stored_key_bytes
+PASS

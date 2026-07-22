@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 )
 
 type RSA struct {
@@ -39,4 +40,9 @@ func (r RSA) Decrypt(ciphertext []byte) []byte {
 	}
 
 	return plaintext
+}
+
+func (r RSA) StoredKeySize() int {
+
+	return len(x509.MarshalPKCS1PrivateKey(r.PrivateKey))
 }

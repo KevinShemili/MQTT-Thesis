@@ -16,7 +16,7 @@ type CPABESubscriberKey struct {
 	PrivateKey tkn20.AttributeKey
 }
 
-// Authority setup phase
+// Ctor Authority
 func NewCPABEAuthority() CPABEAuthority {
 
 	publicKey, systemSecretKey, err := tkn20.Setup(rand.Reader)
@@ -58,6 +58,16 @@ func (subscriberKey CPABESubscriberKey) Decrypt(ciphertext []byte) []byte {
 	}
 
 	return plaintext
+}
+
+func (subscriberKey CPABESubscriberKey) StoredKeySize() int {
+
+	keyBytes, err := subscriberKey.PrivateKey.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
+	return len(keyBytes)
 }
 
 // Returns synthetic policy & attribute set

@@ -11,7 +11,8 @@ COPY golang/go.mod golang/go.sum ./
 RUN go mod download
 
 COPY golang/ .
-COPY python/ .
-COPY script/ .
 
 RUN go test -c -o benchmark-binary ./benchmark
+
+COPY python/ .
+COPY script/ .

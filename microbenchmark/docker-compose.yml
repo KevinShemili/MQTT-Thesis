@@ -50,3 +50,16 @@ services:
     volumes:
       - ./results:/results
     command: ["./run-payload-scaling.sh"]
+
+  attribute-key-scaling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: attribute-key-scaling-benchmark
+    restart: "no"
+    tty: true
+    env_file:
+      - ./config/benchmark.env
+    volumes:
+      - ./results:/results
+    command: ["./run-attribute-key-scaling.sh"]
