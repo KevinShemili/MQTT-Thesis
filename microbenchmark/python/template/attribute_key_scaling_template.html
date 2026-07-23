@@ -765,7 +765,7 @@
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Bandwidth Intersection</div>
+                        <div class="comparison-label">Measured Ciphertext Size</div>
                         <div class="comparison-value">≈{{BytesCrossoverLow}} - {{BytesCrossoverHigh}} Subscribers</div>
                         <p><strong>AT {{MinAttributeLabel}}:</strong> RSA produces smaller key ciphertexts. Equality
                             with CP-ABE is
@@ -786,7 +786,7 @@
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Publisher CPU Intersection</div>
+                        <div class="comparison-label">Measured Encrypt Comparison</div>
                         <div class="comparison-value">≈{{EncryptCpuCrossoverLow}} - {{EncryptCpuCrossoverHigh}}
                             Subscribers</div>
                         <p><strong>AT {{MinAttributeLabel}}:</strong> RSA costs the publisher less CPU. Equality with
@@ -799,7 +799,7 @@
                 <div class="comparison-row">
                     <article class="plot-card">
                         <div class="plot-copy">
-                            <h3>CP-ABE vs. RSA: Subscriber Decrypt Cost</h3>
+                            <h3>CP-ABE vs. RSA: Decrypt Cost by Policy and Key Size</h3>
                         </div>
                         <div class="plot-frame">
                             <img src="{{DecryptCpuCrossoverPlot}}">
@@ -807,11 +807,14 @@
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Subscriber CPU Intersection</div>
-                        <div class="comparison-value">None</div>
-                        <p><strong>AT {{MinAttributeLabel}}:</strong> CP-ABE costs the subscriber
-                            {{DecryptPenaltyMin}}× an RSA-{{FixedRsaKeyBits}} unwrap</p>
-                        <p><strong>AT {{MaxAttributeLabel}}:</strong> That penalty widens to {{DecryptPenaltyMax}}×</p>
+                        <div class="comparison-label">RSA-{{FixedRsaKeyBits}} Decrypt Ratio</div>
+                        <div class="comparison-value">
+                            {{DecryptPenaltyMin}}× - {{DecryptPenaltyMax}}× RSA
+                        </div>
+                        <p><strong>AT {{MinAttributeLabel}}:</strong> CP-ABE requires
+                            {{DecryptPenaltyMin}}× the measured RSA-{{FixedRsaKeyBits}} decrypt latency.</p>
+                        <p><strong>AT {{MaxAttributeLabel}}:</strong> CP-ABE requires
+                            {{DecryptPenaltyMax}}× the measured RSA-{{FixedRsaKeyBits}} decrypt latency.</p>
                     </aside>
                 </div>
 

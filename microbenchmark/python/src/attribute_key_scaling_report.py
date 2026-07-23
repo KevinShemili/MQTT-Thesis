@@ -956,55 +956,142 @@ def PlotEncryptCpuCrossover(summary: CpuCrossoverSummary) -> None:
     print(f"Saved -> {ENCRYPT_CPU_CROSSOVER_PNG_FILE}")
 
 
-def PlotDecryptCpuCrossover(summary: CpuCrossoverSummary) -> None:
+def PlotDecryptCpuCrossover(
+    results: dict[str, BenchmarkMetrics],
+) -> None:
 
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
 
-    labels: list[str] = [
-        f"RSA-{FIXED_RSA_KEY_BITS}",
-        f"CP-ABE\n{FormatAttributeLabel(ATTRIBUTE_COUNTS[0])}",
-        f"CP-ABE\n{FormatAttributeLabel(ATTRIBUTE_COUNTS[-1])}",
-    ]
+    cpabeMeans: list[float] = []
+    cpabeCiHalfs: list[float] = []
+    largestValue: float = 0.0
 
-    values: list[float] = [
-        summary.RsaDecryptMicros,
-        summary.CpabeDecryptMicrosMin,
-        summary.CpabeDecryptMicrosMax,
-    ]
+    for attributeCount in ATTRIBUTE_COUNTS:
 
-    positions: list[int] = [0, 1, 2]
+        benchmarkCaseId: str = f"decrypt/CPABEAttributes/{attributeCount}"
 
-    axis.bar(
-        positions,
-        values,
-        color=[
-            TOTAL_CIPHERTEXT_COLOR,
-            ENCRYPT_COLOR,
-            KEYGEN_COLOR,
-        ],
-    )
+        metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
 
-    largestValue: float = max(values)
+        if metrics is None:
+            sys.exit(
+                f"[error] missing benchmark case "
+                f"'{benchmarkCaseId}' in {BENCH_FILE}"
+            )
 
-    for index in range(len(values)):
+        latencyMean: float
+        latencyCI: float
 
-        axis.annotate(
-            f"{values[index]:,.1f} µs",
-            (positions[index], values[index]),
-            textcoords="offset points",
-            xytext=(0, 5),
-            ha="center",
-            fontsize=9,
+        latencyMean, latencyCI = MeanAndConfidenceInterval(
+            metrics.NsPerOperation,
+            T_95,
         )
 
-    axis.set_xticks(positions)
-    axis.set_xticklabels(labels)
-    axis.set_ylim(0.0, largestValue * 1.15)
-    axis.set_title("Subscriber Decrypt Cost", fontsize=12)
-    axis.set_ylabel("Decrypt Latency (µs)")
-    axis.grid(True, axis="y", linestyle="-", linewidth=0.5, alpha=0.18)
-    axis.spines["top"].set_visible(False)
-    axis.spines["right"].set_visible(False)
+        meanMicros: float = latencyMean / 1000.0
+        ciMicros: float = latencyCI / 1000.0
+
+        cpabeMeans.append(meanMicros)
+        cpabeCiHalfs.append(ciMicros)
+
+        largestValue = max(
+            largestValue,
+            meanMicros + ciMicros,
+        )
+
+    # Plot the measured CP-ABE decrypt scaling across policy attributes.
+    axis.errorbar(
+        ATTRIBUTE_COUNTS,
+        cpabeMeans,
+        yerr=cpabeCiHalfs,
+        label="CP-ABE",
+        color=DECRYPT_COLOR,
+        marker="o",
+        linewidth=2.0,
+        markersize=5,
+        capsize=4,
+    )
+
+    rsaColors: list[str] = [
+        TOTAL_CIPHERTEXT_COLOR,
+        "#2563eb",
+        ENCRYPT_COLOR,
+        KEYGEN_COLOR,
+    ]
+
+    for index in range(len(RSA_KEY_BITS_LIST)):
+
+        rsaKeyBits: int = RSA_KEY_BITS_LIST[index]
+
+        benchmarkCaseId = f"decrypt/RSAKeyBits/{rsaKeyBits}"
+
+        metrics = results.get(benchmarkCaseId)
+
+        if metrics is None:
+            sys.exit(
+                f"[error] missing benchmark case "
+                f"'{benchmarkCaseId}' in {BENCH_FILE}"
+            )
+
+        latencyMean, latencyCI = MeanAndConfidenceInterval(
+            metrics.NsPerOperation,
+            T_95,
+        )
+
+        rsaMeanMicros: float = latencyMean / 1000.0
+        rsaCiMicros: float = latencyCI / 1000.0
+        rsaColor: str = rsaColors[index % len(rsaColors)]
+
+        # Each RSA line represents one measured key size across the policy axis.
+        axis.hlines(
+            rsaMeanMicros,
+            ATTRIBUTE_COUNTS[0],
+            ATTRIBUTE_COUNTS[-1],
+            color=rsaColor,
+            linestyle="--",
+            linewidth=1.6,
+            label=f"RSA-{rsaKeyBits}",
+        )
+
+        # Show the measured RSA confidence interval at the end of its line.
+        axis.errorbar(
+            [ATTRIBUTE_COUNTS[-1]],
+            [rsaMeanMicros],
+            yerr=[rsaCiMicros],
+            color=rsaColor,
+            fmt="none",
+            capsize=4,
+        )
+
+        largestValue = max(
+            largestValue,
+            rsaMeanMicros + rsaCiMicros,
+        )
+
+    axis.set_xticks(ATTRIBUTE_COUNTS)
+    axis.set_xlim(
+        0.0,
+        float(ATTRIBUTE_COUNTS[-1]) * 1.03,
+    )
+    axis.set_ylim(
+        0.0,
+        largestValue * 1.15,
+    )
+    axis.set_title(
+        "Subscriber Decrypt Cost over Policy Attributes",
+        fontsize=12,
+    )
+    axis.set_xlabel("Policy Attributes")
+    axis.set_ylabel("Decrypt Latency (µs) ± 95% CI")
+    axis.grid(
+        True,
+        axis="y",
+        linestyle="-",
+        linewidth=0.5,
+        alpha=0.18,
+    )
+    axis.legend(
+        fontsize=9,
+        loc="upper left",
+    )
 
     figure.tight_layout()
     figure.savefig(
@@ -1396,7 +1483,14 @@ def WriteHtmlReport(
     )
     report = report.replace("{{MaxSubscriberCount}}", str(maxSubscriberCount))
     report = report.replace("{{FixedRsaKeyBits}}", str(FIXED_RSA_KEY_BITS))
-
+    report = report.replace(
+        "{{MinRsaKeyBits}}",
+        str(RSA_KEY_BITS_LIST[0]),
+    )
+    report = report.replace(
+        "{{MaxRsaKeyBits}}",
+        str(RSA_KEY_BITS_LIST[-1]),
+    )
     report = report.replace("{{CpabeEncryptTable}}", cpabeEncryptTable)
     report = report.replace("{{CpabeDecryptTable}}", cpabeDecryptTable)
     report = report.replace("{{CpabeKeygenTable}}", cpabeKeygenTable)
@@ -1623,7 +1717,7 @@ def Main() -> None:
 
     PlotCrossover(crossoverSummary)
     PlotEncryptCpuCrossover(cpuCrossoverSummary)
-    PlotDecryptCpuCrossover(cpuCrossoverSummary)
+    PlotDecryptCpuCrossover(results)
     PlotEncryptDecryptAsymmetry(results)
 
     WriteHtmlReport(results, crossoverSummary, cpuCrossoverSummary)
