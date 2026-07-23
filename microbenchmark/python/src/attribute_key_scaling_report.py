@@ -11,7 +11,6 @@ from utils.statistics import GetStudentTCriticalValue95
 from utils.statistics import Mean
 from utils.statistics import MeanAndConfidenceInterval
 from utils.statistics import FitLinearRegression
-from utils.statistics import FitPowerLaw
 from utils.statistics import ComputeSlopeConfidenceInterval
 from utils.parser import ParseIntListFromEnv
 from utils.parser import ParseIntFromEnv
@@ -94,7 +93,8 @@ class CpuCrossoverSummary:
         self.MeasuredEncryptMicros: list[float] = []
 
         # Cost RSA adds for one more recipient, taken at the smallest audience tested.
-        self.RsaEncryptPerSubscriberMicros: float = 0.0
+        self.RsaEncryptSlopeMicrosPerSubscriber: float = 0.0
+        self.RsaEncryptInterceptMicros: float = 0.0
 
         # Audience-independent RSA private-key cost at the fixed key size.
         self.RsaDecryptMicros: float = 0.0
@@ -520,7 +520,12 @@ def ComputeCpuCrossoverSummary(
     minAttributeCount: int = ATTRIBUTE_COUNTS[0]
     maxAttributeCount: int = ATTRIBUTE_COUNTS[-1]
 
+    subscriberValues: list[float] = []
+
+    # Collect every measured RSA subscriber-scaling result.
     for subscriberCount in SUBSCRIBER_COUNTS:
+
+        subscriberValues.append(float(subscriberCount))
 
         summary.MeasuredEncryptMicros.append(
             GetMeanLatencyMicros(
@@ -529,13 +534,25 @@ def ComputeCpuCrossoverSummary(
             )
         )
 
-    # One RSA encryption is repeated once for every recipient.
-    summary.RsaEncryptPerSubscriberMicros = GetMeanLatencyMicros(
-        results,
-        f"encrypt/RSASubscribers/{SUBSCRIBER_COUNTS[0]}",
+    rsaEncryptRSquared: float
+    rsaEncryptSlopeStandardError: float
+
+    # Fit the RSA projection across the complete measured subscriber sweep.
+    (
+        summary.RsaEncryptSlopeMicrosPerSubscriber,
+        rsaEncryptRSquared,
+        rsaEncryptSlopeStandardError,
+    ) = FitLinearRegression(
+        subscriberValues,
+        summary.MeasuredEncryptMicros,
     )
 
-    # RSA decrypt scaling is taken from the measured key-size sweep.
+    # Complete the fitted equation: latency = intercept + slope × subscribers.
+    summary.RsaEncryptInterceptMicros = Mean(
+        summary.MeasuredEncryptMicros
+    ) - summary.RsaEncryptSlopeMicrosPerSubscriber * Mean(subscriberValues)
+
+    # RSA decrypt cost is measured at the fixed configured key size.
     summary.RsaDecryptMicros = GetMeanLatencyMicros(
         results,
         f"decrypt/RSAKeyBits/{FIXED_RSA_KEY_BITS}",
@@ -558,12 +575,14 @@ def ComputeCpuCrossoverSummary(
         f"decrypt/CPABEAttributes/{maxAttributeCount}",
     )
 
+    # Solve CP-ABE latency = RSA intercept + RSA slope × subscribers.
     summary.EncryptCrossoverMin = (
-        summary.CpabeEncryptMicrosMin / summary.RsaEncryptPerSubscriberMicros
-    )
+        summary.CpabeEncryptMicrosMin - summary.RsaEncryptInterceptMicros
+    ) / summary.RsaEncryptSlopeMicrosPerSubscriber
+
     summary.EncryptCrossoverMax = (
-        summary.CpabeEncryptMicrosMax / summary.RsaEncryptPerSubscriberMicros
-    )
+        summary.CpabeEncryptMicrosMax - summary.RsaEncryptInterceptMicros
+    ) / summary.RsaEncryptSlopeMicrosPerSubscriber
 
     summary.DecryptPenaltyMin = summary.CpabeDecryptMicrosMin / summary.RsaDecryptMicros
     summary.DecryptPenaltyMax = summary.CpabeDecryptMicrosMax / summary.RsaDecryptMicros
@@ -586,12 +605,17 @@ def ComputeCpabeMarginalSlopes(
     float,
     float,
     float,
+    float,
+    float,
+    float,
 ]:
 
     encryptAttributeValues: list[float] = []
     encryptMicrosValues: list[float] = []
     decryptAttributeValues: list[float] = []
     decryptMicrosValues: list[float] = []
+    keyIssuanceAttributeValues: list[float] = []
+    keyIssuanceMicrosValues: list[float] = []
     ciphertextAttributeValues: list[float] = []
     ciphertextBytesValues: list[float] = []
     storedKeyAttributeValues: list[float] = []
@@ -610,7 +634,7 @@ def ComputeCpabeMarginalSlopes(
             ciphertextAttributeValues.append(float(attributeCount))
             ciphertextBytesValues.append(Mean(encryptMetrics.SingleCiphertextBytes))
 
-        # Fitted separately from encrypt, because publisher and subscriber pay different marginal costs.
+        # Publisher and subscriber operations have separate marginal costs.
         decryptMetrics: BenchmarkMetrics | None = results.get(
             f"decrypt/CPABEAttributes/{attributeCount}"
         )
@@ -621,6 +645,10 @@ def ComputeCpabeMarginalSlopes(
         keygenMetrics: BenchmarkMetrics | None = results.get(
             f"keygen/CPABEAttributes/{attributeCount}"
         )
+        if keygenMetrics is not None and len(keygenMetrics.NsPerOperation) > 0:
+            keyIssuanceAttributeValues.append(float(attributeCount))
+            keyIssuanceMicrosValues.append(Mean(keygenMetrics.NsPerOperation) / 1000.0)
+
         if keygenMetrics is not None and len(keygenMetrics.StoredKeyBytes) > 0:
             storedKeyAttributeValues.append(float(attributeCount))
             storedKeyBytesValues.append(Mean(keygenMetrics.StoredKeyBytes))
@@ -632,7 +660,8 @@ def ComputeCpabeMarginalSlopes(
         FitLinearRegression(encryptAttributeValues, encryptMicrosValues)
     )
     encryptSlopeCI: float = ComputeSlopeConfidenceInterval(
-        encryptSlopeStandardError, len(encryptAttributeValues)
+        encryptSlopeStandardError,
+        len(encryptAttributeValues),
     )
 
     decryptSlopeMicros: float
@@ -642,7 +671,24 @@ def ComputeCpabeMarginalSlopes(
         FitLinearRegression(decryptAttributeValues, decryptMicrosValues)
     )
     decryptSlopeCI: float = ComputeSlopeConfidenceInterval(
-        decryptSlopeStandardError, len(decryptAttributeValues)
+        decryptSlopeStandardError,
+        len(decryptAttributeValues),
+    )
+
+    keyIssuanceSlopeMicros: float
+    keyIssuanceRSquared: float
+    keyIssuanceSlopeStandardError: float
+    (
+        keyIssuanceSlopeMicros,
+        keyIssuanceRSquared,
+        keyIssuanceSlopeStandardError,
+    ) = FitLinearRegression(
+        keyIssuanceAttributeValues,
+        keyIssuanceMicrosValues,
+    )
+    keyIssuanceSlopeCI: float = ComputeSlopeConfidenceInterval(
+        keyIssuanceSlopeStandardError,
+        len(keyIssuanceAttributeValues),
     )
 
     ciphertextSlopeBytes: float
@@ -652,7 +698,8 @@ def ComputeCpabeMarginalSlopes(
         FitLinearRegression(ciphertextAttributeValues, ciphertextBytesValues)
     )
     ciphertextSlopeCI: float = ComputeSlopeConfidenceInterval(
-        ciphertextSlopeStandardError, len(ciphertextAttributeValues)
+        ciphertextSlopeStandardError,
+        len(ciphertextAttributeValues),
     )
 
     storedKeySlopeBytes: float
@@ -662,20 +709,24 @@ def ComputeCpabeMarginalSlopes(
         FitLinearRegression(storedKeyAttributeValues, storedKeyBytesValues)
     )
     storedKeySlopeCI: float = ComputeSlopeConfidenceInterval(
-        storedKeySlopeStandardError, len(storedKeyAttributeValues)
+        storedKeySlopeStandardError,
+        len(storedKeyAttributeValues),
     )
 
     return (
         encryptSlopeMicros,
         decryptSlopeMicros,
+        keyIssuanceSlopeMicros,
         ciphertextSlopeBytes,
         storedKeySlopeBytes,
         encryptRSquared,
         decryptRSquared,
+        keyIssuanceRSquared,
         ciphertextRSquared,
         storedKeyRSquared,
         encryptSlopeCI,
         decryptSlopeCI,
+        keyIssuanceSlopeCI,
         ciphertextSlopeCI,
         storedKeySlopeCI,
     )
@@ -732,126 +783,6 @@ def ComputeRsaSubscriberMarginalSlopes(
     )
 
 
-def ComputeRsaKeyBitsMarginalSlopes(
-    results: dict[str, BenchmarkMetrics],
-) -> tuple[
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-    float,
-]:
-
-    keyBitsValues: list[float] = []
-    encryptMicrosValues: list[float] = []
-    decryptMicrosValues: list[float] = []
-    keygenMicrosValues: list[float] = []
-    ciphertextBytesValues: list[float] = []
-    storedKeyBytesValues: list[float] = []
-
-    for rsaKeyBits in RSA_KEY_BITS_LIST:
-
-        encryptMetrics: BenchmarkMetrics | None = results.get(
-            f"encrypt/RSAKeyBits/{rsaKeyBits}"
-        )
-        decryptMetrics: BenchmarkMetrics | None = results.get(
-            f"decrypt/RSAKeyBits/{rsaKeyBits}"
-        )
-        keygenMetrics: BenchmarkMetrics | None = results.get(
-            f"keygen/RSAKeyBits/{rsaKeyBits}"
-        )
-
-        if encryptMetrics is None or decryptMetrics is None or keygenMetrics is None:
-            continue
-
-        keyBitsValues.append(float(rsaKeyBits))
-        encryptMicrosValues.append(Mean(encryptMetrics.NsPerOperation) / 1000.0)
-        decryptMicrosValues.append(Mean(decryptMetrics.NsPerOperation) / 1000.0)
-        keygenMicrosValues.append(Mean(keygenMetrics.NsPerOperation) / 1000.0)
-        ciphertextBytesValues.append(Mean(encryptMetrics.SingleCiphertextBytes))
-        storedKeyBytesValues.append(Mean(keygenMetrics.StoredKeyBytes))
-
-    # Modular arithmetic cost is polynomial in modulus width, so a straight line is the wrong model.
-    encryptExponent: float
-    encryptRSquared: float
-    encryptExponentStandardError: float
-    encryptExponent, encryptRSquared, encryptExponentStandardError = FitPowerLaw(
-        keyBitsValues, encryptMicrosValues
-    )
-    encryptExponentCI: float = ComputeSlopeConfidenceInterval(
-        encryptExponentStandardError, len(keyBitsValues)
-    )
-
-    decryptExponent: float
-    decryptRSquared: float
-    decryptExponentStandardError: float
-    decryptExponent, decryptRSquared, decryptExponentStandardError = FitPowerLaw(
-        keyBitsValues, decryptMicrosValues
-    )
-    decryptExponentCI: float = ComputeSlopeConfidenceInterval(
-        decryptExponentStandardError, len(keyBitsValues)
-    )
-
-    keygenExponent: float
-    keygenRSquared: float
-    keygenExponentStandardError: float
-    keygenExponent, keygenRSquared, keygenExponentStandardError = FitPowerLaw(
-        keyBitsValues, keygenMicrosValues
-    )
-    keygenExponentCI: float = ComputeSlopeConfidenceInterval(
-        keygenExponentStandardError, len(keyBitsValues)
-    )
-
-    # Both sizes are plain byte counts derived from the modulus, so these really are linear.
-    ciphertextSlopeBytes: float
-    ciphertextRSquared: float
-    ciphertextSlopeStandardError: float
-    ciphertextSlopeBytes, ciphertextRSquared, ciphertextSlopeStandardError = (
-        FitLinearRegression(keyBitsValues, ciphertextBytesValues)
-    )
-    ciphertextSlopeCI: float = ComputeSlopeConfidenceInterval(
-        ciphertextSlopeStandardError, len(keyBitsValues)
-    )
-
-    storedKeySlopeBytes: float
-    storedKeyRSquared: float
-    storedKeySlopeStandardError: float
-    storedKeySlopeBytes, storedKeyRSquared, storedKeySlopeStandardError = (
-        FitLinearRegression(keyBitsValues, storedKeyBytesValues)
-    )
-    storedKeySlopeCI: float = ComputeSlopeConfidenceInterval(
-        storedKeySlopeStandardError, len(keyBitsValues)
-    )
-
-    return (
-        encryptExponent,
-        decryptExponent,
-        keygenExponent,
-        ciphertextSlopeBytes,
-        storedKeySlopeBytes,
-        encryptRSquared,
-        decryptRSquared,
-        keygenRSquared,
-        ciphertextRSquared,
-        storedKeyRSquared,
-        encryptExponentCI,
-        decryptExponentCI,
-        keygenExponentCI,
-        ciphertextSlopeCI,
-        storedKeySlopeCI,
-    )
-
-
 def PlotCrossover(summary: CrossoverSummary) -> None:
 
     xLimit: int = SUBSCRIBER_COUNTS[-1]
@@ -863,7 +794,7 @@ def PlotCrossover(summary: CrossoverSummary) -> None:
         SUBSCRIBER_COUNTS,
         summary.MeasuredTotalBytes,
         color=TOTAL_CIPHERTEXT_COLOR,
-        marker="^",
+        marker="o",
         linewidth=1.8,
         markersize=5,
         label="RSA Scaling Subs",
@@ -883,7 +814,6 @@ def PlotCrossover(summary: CrossoverSummary) -> None:
         1,
         xLimit,
         color=KEYGEN_COLOR,
-        linestyle="-.",
         linewidth=1.8,
         label=f"CP-ABE, {FormatAttributeLabel(ATTRIBUTE_COUNTS[-1])}",
     )
@@ -937,14 +867,25 @@ def PlotEncryptCpuCrossover(summary: CpuCrossoverSummary) -> None:
 
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
 
-    # RSA repeats one wrap per recipient, so publisher cost is per-recipient cost times audience.
+    projectionStartSubscribers: float = float(SUBSCRIBER_COUNTS[-1])
+
+    projectionStartMicros: float = (
+        summary.RsaEncryptInterceptMicros
+        + summary.RsaEncryptSlopeMicrosPerSubscriber * projectionStartSubscribers
+    )
+    projectionEndMicros: float = (
+        summary.RsaEncryptInterceptMicros
+        + summary.RsaEncryptSlopeMicrosPerSubscriber * xLimit
+    )
+
+    # Project only beyond the measured subscriber range.
     axis.plot(
-        [0.0, xLimit],
-        [0.0, summary.RsaEncryptPerSubscriberMicros * xLimit],
+        [projectionStartSubscribers, xLimit],
+        [projectionStartMicros, projectionEndMicros],
         color=TOTAL_CIPHERTEXT_COLOR,
         linewidth=1.8,
         linestyle=":",
-        label="RSA Scaling Subs (Projected)",
+        label="RSA Linear Fit (Projected Beyond Sample)",
     )
 
     # The measured portion of that same line, drawn heavier so it is distinguishable.
@@ -972,7 +913,6 @@ def PlotEncryptCpuCrossover(summary: CpuCrossoverSummary) -> None:
         0.0,
         xLimit,
         color=KEYGEN_COLOR,
-        linestyle="-.",
         linewidth=1.8,
         label=f"CP-ABE, {FormatAttributeLabel(ATTRIBUTE_COUNTS[-1])}",
     )
@@ -1002,13 +942,12 @@ def PlotEncryptCpuCrossover(summary: CpuCrossoverSummary) -> None:
 
     largestValue: float = max(
         summary.CpabeEncryptMicrosMax,
-        summary.RsaEncryptPerSubscriberMicros * xLimit,
+        projectionEndMicros,
     )
 
     axis.set_xlim(0.0, xLimit)
     # Zero-based linear axis, so vertical distance is proportional to measured microseconds.
     axis.set_ylim(0.0, largestValue * 1.12)
-    axis.set_title("Publisher Encrypt Cost over Subscribers", fontsize=12)
     axis.set_xlabel("Subscribers")
     axis.set_ylabel("Publisher Encrypt Latency (µs)")
     axis.grid(True, axis="y", linestyle="-", linewidth=0.5, alpha=0.18)
@@ -1138,10 +1077,6 @@ def PlotDecryptCpuCrossover(
     axis.set_ylim(
         0.0,
         largestValue * 1.15,
-    )
-    axis.set_title(
-        "Subscriber Decrypt Cost over Policy Attributes",
-        fontsize=12,
     )
     axis.set_xlabel("Policy Attributes")
     axis.set_ylabel("Decrypt Latency (µs) ± 95% CI")
@@ -1351,7 +1286,9 @@ def BuildSweepOperationTable(
         caseIterations: int = sum(metrics.Iterations)
 
         # Convert Go's nanoseconds per operation to microseconds.
-        latencyText: str = f"{latencyMean / 1000.0:.2f} ± {latencyCI / 1000.0:.2f}"
+        latencyText: str = (
+            f"{latencyMean / 1000.0:,.2f} " f"± {latencyCI / 1000.0:,.2f}"
+        )
 
         lines.append("<tr>")
         lines.append(f"<td>{sweepValue}</td>")
@@ -1471,14 +1408,17 @@ def WriteHtmlReport(
     (
         cpabeEncryptSlopeMicros,
         cpabeDecryptSlopeMicros,
+        cpabeKeyIssuanceSlopeMicros,
         cpabeCiphertextSlopeBytes,
         cpabeStoredKeySlopeBytes,
         cpabeEncryptRSquared,
         cpabeDecryptRSquared,
+        cpabeKeyIssuanceRSquared,
         cpabeCiphertextRSquared,
         cpabeStoredKeyRSquared,
         cpabeEncryptSlopeCI,
         cpabeDecryptSlopeCI,
+        cpabeKeyIssuanceSlopeCI,
         cpabeCiphertextSlopeCI,
         cpabeStoredKeySlopeCI,
     ) = ComputeCpabeMarginalSlopes(results)
@@ -1489,24 +1429,6 @@ def WriteHtmlReport(
         rsaEncryptRSquared,
         rsaEncryptSlopeCI,
     ) = ComputeRsaSubscriberMarginalSlopes(results)
-
-    (
-        rsaKeyBitsEncryptExponent,
-        rsaKeyBitsDecryptExponent,
-        rsaKeyBitsKeygenExponent,
-        rsaKeyBitsCiphertextSlopeBytes,
-        rsaKeyBitsStoredKeySlopeBytes,
-        rsaKeyBitsEncryptRSquared,
-        rsaKeyBitsDecryptRSquared,
-        rsaKeyBitsKeygenRSquared,
-        rsaKeyBitsCiphertextRSquared,
-        rsaKeyBitsStoredKeyRSquared,
-        rsaKeyBitsEncryptExponentCI,
-        rsaKeyBitsDecryptExponentCI,
-        rsaKeyBitsKeygenExponentCI,
-        rsaKeyBitsCiphertextSlopeCI,
-        rsaKeyBitsStoredKeySlopeCI,
-    ) = ComputeRsaKeyBitsMarginalSlopes(results)
 
     # How much further out the CPU intersection sits than the bandwidth one.
     cpuGapMin: float = (
@@ -1581,6 +1503,10 @@ def WriteHtmlReport(
         f"+{cpabeEncryptSlopeMicros:,.0f} ± {cpabeEncryptSlopeCI:,.0f} µs",
     )
     report = report.replace(
+        "{{CpabeKeyIssuanceSlope}}",
+        f"+{cpabeKeyIssuanceSlopeMicros:,.0f} " f"± {cpabeKeyIssuanceSlopeCI:,.0f} µs",
+    )
+    report = report.replace(
         "{{CpabeCiphertextSlope}}",
         f"+{cpabeCiphertextSlopeBytes:.0f} ± {cpabeCiphertextSlopeCI:.0f} B",
     )
@@ -1589,6 +1515,10 @@ def WriteHtmlReport(
         f"+{cpabeStoredKeySlopeBytes:.0f} ± {cpabeStoredKeySlopeCI:.0f} B",
     )
     report = report.replace("{{CpabeEncryptRSquared}}", f"{cpabeEncryptRSquared:.6f}")
+    report = report.replace(
+        "{{CpabeKeyIssuanceRSquared}}",
+        f"{cpabeKeyIssuanceRSquared:.6f}",
+    )
     report = report.replace(
         "{{CpabeCiphertextRSquared}}", f"{cpabeCiphertextRSquared:.6f}"
     )
@@ -1656,47 +1586,6 @@ def WriteHtmlReport(
         f"+{cpabeDecryptSlopeMicros:,.0f} ± {cpabeDecryptSlopeCI:,.0f} µs",
     )
     report = report.replace("{{CpabeDecryptRSquared}}", f"{cpabeDecryptRSquared:.6f}")
-
-    # Time metrics are reported as power-law exponents; size metrics stay linear.
-    report = report.replace(
-        "{{RsaKeyBitsEncryptExponent}}",
-        f"n^{rsaKeyBitsEncryptExponent:.2f} ± {rsaKeyBitsEncryptExponentCI:.2f}",
-    )
-    report = report.replace(
-        "{{RsaKeyBitsDecryptExponent}}",
-        f"n^{rsaKeyBitsDecryptExponent:.2f} ± {rsaKeyBitsDecryptExponentCI:.2f}",
-    )
-    report = report.replace(
-        "{{RsaKeyBitsKeygenExponent}}",
-        f"n^{rsaKeyBitsKeygenExponent:.2f} ± {rsaKeyBitsKeygenExponentCI:.2f}",
-    )
-    report = report.replace(
-        "{{RsaKeyBitsEncryptRSquared}}", f"{rsaKeyBitsEncryptRSquared:.6f}"
-    )
-    report = report.replace(
-        "{{RsaKeyBitsDecryptRSquared}}", f"{rsaKeyBitsDecryptRSquared:.6f}"
-    )
-    report = report.replace(
-        "{{RsaKeyBitsKeygenRSquared}}", f"{rsaKeyBitsKeygenRSquared:.6f}"
-    )
-
-    # Scaled to 1024 bits, because a per-bit byte slope is unreadable. The CI scales identically.
-    report = report.replace(
-        "{{RsaKeyBitsCiphertextSlope}}",
-        f"+{rsaKeyBitsCiphertextSlopeBytes * 1024.0:,.0f} "
-        f"± {rsaKeyBitsCiphertextSlopeCI * 1024.0:,.0f} B / 1024 bits",
-    )
-    report = report.replace(
-        "{{RsaKeyBitsStoredKeySlope}}",
-        f"+{rsaKeyBitsStoredKeySlopeBytes * 1024.0:,.0f} "
-        f"± {rsaKeyBitsStoredKeySlopeCI * 1024.0:,.0f} B / 1024 bits",
-    )
-    report = report.replace(
-        "{{RsaKeyBitsCiphertextRSquared}}", f"{rsaKeyBitsCiphertextRSquared:.6f}"
-    )
-    report = report.replace(
-        "{{RsaKeyBitsStoredKeyRSquared}}", f"{rsaKeyBitsStoredKeyRSquared:.6f}"
-    )
 
     report = report.replace(
         "{{EncryptCpuCrossoverLow}}",

@@ -492,15 +492,19 @@
         }
 
         .table-block {
+            display: flex;
+            flex-direction: column;
             min-width: 0;
-            padding: 14px;
+            padding: 0;
+            overflow: hidden;
             border: 1px solid #e5e0da;
             border-radius: 14px;
             background: #ffffff;
         }
 
         .table-block h3 {
-            margin: 0 0 10px 0;
+            margin: 0;
+            padding: 14px;
             font-size: 14px;
         }
 
@@ -511,13 +515,18 @@
         }
 
         .table-wrapper {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
             overflow-x: auto;
-            border: 1px solid #e6e1db;
-            border-radius: 11px;
+            border: 0;
+            border-top: 1px solid #e6e1db;
+            border-radius: 0;
         }
 
         table {
             width: 100%;
+            height: 100%;
             border-collapse: collapse;
             background: #ffffff;
             font-size: 11.5px;
@@ -536,6 +545,7 @@
             letter-spacing: 0.035em;
             line-height: 1.25;
             text-align: right;
+            vertical-align: middle;
             white-space: normal;
         }
 
@@ -544,6 +554,7 @@
             border-bottom: 1px solid #efebe6;
             font-variant-numeric: tabular-nums;
             text-align: right;
+            vertical-align: middle;
             white-space: nowrap;
         }
 
@@ -682,6 +693,8 @@
                                 class="stat-chip-r2">R²=0.999916</span></span>
                         <span class="stat-chip"><strong>+365 ± 9 µs</strong> DECRYPT TIME / ATTRIBUTE <span
                                 class="stat-chip-r2">R²=0.999657</span></span>
+                        <span class="stat-chip"><strong>+12,406 ± 121 µs</strong> KEY ISSUANCE TIME / ATTRIBUTE
+                            <span class="stat-chip-r2">R²=0.999951</span></span>
                         <span class="stat-chip"><strong>+354 ± 1 B</strong> CIPHERTEXT / ATTRIBUTE <span
                                 class="stat-chip-r2">R²=0.999999</span></span>
                         <span class="stat-chip"><strong>+438 ± 1 B</strong> PRIVATE KEY / ATTRIBUTE <span
@@ -733,18 +746,6 @@
                     <div class="plot-frame">
                         <img src="rsa_key_bits.png">
                     </div>
-                    <div class="stat-strip">
-                        <span class="stat-chip"><strong>n^2.48 ± 1.67</strong> ENCRYPT TIME / KEY SIZE
-                            <span class="stat-chip-r2">R²=0.953280</span></span>
-                        <span class="stat-chip"><strong>n^2.09 ± 0.66</strong> DECRYPT TIME / KEY SIZE
-                            <span class="stat-chip-r2">R²=0.989197</span></span>
-                        <span class="stat-chip"><strong>n^2.96 ± 0.93</strong> KEYGEN TIME / KEY SIZE
-                            <span class="stat-chip-r2">R²=0.989333</span></span>
-                        <span class="stat-chip"><strong>+128 ± 0 B / 1024 bits</strong> CIPHERTEXT / KEY SIZE
-                            <span class="stat-chip-r2">R²=1.000000</span></span>
-                        <span class="stat-chip"><strong>+580 ± 4 B / 1024 bits</strong> STORED KEY / KEY SIZE
-                            <span class="stat-chip-r2">R²=0.999994</span></span>
-                    </div>
                 </article>
             </div>
         </section>
@@ -787,13 +788,13 @@
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Measured Encrypt Comparison</div>
-                        <div class="comparison-value">≈897 - 7,054
+                        <div class="comparison-label">Measured Encrypt Cost Comparison</div>
+                        <div class="comparison-value">≈897 - 7,050
                             Subscribers</div>
                         <p><strong>AT 1 ATTRIBUTE:</strong> RSA costs the publisher less CPU. Equality with
-                            CP-ABE is reached when RSA reaches ~897 subscribers</p>
+                            CP-ABE is reached when RSA reaches ~896 subscribers</p>
                         <p><strong>AT 32 ATTRIBUTES:</strong> The equivalent RSA would need
-                            ~7,053 subscribers</p>
+                            ~7,050 subscribers</p>
                     </aside>
                 </div>
 
@@ -853,37 +854,37 @@
 <tbody>
 <tr>
 <td>1</td>
-<td>28029.88 ± 164.34</td>
+<td>28,029.88 ± 164.34</td>
 <td>2.32 KB</td>
 <td>1,697</td>
 </tr>
 <tr>
 <td>2</td>
-<td>34324.63 ± 338.40</td>
+<td>34,324.63 ± 338.40</td>
 <td>2.67 KB</td>
 <td>1,387</td>
 </tr>
 <tr>
 <td>4</td>
-<td>47387.80 ± 394.77</td>
+<td>47,387.80 ± 394.77</td>
 <td>3.35 KB</td>
 <td>1,007</td>
 </tr>
 <tr>
 <td>8</td>
-<td>73234.13 ± 884.17</td>
+<td>73,234.13 ± 884.17</td>
 <td>4.73 KB</td>
 <td>631</td>
 </tr>
 <tr>
 <td>16</td>
-<td>121755.41 ± 1177.98</td>
+<td>121,755.41 ± 1,177.98</td>
 <td>7.5 KB</td>
 <td>390</td>
 </tr>
 <tr>
 <td>32</td>
-<td>220413.07 ± 3181.42</td>
+<td>220,413.07 ± 3,181.42</td>
 <td>13.05 KB</td>
 <td>210</td>
 </tr>
@@ -943,14 +944,14 @@
 </tr>
 <tr>
 <td>32</td>
-<td>1002.44 ± 7.67</td>
+<td>1,002.44 ± 7.67</td>
 <td>256 B</td>
 <td>8 KB</td>
 <td>46,403</td>
 </tr>
 <tr>
 <td>64</td>
-<td>2000.14 ± 18.25</td>
+<td>2,000.14 ± 18.25</td>
 <td>256 B</td>
 <td>16 KB</td>
 <td>23,968</td>
@@ -1021,32 +1022,32 @@
 <tbody>
 <tr>
 <td>1</td>
-<td>11372.02 ± 90.20</td>
+<td>11,372.02 ± 90.20</td>
 <td>4,275</td>
 </tr>
 <tr>
 <td>2</td>
-<td>11680.76 ± 102.36</td>
+<td>11,680.76 ± 102.36</td>
 <td>4,141</td>
 </tr>
 <tr>
 <td>4</td>
-<td>12323.97 ± 73.89</td>
+<td>12,323.97 ± 73.89</td>
 <td>3,905</td>
 </tr>
 <tr>
 <td>8</td>
-<td>13780.95 ± 95.89</td>
+<td>13,780.95 ± 95.89</td>
 <td>3,492</td>
 </tr>
 <tr>
 <td>16</td>
-<td>16905.07 ± 191.82</td>
+<td>16,905.07 ± 191.82</td>
 <td>2,808</td>
 </tr>
 <tr>
 <td>32</td>
-<td>22603.94 ± 230.64</td>
+<td>22,603.94 ± 230.64</td>
 <td>2,114</td>
 </tr>
 </tbody>
@@ -1068,37 +1069,37 @@
 <tbody>
 <tr>
 <td>1</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 <tr>
 <td>2</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 <tr>
 <td>4</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 <tr>
 <td>8</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 <tr>
 <td>16</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 <tr>
 <td>32</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 <tr>
 <td>64</td>
-<td>1044.90 ± 8.41</td>
+<td>1,044.90 ± 8.41</td>
 <td>46,305</td>
 </tr>
 </tbody>
@@ -1125,17 +1126,17 @@
 </tr>
 <tr>
 <td>2048</td>
-<td>1032.77 ± 10.03</td>
+<td>1,032.77 ± 10.03</td>
 <td>46,026</td>
 </tr>
 <tr>
 <td>3072</td>
-<td>2852.29 ± 27.49</td>
+<td>2,852.29 ± 27.49</td>
 <td>16,723</td>
 </tr>
 <tr>
 <td>4096</td>
-<td>5806.70 ± 55.39</td>
+<td>5,806.70 ± 55.39</td>
 <td>8,285</td>
 </tr>
 </tbody>
@@ -1163,37 +1164,37 @@
 <tbody>
 <tr>
 <td>1</td>
-<td>36578.80 ± 521.69</td>
+<td>36,578.80 ± 521.69</td>
 <td>2.3 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>2</td>
-<td>48693.71 ± 805.57</td>
+<td>48,693.71 ± 805.57</td>
 <td>2.72 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>4</td>
-<td>73324.37 ± 1259.74</td>
+<td>73,324.37 ± 1,259.74</td>
 <td>3.58 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>8</td>
-<td>125272.17 ± 1228.33</td>
+<td>125,272.17 ± 1,228.33</td>
 <td>5.29 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>16</td>
-<td>224147.04 ± 3641.54</td>
+<td>224,147.04 ± 3,641.54</td>
 <td>8.71 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>32</td>
-<td>420734.16 ± 3161.83</td>
+<td>420,734.16 ± 3,161.83</td>
 <td>15.57 KB</td>
 <td>160</td>
 </tr>
@@ -1217,25 +1218,25 @@
 <tbody>
 <tr>
 <td>1024</td>
-<td>10811.74 ± 1447.68</td>
+<td>10,811.74 ± 1,447.68</td>
 <td>607 B</td>
 <td>160</td>
 </tr>
 <tr>
 <td>2048</td>
-<td>56739.59 ± 5965.20</td>
+<td>56,739.59 ± 5,965.20</td>
 <td>1.16 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>3072</td>
-<td>246126.69 ± 31347.57</td>
+<td>246,126.69 ± 31,347.57</td>
 <td>1.73 KB</td>
 <td>160</td>
 </tr>
 <tr>
 <td>4096</td>
-<td>651867.37 ± 45069.27</td>
+<td>651,867.37 ± 45,069.27</td>
 <td>2.29 KB</td>
 <td>160</td>
 </tr>

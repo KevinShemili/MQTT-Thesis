@@ -492,15 +492,19 @@
         }
 
         .table-block {
+            display: flex;
+            flex-direction: column;
             min-width: 0;
-            padding: 14px;
+            padding: 0;
+            overflow: hidden;
             border: 1px solid #e5e0da;
             border-radius: 14px;
             background: #ffffff;
         }
 
         .table-block h3 {
-            margin: 0 0 10px 0;
+            margin: 0;
+            padding: 14px;
             font-size: 14px;
         }
 
@@ -511,13 +515,18 @@
         }
 
         .table-wrapper {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
             overflow-x: auto;
-            border: 1px solid #e6e1db;
-            border-radius: 11px;
+            border: 0;
+            border-top: 1px solid #e6e1db;
+            border-radius: 0;
         }
 
         table {
             width: 100%;
+            height: 100%;
             border-collapse: collapse;
             background: #ffffff;
             font-size: 11.5px;
@@ -536,6 +545,7 @@
             letter-spacing: 0.035em;
             line-height: 1.25;
             text-align: right;
+            vertical-align: middle;
             white-space: normal;
         }
 
@@ -544,6 +554,7 @@
             border-bottom: 1px solid #efebe6;
             font-variant-numeric: tabular-nums;
             text-align: right;
+            vertical-align: middle;
             white-space: nowrap;
         }
 
@@ -682,6 +693,8 @@
                                 class="stat-chip-r2">R²={{CpabeEncryptRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeDecryptSlope}}</strong> DECRYPT TIME / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeDecryptRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{CpabeKeyIssuanceSlope}}</strong> KEY ISSUANCE TIME / ATTRIBUTE
+                            <span class="stat-chip-r2">R²={{CpabeKeyIssuanceRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeCiphertextRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> PRIVATE KEY / ATTRIBUTE <span
@@ -733,18 +746,6 @@
                     <div class="plot-frame">
                         <img src="{{RsaKeyBitsPlot}}">
                     </div>
-                    <div class="stat-strip">
-                        <span class="stat-chip"><strong>{{RsaKeyBitsEncryptExponent}}</strong> ENCRYPT TIME / KEY SIZE
-                            <span class="stat-chip-r2">R²={{RsaKeyBitsEncryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{RsaKeyBitsDecryptExponent}}</strong> DECRYPT TIME / KEY SIZE
-                            <span class="stat-chip-r2">R²={{RsaKeyBitsDecryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{RsaKeyBitsKeygenExponent}}</strong> KEYGEN TIME / KEY SIZE
-                            <span class="stat-chip-r2">R²={{RsaKeyBitsKeygenRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{RsaKeyBitsCiphertextSlope}}</strong> CIPHERTEXT / KEY SIZE
-                            <span class="stat-chip-r2">R²={{RsaKeyBitsCiphertextRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{RsaKeyBitsStoredKeySlope}}</strong> STORED KEY / KEY SIZE
-                            <span class="stat-chip-r2">R²={{RsaKeyBitsStoredKeyRSquared}}</span></span>
-                    </div>
                 </article>
             </div>
         </section>
@@ -787,7 +788,7 @@
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Measured Encrypt Comparison</div>
+                        <div class="comparison-label">Measured Encrypt Cost Comparison</div>
                         <div class="comparison-value">≈{{EncryptCpuCrossoverLow}} - {{EncryptCpuCrossoverHigh}}
                             Subscribers</div>
                         <p><strong>AT {{MinAttributeLabel}}:</strong> RSA costs the publisher less CPU. Equality with
