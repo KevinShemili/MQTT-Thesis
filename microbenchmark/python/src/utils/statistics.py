@@ -65,7 +65,7 @@ def MeanAndConfidenceInterval(
 
 def FitLinearRegression(
     xValues: list[float], yValues: list[float]
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
 
     xMean: float = Mean(xValues)
     yMean: float = Mean(yValues)
@@ -92,4 +92,42 @@ def FitLinearRegression(
 
     rSquared: float = 1.0 - (sumSquaredResiduals / sumSquaredTotal)
 
-    return slope, rSquared
+    # Residual variance uses n - 2 degrees of freedom: two parameters (slope, intercept) are fit.
+    pointCount: int = len(xValues)
+    residualVariance: float = sumSquaredResiduals / (pointCount - 2)
+
+    # Standard error of the slope, from the standard OLS formula.
+    slopeStandardError: float = math.sqrt(residualVariance / denominator)
+
+    return slope, rSquared, slopeStandardError
+
+
+def FitPowerLaw(
+    xValues: list[float], yValues: list[float]
+) -> tuple[float, float, float]:
+
+    logXValues: list[float] = []
+    logYValues: list[float] = []
+
+    # A power law y = a * x^k becomes a straight line once both axes are logged.
+    for index in range(len(xValues)):
+        logXValues.append(math.log(xValues[index]))
+        logYValues.append(math.log(yValues[index]))
+
+    # Slope in log-log space is the exponent k, and its standard error transfers directly.
+    exponent: float
+    rSquared: float
+    exponentStandardError: float
+    exponent, rSquared, exponentStandardError = FitLinearRegression(
+        logXValues, logYValues
+    )
+
+    return exponent, rSquared, exponentStandardError
+
+
+def ComputeSlopeConfidenceInterval(slopeStandardError: float, pointCount: int) -> float:
+
+    # Same t-distribution as the point-wise CIs, but df here is sweep points minus 2 parameters.
+    tCriticalValue: float = GetStudentTCriticalValue95(pointCount - 2)
+
+    return tCriticalValue * slopeStandardError

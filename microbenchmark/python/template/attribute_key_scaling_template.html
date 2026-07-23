@@ -639,7 +639,7 @@
     <main class="page">
         <header class="hero">
             <div class="eyebrow">Microbenchmark Scenario 2</div>
-            <h1>CP-ABE and RSA Attribute &amp; Key Scaling</h1>
+            <h1>Asymmetric Schemas under Attribute &amp; Key Scaling</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -680,9 +680,11 @@
                     <div class="stat-strip">
                         <span class="stat-chip"><strong>{{CpabeEncryptSlope}}</strong> ENCRYPT TIME / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeEncryptRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{CpabeDecryptSlope}}</strong> DECRYPT TIME / ATTRIBUTE <span
+                                class="stat-chip-r2">R²={{CpabeDecryptRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeCiphertextRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> STORED KEY / ATTRIBUTE <span
+                        <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> PRIVATE KEY / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeStoredKeyRSquared}}</span></span>
                     </div>
                 </article>
@@ -698,8 +700,7 @@
                         <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME /
                             SUBSCRIBER <span class="stat-chip-r2">R²={{RsaSubscriberEncryptRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong> CIPHERTEXT /
-                            SUBSCRIBER <span
-                                class="stat-chip-r2">R²={{RsaSubscriberTotalCiphertextRSquared}}</span></span>
+                            SUBSCRIBER <span class="stat-chip-r2">(derived, exact)</span></span>
                     </div>
                     <div class="fanout-card">
                         <div class="fanout-row">
@@ -731,6 +732,18 @@
                     <div class="plot-frame">
                         <img src="{{RsaKeyBitsPlot}}">
                     </div>
+                    <div class="stat-strip">
+                        <span class="stat-chip"><strong>{{RsaKeyBitsEncryptExponent}}</strong> ENCRYPT TIME / KEY SIZE
+                            <span class="stat-chip-r2">R²={{RsaKeyBitsEncryptRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{RsaKeyBitsDecryptExponent}}</strong> DECRYPT TIME / KEY SIZE
+                            <span class="stat-chip-r2">R²={{RsaKeyBitsDecryptRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{RsaKeyBitsKeygenExponent}}</strong> KEYGEN TIME / KEY SIZE
+                            <span class="stat-chip-r2">R²={{RsaKeyBitsKeygenRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{RsaKeyBitsCiphertextSlope}}</strong> CIPHERTEXT / KEY SIZE
+                            <span class="stat-chip-r2">R²={{RsaKeyBitsCiphertextRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{RsaKeyBitsStoredKeySlope}}</strong> STORED KEY / KEY SIZE
+                            <span class="stat-chip-r2">R²={{RsaKeyBitsStoredKeyRSquared}}</span></span>
+                    </div>
                 </article>
             </div>
         </section>
@@ -759,6 +772,46 @@
                             reached when RSA reaches ~{{BytesRsaThroughMin}} subscribers</p>
                         <p><strong>AT {{MaxAttributeLabel}}:</strong> The equivalent RSA would need
                             ~{{BytesRsaThroughMax}} subscribers</p>
+                    </aside>
+                </div>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>CP-ABE vs. RSA: Publisher Encrypt Cost</h3>
+                        </div>
+                        <div class="plot-frame">
+                            <img src="{{EncryptCpuCrossoverPlot}}">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Publisher CPU Intersection</div>
+                        <div class="comparison-value">≈{{EncryptCpuCrossoverLow}} - {{EncryptCpuCrossoverHigh}}
+                            Subscribers</div>
+                        <p><strong>AT {{MinAttributeLabel}}:</strong> RSA costs the publisher less CPU. Equality with
+                            CP-ABE is reached when RSA reaches ~{{CpuRsaThroughMin}} subscribers</p>
+                        <p><strong>AT {{MaxAttributeLabel}}:</strong> The equivalent RSA would need
+                            ~{{CpuRsaThroughMax}} subscribers</p>
+                    </aside>
+                </div>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>CP-ABE vs. RSA: Subscriber Decrypt Cost</h3>
+                        </div>
+                        <div class="plot-frame">
+                            <img src="{{DecryptCpuCrossoverPlot}}">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Subscriber CPU Intersection</div>
+                        <div class="comparison-value">None</div>
+                        <p><strong>AT {{MinAttributeLabel}}:</strong> CP-ABE costs the subscriber
+                            {{DecryptPenaltyMin}}× an RSA-{{FixedRsaKeyBits}} unwrap</p>
+                        <p><strong>AT {{MaxAttributeLabel}}:</strong> That penalty widens to {{DecryptPenaltyMax}}×</p>
                     </aside>
                 </div>
 
