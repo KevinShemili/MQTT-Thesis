@@ -242,6 +242,13 @@
             font-size: 12px;
         }
 
+        .stat-chip-r2 {
+            margin-left: 5px;
+            opacity: 0.62;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
         .fanout-card {
             margin: 2px 14px 16px 14px;
             padding: 24px 18px;
@@ -671,9 +678,12 @@
                         <img src="{{CpabePlot}}">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>{{CpabeEncryptSlope}}</strong> ENCRYPT TIME / ATTRIBUTE </span>
-                        <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE</span>
-                        <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> STORED KEY / ATTRIBUTE</span>
+                        <span class="stat-chip"><strong>{{CpabeEncryptSlope}}</strong> ENCRYPT TIME / ATTRIBUTE <span
+                                class="stat-chip-r2">R²={{CpabeEncryptRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE <span
+                                class="stat-chip-r2">R²={{CpabeCiphertextRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> STORED KEY / ATTRIBUTE <span
+                                class="stat-chip-r2">R²={{CpabeStoredKeyRSquared}}</span></span>
                     </div>
                 </article>
 
@@ -686,11 +696,10 @@
                     </div>
                     <div class="stat-strip">
                         <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME /
-                            SUBSCRIBER</span>
+                            SUBSCRIBER <span class="stat-chip-r2">R²={{RsaSubscriberEncryptRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong> CIPHERTEXT /
-                            SUBSCRIBER</span>
-                        <span class="stat-chip"><strong>{{RsaSubscriberDecryptSlope}}</strong> DECRYPT TIME /
-                            SUBSCRIBER</span>
+                            SUBSCRIBER <span
+                                class="stat-chip-r2">R²={{RsaSubscriberTotalCiphertextRSquared}}</span></span>
                     </div>
                     <div class="fanout-card">
                         <div class="fanout-row">

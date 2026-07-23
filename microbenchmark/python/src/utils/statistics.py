@@ -61,3 +61,35 @@ def MeanAndConfidenceInterval(
     ciHalf: float = tCriticalValue * standardError
 
     return mean, ciHalf
+
+
+def FitLinearRegression(
+    xValues: list[float], yValues: list[float]
+) -> tuple[float, float]:
+
+    xMean: float = Mean(xValues)
+    yMean: float = Mean(yValues)
+
+    numerator: float = 0.0
+    denominator: float = 0.0
+
+    # Ordinary least squares: slope = covariance(x, y) / variance(x).
+    for index in range(len(xValues)):
+        numerator += (xValues[index] - xMean) * (yValues[index] - yMean)
+        denominator += (xValues[index] - xMean) ** 2
+
+    slope: float = numerator / denominator
+    intercept: float = yMean - slope * xMean
+
+    # R-squared: how much of the spread in y is explained by the fitted line.
+    sumSquaredResiduals: float = 0.0
+    sumSquaredTotal: float = 0.0
+
+    for index in range(len(xValues)):
+        predictedY: float = slope * xValues[index] + intercept
+        sumSquaredResiduals += (yValues[index] - predictedY) ** 2
+        sumSquaredTotal += (yValues[index] - yMean) ** 2
+
+    rSquared: float = 1.0 - (sumSquaredResiduals / sumSquaredTotal)
+
+    return slope, rSquared

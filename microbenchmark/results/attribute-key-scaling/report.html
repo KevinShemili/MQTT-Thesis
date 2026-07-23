@@ -242,6 +242,13 @@
             font-size: 12px;
         }
 
+        .stat-chip-r2 {
+            margin-left: 5px;
+            opacity: 0.62;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
         .fanout-card {
             margin: 2px 14px 16px 14px;
             padding: 24px 18px;
@@ -671,9 +678,12 @@
                         <img src="cpabe_attributes.png">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>+6,819 µs</strong> ENCRYPT TIME / ATTRIBUTE </span>
-                        <span class="stat-chip"><strong>+354 B</strong> CIPHERTEXT / ATTRIBUTE</span>
-                        <span class="stat-chip"><strong>+438 B</strong> STORED KEY / ATTRIBUTE</span>
+                        <span class="stat-chip"><strong>+6,819 µs</strong> ENCRYPT TIME / ATTRIBUTE <span
+                                class="stat-chip-r2">R²=0.999961</span></span>
+                        <span class="stat-chip"><strong>+354 B</strong> CIPHERTEXT / ATTRIBUTE <span
+                                class="stat-chip-r2">R²=0.999999</span></span>
+                        <span class="stat-chip"><strong>+438 B</strong> STORED KEY / ATTRIBUTE <span
+                                class="stat-chip-r2">R²=0.999999</span></span>
                     </div>
                 </article>
 
@@ -686,11 +696,10 @@
                     </div>
                     <div class="stat-strip">
                         <span class="stat-chip"><strong>+33.89 µs</strong> ENCRYPT TIME /
-                            SUBSCRIBER</span>
+                            SUBSCRIBER <span class="stat-chip-r2">R²=0.999988</span></span>
                         <span class="stat-chip"><strong>+256 B</strong> CIPHERTEXT /
-                            SUBSCRIBER</span>
-                        <span class="stat-chip"><strong>+0.46 µs</strong> DECRYPT TIME /
-                            SUBSCRIBER</span>
+                            SUBSCRIBER <span
+                                class="stat-chip-r2">R²=1.000000</span></span>
                     </div>
                     <div class="fanout-card">
                         <div class="fanout-row">
