@@ -4,6 +4,9 @@ matplotlib.use("Agg")
 
 import sys
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.gridspec import GridSpec
 from utils.statistics import GetStudentTCriticalValue95
 from utils.statistics import Mean
 from utils.statistics import MeanAndConfidenceInterval
@@ -261,14 +264,42 @@ def PlotSweep(
     figureTitle: str,
     pngFile: str,
     fixedDecryptCaseId: str | None = None,
+    splitKeygenLatency: bool = False,
 ) -> None:
 
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
+    figure: Figure
+    latencyAxis: Axes
+    keygenLatencyAxis: Axes
+    sizeAxis: Axes
+    gridSpec: GridSpec
+
+    if splitKeygenLatency:
+        figure = plt.figure(figsize=(13, 7))
+
+        # Split the left side into two latency plots while sizes span both rows.
+        gridSpec = figure.add_gridspec(
+            2,
+            2,
+            width_ratios=[1.0, 1.0],
+            height_ratios=[1.0, 1.0],
+            hspace=0.34,
+        )
+
+        keygenLatencyAxis = figure.add_subplot(gridSpec[0, 0])
+        latencyAxis = figure.add_subplot(
+            gridSpec[1, 0],
+            sharex=keygenLatencyAxis,
+        )
+        sizeAxis = figure.add_subplot(gridSpec[:, 1])
+    else:
+        figure = plt.figure(figsize=(13, 5))
+        gridSpec = figure.add_gridspec(1, 2)
+
+        latencyAxis = figure.add_subplot(gridSpec[0, 0])
+        keygenLatencyAxis = latencyAxis
+        sizeAxis = figure.add_subplot(gridSpec[0, 1])
 
     figure.suptitle(figureTitle, fontsize=13)
-
-    latencyAxis = axes[0]
-    sizeAxis = axes[1]
 
     latencyMean: float
     latencyCI: float
@@ -300,7 +331,13 @@ def PlotSweep(
             means.append(latencyMean / 1000.0)
             ciHalfs.append(latencyCI / 1000.0)
 
-        latencyAxis.errorbar(
+        operationAxis: Axes = latencyAxis
+
+        # Draw key generation in the separate upper panel when enabled.
+        if splitKeygenLatency and operation == "keygen":
+            operationAxis = keygenLatencyAxis
+
+        operationAxis.errorbar(
             values,
             means,
             yerr=ciHalfs,
@@ -312,13 +349,41 @@ def PlotSweep(
             capsize=4,
         )
 
-    latencyAxis.set_title("Latency", fontsize=11)
+    if splitKeygenLatency:
+        keygenLatencyAxis.set_title("Key Generation Latency", fontsize=11)
+        keygenLatencyAxis.set_ylabel("Latency (µs) ± 95% CI")
+        keygenLatencyAxis.set_ylim(bottom=0)
+        keygenLatencyAxis.set_xticks(sweepValues)
+
+        # The lower latency plot already displays the shared key-size labels.
+        keygenLatencyAxis.tick_params(axis="x", labelbottom=False)
+
+        keygenLatencyAxis.grid(
+            True,
+            axis="y",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.18,
+        )
+        keygenLatencyAxis.legend(fontsize=10)
+
+        latencyAxis.set_title("Encrypt + Decrypt Latency", fontsize=11)
+    else:
+        latencyAxis.set_title("Latency", fontsize=11)
+
     latencyAxis.set_ylabel("Latency (µs) ± 95% CI")
     latencyAxis.set_ylim(bottom=0)
-    # Real numerical spacing, so horizontal distance represents the actual sweep increase.
+
+    # Real numerical spacing represents the actual sweep increase.
     latencyAxis.set_xticks(sweepValues)
     latencyAxis.set_xlabel(xLabel)
-    latencyAxis.grid(True, axis="y", linestyle="-", linewidth=0.5, alpha=0.18)
+    latencyAxis.grid(
+        True,
+        axis="y",
+        linestyle="-",
+        linewidth=0.5,
+        alpha=0.18,
+    )
     latencyAxis.legend(fontsize=10)
 
     # Right panel: the interpretable memory story — bytes on the wire & bytes stored on device.
@@ -371,9 +436,9 @@ def PlotSweep(
         sizeAxis.plot(
             totalCiphertextValues,
             totalCiphertextSizes,
-            label="Ciphertext (Total)",
+            label="Ciphertext (TOTAL)",
             color=TOTAL_CIPHERTEXT_COLOR,
-            marker="^",
+            marker="o",
             linewidth=1.8,
             markersize=5,
         )
@@ -853,9 +918,8 @@ def PlotCrossover(summary: CrossoverSummary) -> None:
 
     axis.set_xticks(linearTickValues)
     axis.set_xlim(0.0, float(xLimit) * 1.03)
-    axis.set_title("Encrypted Session Key over Subscribers", fontsize=12)
     axis.set_xlabel("Subscribers")
-    axis.set_ylabel("Encrypted Session Key Bytes")
+    axis.set_ylabel("Ciphertext Bytes")
     axis.set_ylim(bottom=0.0)
     axis.grid(True, axis="y", linestyle="-", linewidth=0.5, alpha=0.18)
     axis.legend(fontsize=9, loc="upper left")
@@ -1707,6 +1771,7 @@ def Main() -> None:
         "RSA Key Bits",
         "RSA Scaling with Key Size (1 Subscriber)",
         RSA_KEY_BITS_PNG_FILE,
+        splitKeygenLatency=True,
     )
 
     # Compute the measured bandwidth crossover used by the plot and explanation.

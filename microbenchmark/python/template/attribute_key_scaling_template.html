@@ -699,8 +699,9 @@
                     <div class="stat-strip">
                         <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME /
                             SUBSCRIBER <span class="stat-chip-r2">R²={{RsaSubscriberEncryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong> CIPHERTEXT /
-                            SUBSCRIBER <span class="stat-chip-r2">(derived, exact)</span></span>
+                        <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong> CIPHERTEXT
+                            (Total) /
+                            SUBSCRIBER</span>
                     </div>
                     <div class="fanout-card">
                         <div class="fanout-row">
@@ -757,7 +758,7 @@
                 <div class="comparison-row">
                     <article class="plot-card">
                         <div class="plot-copy">
-                            <h3>CP-ABE vs. RSA: Encrypted Key Size</h3>
+                            <h3>CP-ABE vs. RSA: Ciphertext Size</h3>
                         </div>
                         <div class="plot-frame">
                             <img src="{{BandwidthCrossoverPlot}}">
