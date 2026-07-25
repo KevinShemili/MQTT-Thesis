@@ -42,6 +42,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSK/%dB", payloadSize), func(b *testing.B) {
 
+			b.SetBytes(int64(payloadSize))
 			// A realistic implementation of PSK would necessitate a fresh nonce per message
 			for b.Loop() {
 				nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
@@ -53,6 +54,8 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 		})
 
 		benchmark.Run(fmt.Sprintf("RSA/%dB", payloadSize), func(b *testing.B) {
+
+			b.SetBytes(int64(payloadSize))
 
 			// A realistic implementation of RSA + AES would necessitate a fresh session key & nonce per message
 			for b.Loop() {
@@ -68,6 +71,8 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 		})
 
 		benchmark.Run(fmt.Sprintf("CPABE/%dB", payloadSize), func(b *testing.B) {
+
+			b.SetBytes(int64(payloadSize))
 
 			// A realistic implementation of CP-ABE + AES would necessitate a fresh session key & nonce per message
 			for b.Loop() {
@@ -121,6 +126,8 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSK/%dB", payloadSize), func(b *testing.B) {
 
+			b.SetBytes(int64(payloadSize))
+
 			// Simple symmetric decryption
 			for b.Loop() {
 				aesGcm.Open(plaintextBuffer[:0], nonce, aesCiphertext, nil)
@@ -129,6 +136,8 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSA/%dB", payloadSize), func(b *testing.B) {
 
+			b.SetBytes(int64(payloadSize))
+
 			for b.Loop() {
 				recoveredSymmetricAESKey := rsaScheme.Decrypt(asymmetricRSAKey)
 				cryptography.NewAESGCM(recoveredSymmetricAESKey).Open(plaintextBuffer[:0], nonce, aesCiphertext, nil)
@@ -136,6 +145,8 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 		})
 
 		benchmark.Run(fmt.Sprintf("CPABE/%dB", payloadSize), func(b *testing.B) {
+
+			b.SetBytes(int64(payloadSize))
 
 			for b.Loop() {
 				recoveredSymmetricAESKey := subscriberKey.Decrypt(asymmetricABEKey)

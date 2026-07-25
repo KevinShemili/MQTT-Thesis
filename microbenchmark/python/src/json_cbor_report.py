@@ -22,9 +22,9 @@ ATTRIBUTE_COUNTS: list[int] = ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS")
 FORMATS: list[str] = ["JSON", "CBOR", "CBORKeyAsInt"]
 OPERATIONS: list[str] = ["serialize", "deserialize"]
 
-JSON_COLOR: str = "#be0c24"
-CBOR_COLOR: str = "#300bb6"
-CBOR_KEYASINT_COLOR: str = "#e08e0b"
+JSON_COLOR: str = "#d97706"
+CBOR_COLOR: str = "#7c3aed"
+CBOR_KEYASINT_COLOR: str = "#0f766e"
 
 
 class BenchmarkMetrics:
@@ -54,6 +54,13 @@ def GetFormatColor(formatName: str) -> str:
         return CBOR_COLOR
 
     return CBOR_KEYASINT_COLOR
+
+
+def GetFormatLabel(formatName: str) -> str:
+    if formatName == "CBORKeyAsInt":
+        return "CBOR (int keys)"
+
+    return formatName
 
 
 def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
@@ -117,7 +124,7 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "JSON vs CBOR vs CBOR-Int (Latency vs Attribute Count)",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
         fontsize=13,
     )
 
@@ -148,7 +155,7 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
                 counts,
                 means,
                 yerr=ciHalfs,
-                label=formatName,
+                label=GetFormatLabel(formatName),
                 color=GetFormatColor(formatName),
                 marker="o",
                 linewidth=1.8,
@@ -161,7 +168,14 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
         axis.set_ylabel("Latency (µs) ± 95% CI")
         axis.set_yscale("log")
         axis.set_xticks(ATTRIBUTE_COUNTS)
-        axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+        axis.grid(
+            True,
+            which="both",
+            color="#ded9d2",
+            linestyle="--",
+            linewidth=0.5,
+            alpha=0.7,
+        )
         axis.legend(fontsize=10)
 
     plt.tight_layout()
@@ -175,7 +189,7 @@ def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "JSON vs CBOR vs CBOR-Int (Envelope Size vs Attribute Count)",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Attribute Count",
         fontsize=13,
     )
 
@@ -205,7 +219,7 @@ def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
         axes[0].plot(
             counts,
             sizes,
-            label=formatName,
+            label=GetFormatLabel(formatName),
             color=GetFormatColor(formatName),
             marker="o",
             linewidth=1.8,
@@ -215,7 +229,7 @@ def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
         axes[1].plot(
             counts,
             overheadBytesList,
-            label=formatName,
+            label=GetFormatLabel(formatName),
             color=GetFormatColor(formatName),
             marker="o",
             linewidth=1.8,
@@ -226,16 +240,29 @@ def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
     axes[0].set_xlabel("Attribute count")
     axes[0].set_ylabel("Envelope size (bytes)")
     axes[0].set_xticks(ATTRIBUTE_COUNTS)
-    axes[0].grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+    axes[0].grid(
+        True,
+        which="both",
+        color="#ded9d2",
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.7,
+    )
     axes[0].legend(fontsize=10)
 
     axes[1].set_title("Format Tax", fontsize=11)
     axes[1].set_xlabel("Attribute count")
     axes[1].set_ylabel("Bytes added over raw payload")
-    # Log scale: CBOR/CBORKeyAsInt sit flat near 11-42 bytes while JSON's tax climbs into the thousands.
     axes[1].set_yscale("log")
     axes[1].set_xticks(ATTRIBUTE_COUNTS)
-    axes[1].grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+    axes[1].grid(
+        True,
+        which="both",
+        color="#ded9d2",
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.7,
+    )
     axes[1].legend(fontsize=10)
 
     plt.tight_layout()

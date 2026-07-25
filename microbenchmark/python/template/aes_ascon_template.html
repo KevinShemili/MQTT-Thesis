@@ -3,312 +3,307 @@
 
 <head>
     <meta charset="utf-8">
-    <title>AES-GCM vs ASCON Microbenchmark Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AES-GCM vs. ASCON Microbenchmark</title>
 
     <style>
         :root {
-            --background: #f4f7fb;
+            --page: #f3f1ed;
             --surface: #ffffff;
-            --surface-muted: #f8fafc;
-            --border: #d9e2ec;
-            --text-main: #182230;
-            --text-muted: #5f6c7b;
-            --accent: #155e9f;
-            --accent-dark: #0f4777;
-            --accent-soft: #e8f2fb;
-            --danger: #be0c24;
-            --ascon: #300bb6;
-            --shadow: 0 18px 45px rgba(15, 35, 55, 0.10);
+            --surface-soft: #faf9f7;
+            --ink: #201f24;
+            --muted: #6f6b74;
+            --border: #ded9d2;
+            --accent: #4f3b78;
+            --accent-soft: #eee9f7;
+            --warm: #d97706;
+            --warm-soft: #fff2df;
+            --violet: #7c3aed;
+            --rose: #c2415d;
+            --teal: #0f766e;
+            --shadow: 0 18px 55px rgba(42, 36, 48, 0.09);
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             margin: 0;
-            background: var(--background);
-            color: var(--text-main);
-            font-family: Arial, Helvetica, sans-serif;
-            line-height: 1.45;
+            background:
+                radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 34rem),
+                var(--page);
+            color: var(--ink);
+            font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        img {
+            max-width: 100%;
         }
 
         .page {
-            width: min(1280px, calc(100% - 48px));
-            margin: 32px auto;
+            width: min(1320px, calc(100% - 40px));
+            margin: 28px auto 42px auto;
         }
 
         .hero {
-            background: linear-gradient(135deg, #0f4777 0%, #155e9f 52%, #233876 100%);
+            position: relative;
+            overflow: hidden;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 26px;
+            background: linear-gradient(135deg, #2d2441 0%, #4f3b78 58%, #7c3aed 100%);
             color: #ffffff;
-            border-radius: 22px;
-            padding: 34px 38px;
             box-shadow: var(--shadow);
         }
 
-        .hero-label {
-            font-size: 13px;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            opacity: 0.78;
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            right: -100px;
+            top: -150px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 50%;
+        }
+
+        .eyebrow {
             margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.72);
         }
 
         .hero h1 {
+            max-width: 900px;
             margin: 0;
-            font-size: 34px;
-            line-height: 1.15;
-            letter-spacing: -0.03em;
-        }
-
-        .hero p {
-            max-width: 850px;
-            margin: 16px 0 0 0;
-            color: rgba(255, 255, 255, 0.84);
-            font-size: 16px;
+            font-size: clamp(30px, 4vw, 48px);
+            line-height: 1.08;
+            letter-spacing: -0.04em;
         }
 
         .metadata {
             display: grid;
-            grid-template-columns: repeat(4, minmax(160px, 1fr));
-            gap: 16px;
-            margin-top: 18px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 16px;
         }
 
-        .card {
-            background: var(--surface);
+        .metric {
+            padding: 18px 20px;
             border: 1px solid var(--border);
             border-radius: 18px;
-            padding: 18px;
-            box-shadow: 0 10px 28px rgba(15, 35, 55, 0.07);
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 10px 32px rgba(42, 36, 48, 0.05);
+            backdrop-filter: blur(8px);
         }
 
-        .card-label {
-            color: var(--text-muted);
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .card-value {
-            margin-top: 8px;
-            font-size: 23px;
+        .metric-label {
+            font-size: 11px;
             font-weight: 800;
-            letter-spacing: -0.02em;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .metric-value {
+            margin-top: 6px;
+            font-size: 25px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
         }
 
         .section {
             margin-top: 22px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 20px;
             padding: 26px;
-            box-shadow: 0 10px 28px rgba(15, 35, 55, 0.06);
-        }
-
-        .section h2 {
-            margin: 0 0 10px 0;
-            font-size: 23px;
-            letter-spacing: -0.02em;
-        }
-
-        .section p {
-            margin: 0 0 18px 0;
-            color: var(--text-muted);
-        }
-
-        .note {
-            margin-top: 22px;
-            background: var(--accent-soft);
-            border: 1px solid #bfd9ef;
-            border-left: 5px solid var(--accent);
-            border-radius: 16px;
-            padding: 16px 18px;
-            color: #20364d;
-        }
-
-        .note strong {
-            color: var(--accent-dark);
-        }
-
-        .plots {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 22px;
-        }
-
-        .plot-card {
-            background: var(--surface-muted);
             border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 18px;
+            border-radius: 22px;
+            background: var(--surface);
+            box-shadow: 0 12px 36px rgba(42, 36, 48, 0.055);
         }
 
-        .plot-card h3 {
-            margin: 0 0 6px 0;
-            font-size: 18px;
-        }
-
-        .plot-card p {
-            margin: 0 0 14px 0;
-            color: var(--text-muted);
-            font-size: 14px;
-        }
-
-        .plot-card img {
-            display: block;
-            width: 100%;
-            max-width: 100%;
-            background: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 14px;
-        }
-
-        .legend-row {
+        .section-heading {
             display: flex;
-            gap: 14px;
-            flex-wrap: wrap;
-            margin-top: 12px;
+            align-items: end;
+            justify-content: space-between;
+            gap: 20px;
             margin-bottom: 18px;
         }
 
-        .legend-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-muted);
-            font-size: 14px;
+        .section-heading h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: -0.025em;
         }
 
-        .legend-dot {
-            width: 11px;
-            height: 11px;
-            border-radius: 999px;
+        .plot-stack {
+            display: grid;
+            gap: 18px;
         }
 
-        .legend-dot-aes {
-            background: var(--danger);
+        .plot-card {
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 19px;
+            background: var(--surface-soft);
         }
 
-        .legend-dot-ascon {
-            background: var(--ascon);
+        .plot-copy {
+            padding: 20px 22px 4px 22px;
+        }
+
+        .plot-copy h3 {
+            margin: 0;
+            font-size: 18px;
+            letter-spacing: -0.015em;
+        }
+
+        .plot-frame {
+            padding: 14px;
+        }
+
+        .plot-frame img {
+            display: block;
+            width: 100%;
+            border: 1px solid #e5e1dc;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .operation-group+.operation-group {
+            margin-top: 22px;
+        }
+
+        .operation-heading {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+            letter-spacing: -0.015em;
         }
 
         .table-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
-        }
-
-        .table-row+.table-row {
-            margin-top: 18px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
         }
 
         .table-block {
-            background: var(--surface-muted);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 16px;
+            display: flex;
+            flex-direction: column;
             min-width: 0;
+            padding: 0;
+            overflow: hidden;
+            border: 1px solid #e5e0da;
+            border-radius: 14px;
+            background: #ffffff;
         }
 
         .table-block h3 {
-            margin: 0 0 10px 0;
-            font-size: 15px;
+            margin: 0;
+            padding: 14px;
+            font-size: 14px;
         }
 
         .table-wrapper {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
             overflow-x: auto;
-            border: 1px solid var(--border);
-            border-radius: 14px;
+            border: 0;
+            border-top: 1px solid #e6e1db;
+            border-radius: 0;
         }
 
         table {
             width: 100%;
+            height: 100%;
             border-collapse: collapse;
-            background: var(--surface);
-            font-size: 12.5px;
+            background: #ffffff;
+            font-size: 11.5px;
         }
 
         thead {
-            background: #eef3f8;
+            background: #f2eff6;
         }
 
         th {
-            color: #26384d;
-            font-size: 11px;
-            letter-spacing: 0.03em;
-            text-transform: uppercase;
-            text-align: right;
-            padding: 10px 8px;
+            padding: 9px 7px;
             border-bottom: 1px solid var(--border);
-            white-space: normal;
+            color: #4d435d;
+            font-size: 9.5px;
+            font-weight: 850;
+            letter-spacing: 0.035em;
             line-height: 1.25;
+            text-align: right;
+            vertical-align: middle;
+            white-space: normal;
         }
 
         td {
-            padding: 9px 8px;
-            border-bottom: 1px solid #edf1f5;
-            white-space: nowrap;
-            text-align: right;
+            padding: 8px 7px;
+            border-bottom: 1px solid #efebe6;
             font-variant-numeric: tabular-nums;
+            text-align: right;
+            vertical-align: middle;
+            white-space: nowrap;
         }
 
         tbody tr:nth-child(even) {
-            background: #fbfdff;
+            background: #fbfafc;
         }
 
         tbody tr:hover {
-            background: #f1f7fd;
+            background: #f6f2fb;
         }
 
-        code {
-            background: #edf2f7;
-            border: 1px solid #d7e2ec;
-            border-radius: 6px;
-            padding: 2px 6px;
-            font-family: Consolas, Monaco, monospace;
-            font-size: 0.95em;
-        }
-
-        .footer {
-            margin: 24px 0 8px 0;
-            color: var(--text-muted);
-            font-size: 13px;
-            text-align: center;
-        }
-
-        @media (max-width: 900px) {
+        @media (max-width: 1050px) {
             .metadata {
-                grid-template-columns: repeat(2, minmax(160px, 1fr));
-            }
-
-            .hero h1 {
-                font-size: 28px;
-            }
-        }
-
-        @media (max-width: 620px) {
-            .page {
-                width: min(100% - 24px, 1280px);
-                margin: 18px auto;
-            }
-
-            .hero {
-                padding: 26px 24px;
-            }
-
-            .metadata {
-                grid-template-columns: 1fr;
-            }
-
-            .section {
-                padding: 20px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
             .table-row {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 680px) {
+            .page {
+                width: min(100% - 22px, 1320px);
+                margin-top: 12px;
+            }
+
+            .hero,
+            .section {
+                padding: 21px;
+                border-radius: 18px;
+            }
+
+            .metadata {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+            }
+
+            .page {
+                width: 100%;
+                margin: 0;
+            }
+
+            .hero,
+            .metric,
+            .section {
+                box-shadow: none;
             }
         }
     </style>
@@ -316,133 +311,110 @@
 
 <body>
     <main class="page">
-        <section class="hero">
-            <div class="hero-label">AEAD Microbenchmark Report</div>
+        <header class="hero">
+            <div class="eyebrow">Microbenchmark Scenario 4</div>
+            <h1>AES-GCM vs. ASCON under Payload Size Scaling</h1>
+        </header>
 
-            <h1>AES-GCM vs. ASCON</h1>
-
-            <p>
-                Benchmark comparing encryption latency, decryption latency, throughput, and fixed tag + nonce bytes
-                across MQTT-relevant payload sizes.
-            </p>
-        </section>
-
-        <section class="metadata">
-            <div class="card">
-                <div class="card-label">Independent Runs</div>
-                <div class="card-value">{{RunCount}}</div>
+        <section class="metadata" aria-label="Benchmark metadata">
+            <div class="metric">
+                <div class="metric-label">Independent runs</div>
+                <div class="metric-value">{{RunCount}}</div>
             </div>
 
-            <div class="card">
-                <div class="card-label">Confidence Interval</div>
-                <div class="card-value">{{ConfidenceLevel}}</div>
+            <div class="metric">
+                <div class="metric-label">Confidence interval</div>
+                <div class="metric-value">{{ConfidenceLevel}}</div>
             </div>
 
-            <div class="card">
-                <div class="card-label">Student T</div>
-                <div class="card-value">{{TMultiplier}}</div>
+            <div class="metric">
+                <div class="metric-label">Student t</div>
+                <div class="metric-value">{{TMultiplier}}</div>
             </div>
 
-            <div class="card">
-                <div class="card-label">Total Operations</div>
-                <div class="card-value">{{TotalIterations}}</div>
+            <div class="metric">
+                <div class="metric-label">Crypto operations</div>
+                <div class="metric-value">{{TotalIterations}}</div>
             </div>
-        </section>
-
-        <section class="note">
-            <strong>Methodological Note:</strong>
-            Latency and throughput are reported as mean ± {{ConfidenceLevel}} confidence interval across {{RunCount}}
-            independent Go benchmark runs. The confidence interval uses Student's t with df={{DegreesOfFreedom}}.
-            Tag + nonce is reported as absolute bytes per message. It is not plotted because it is constant for each
-            AEAD primitive.
         </section>
 
         <section class="section">
-            <h2>Figures</h2>
-
-            <p>
-                The plots summarize latency and throughput. Fixed tag + nonce bytes are reported only in the numerical
-                tables.
-            </p>
-
-            <div class="legend-row">
-                <span class="legend-item">
-                    <span class="legend-dot legend-dot-aes"></span>
-                    AES-GCM
-                </span>
-
-                <span class="legend-item">
-                    <span class="legend-dot legend-dot-ascon"></span>
-                    ASCON
-                </span>
+            <div class="section-heading">
+                <h2>Scaling Results</h2>
             </div>
 
-            <div class="plots">
+            <div class="plot-stack">
                 <article class="plot-card">
-                    <h3>Latency vs Payload Size</h3>
-                    <p>
-                        Lower values indicate faster encryption or decryption.
-                        Error bars show the confidence interval.
-                    </p>
-                    <img src="{{LatencyPlot}}" alt="Latency plot">
+                    <div class="plot-copy">
+                        <h3>Latency vs. Payload Size</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{LatencyPlot}}" alt="AES-GCM and ASCON latency over payload size">
+                    </div>
                 </article>
 
                 <article class="plot-card">
-                    <h3>Throughput vs Payload Size</h3>
-                    <p>
-                        Higher values indicate more plaintext bytes processed per second.
-                        Error bars show the confidence interval.
-                    </p>
-                    <img src="{{ThroughputPlot}}" alt="Throughput plot">
+                    <div class="plot-copy">
+                        <h3>Throughput vs. Payload Size</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{ThroughputPlot}}" alt="AES-GCM and ASCON throughput over payload size">
+                    </div>
                 </article>
             </div>
         </section>
 
         <section class="section">
-            <h2>Numerical Summary</h2>
+            <div class="section-heading">
+                <h2>Numerical Results</h2>
+            </div>
 
-            <p>
-                Encryption results appear first, decryption results below. AES-GCM and ASCON sit side by side
-                within each row for direct comparison. Latency and throughput are expressed as mean ± confidence
-                interval.
-            </p>
+            <div class="operation-group">
+                <h3 class="operation-heading">Encrypt</h3>
 
-            <div class="table-row">
-                <div class="table-block">
-                    <h3>Encrypt — AES-GCM</h3>
-                    <div class="table-wrapper">
-                        {{EncryptAesTable}}
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>AES-GCM: Payload Size Scaling</h3>
+
+                        <div class="table-wrapper">
+                            {{EncryptAesTable}}
+                        </div>
                     </div>
-                </div>
 
-                <div class="table-block">
-                    <h3>Encrypt — ASCON</h3>
-                    <div class="table-wrapper">
-                        {{EncryptAsconTable}}
+                    <div class="table-block">
+                        <h3>ASCON: Payload Size Scaling</h3>
+
+                        <div class="table-wrapper">
+                            {{EncryptAsconTable}}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="table-row">
-                <div class="table-block">
-                    <h3>Decrypt — AES-GCM</h3>
-                    <div class="table-wrapper">
-                        {{DecryptAesTable}}
-                    </div>
-                </div>
+            <div class="operation-group">
+                <h3 class="operation-heading">Decrypt</h3>
 
-                <div class="table-block">
-                    <h3>Decrypt — ASCON</h3>
-                    <div class="table-wrapper">
-                        {{DecryptAsconTable}}
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>AES-GCM: Payload Size Scaling</h3>
+
+                        <div class="table-wrapper">
+                            {{DecryptAesTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>ASCON: Payload Size Scaling</h3>
+
+                        <div class="table-wrapper">
+                            {{DecryptAsconTable}}
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
-
-        <div class="footer">
-            Generated from <code>bench_output.txt</code> inside the benchmark container.
-        </div>
     </main>
 </body>
 

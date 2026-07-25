@@ -12,7 +12,7 @@ from utils.parser import ParseIntListFromEnv
 
 BENCH_FILE: str = "/results/payload-scaling/bench_output.txt"
 PNG_FILE: str = "/results/payload-scaling/plot.png"
-ASYMMETRY_PNG_FILE: str = "/results/payload-scaling/asymmetry.png"
+THROUGHPUT_PNG_FILE: str = "/results/payload-scaling/throughput.png"
 HTML_FILE: str = "/results/payload-scaling/report.html"
 HTML_TEMPLATE_FILE: str = "/app/template/payload_scaling_template.html"
 
@@ -22,9 +22,9 @@ PAYLOAD_SIZES: list[int] = ParseIntListFromEnv("PAYLOAD_SCALING_PAYLOAD_SIZES")
 SCHEMES: list[str] = ["PSK", "RSA", "CPABE"]
 OPERATIONS: list[str] = ["encrypt", "decrypt"]
 
-PSK_COLOR: str = "#0b7a3d"
-RSA_COLOR: str = "#300bb6"
-CPABE_COLOR: str = "#be0c24"
+PSK_COLOR: str = "#0f766e"
+RSA_COLOR: str = "#7c3aed"
+CPABE_COLOR: str = "#c2415d"
 
 
 class BenchmarkMetrics:
@@ -42,6 +42,7 @@ class BenchmarkMetrics:
 
         self.Iterations: list[int] = []
         self.NsPerOperation: list[float] = []
+        self.MbPerSecond: list[float] = []
         self.WireOverheadBytes: list[float] = []
 
 
@@ -105,6 +106,7 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
 
             metrics.Iterations.append(iterationCount)
             metrics.NsPerOperation.append(metricsByUnit["ns/op"])
+            metrics.MbPerSecond.append(metricsByUnit["MB/s"])
 
             # Wire overhead is only reported by the encrypt benchmark, decrypt lines lack it.
             if "wire_overhead_bytes/op" in metricsByUnit:
@@ -135,12 +137,6 @@ def GetSchemeOverheadBytes(
         overheadSamples.extend(metrics.WireOverheadBytes)
 
     return Mean(overheadSamples)
-
-
-def FormatLatencyMicroseconds(latencyMicroseconds: float) -> str:
-
-    # Keep one unit everywhere so labels are directly comparable.
-    return f"{latencyMicroseconds:.1f} µs"
 
 
 def FormatPayloadSizeLabel(payloadSizeBytes: int) -> str:
@@ -174,17 +170,23 @@ def FormatByteSize(byteCount: int) -> str:
 
 def ConfigurePayloadAxis(axis) -> None:
 
-    # Payload sizes are powers of two, so a base-2 log axis spaces the points evenly.
-    axis.set_xscale("log", base=2)
-    axis.set_xticks(PAYLOAD_SIZES)
-    # Short unit labels, rotated, so the largest sizes stop overlapping each other.
+    # Keep payload position proportional to the actual number of bytes.
+    maxPayloadSize: int = PAYLOAD_SIZES[-1]
+
+    # Use regular 4 MiB ticks so the linear axis remains readable.
+    tickStep: int = 4 * 1024 * 1024
+    tickValues: list[int] = list(range(0, maxPayloadSize + tickStep, tickStep))
+
+    axis.set_xticks(tickValues)
+
     axis.set_xticklabels(
-        [FormatPayloadSizeLabel(payloadSize) for payloadSize in PAYLOAD_SIZES],
-        rotation=30,
-        ha="right",
+        [
+            "0" if tickValue == 0 else FormatPayloadSizeLabel(tickValue)
+            for tickValue in tickValues
+        ]
     )
-    # Minor log ticks would clutter the axis between the explicit size labels.
-    axis.minorticks_off()
+
+    axis.set_xlim(0, maxPayloadSize * 1.03)
 
 
 def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
@@ -192,7 +194,150 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "PSK vs RSA vs CP-ABE (Latency vs Payload Size)",
+        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
+        fontsize=13,
+    )
+
+    for axis, operation in zip(axes, OPERATIONS):
+
+        zoomAxis = None
+        zoomMaximum: float = 0.0
+
+        # CP-ABE dominates publisher latency, so add a linear zoom for PSK and RSA.
+        if operation == "encrypt":
+            zoomAxis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])
+
+        for schemeName in SCHEMES:
+
+            means: list[float] = []
+            ciHalfs: list[float] = []
+            payloadSizes: list[int] = []
+
+            for payloadSize in PAYLOAD_SIZES:
+
+                benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
+                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+                if metrics is None:
+                    continue
+
+                latencyMean: float
+                latencyCI: float
+
+                latencyMean, latencyCI = MeanAndConfidenceInterval(
+                    metrics.NsPerOperation,
+                    T_95,
+                )
+
+                meanMicroseconds: float = latencyMean / 1000.0
+                ciMicroseconds: float = latencyCI / 1000.0
+
+                payloadSizes.append(payloadSize)
+                means.append(meanMicroseconds)
+                ciHalfs.append(ciMicroseconds)
+
+            axis.errorbar(
+                payloadSizes,
+                means,
+                yerr=ciHalfs,
+                label=schemeName,
+                color=GetSchemeColor(schemeName),
+                marker="o",
+                linewidth=1.8,
+                markersize=5,
+                capsize=4,
+            )
+
+            # Repeat only the lower-latency schemes inside the Encrypt zoom.
+            if zoomAxis is not None and schemeName != "CPABE":
+
+                zoomAxis.errorbar(
+                    payloadSizes,
+                    means,
+                    yerr=ciHalfs,
+                    label=schemeName,
+                    color=GetSchemeColor(schemeName),
+                    marker="o",
+                    linewidth=1.6,
+                    markersize=4,
+                    capsize=3,
+                )
+
+                for meanMicroseconds, ciMicroseconds in zip(means, ciHalfs):
+                    zoomMaximum = max(
+                        zoomMaximum,
+                        meanMicroseconds + ciMicroseconds,
+                    )
+
+        axis.set_title(operation.capitalize(), fontsize=11)
+        axis.set_xlabel("Payload size")
+        axis.set_ylabel("Latency (µs) ± 95% CI")
+
+        # Keep the main graph genuinely linear and zero-based.
+        axis.set_ylim(bottom=0)
+
+        ConfigurePayloadAxis(axis)
+
+        axis.grid(
+            True,
+            axis="y",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.18,
+        )
+
+        axis.legend(
+            fontsize=10,
+            loc="upper left",
+        )
+
+        if zoomAxis is not None:
+
+            # Keep the zoom linear and zero-based as well.
+            zoomAxis.set_ylim(0.0, zoomMaximum * 1.10)
+            zoomAxis.set_xlim(0, PAYLOAD_SIZES[-1] * 1.03)
+            zoomAxis.set_xticks([])
+
+            zoomAxis.set_title(
+                "PSK + RSA Zoom",
+                fontsize=9,
+            )
+
+            zoomAxis.set_ylabel(
+                "µs",
+                fontsize=8,
+            )
+
+            zoomAxis.tick_params(
+                axis="both",
+                labelsize=8,
+            )
+
+            zoomAxis.grid(
+                True,
+                axis="y",
+                linestyle="-",
+                linewidth=0.4,
+                alpha=0.18,
+            )
+
+            zoomAxis.legend(
+                fontsize=8,
+                loc="upper left",
+            )
+
+    plt.tight_layout()
+    plt.savefig(PNG_FILE, dpi=150, bbox_inches="tight")
+    plt.close(figure)
+
+    print(f"Saved -> {PNG_FILE}")
+
+
+def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
+
+    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    figure.suptitle(
+        "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
         fontsize=13,
     )
 
@@ -208,16 +353,21 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
 
                 benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
                 metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+
                 if metrics is None:
                     continue
 
-                latencyMean, latencyCI = MeanAndConfidenceInterval(
-                    metrics.NsPerOperation, T_95
+                throughputMean: float
+                throughputCI: float
+
+                throughputMean, throughputCI = MeanAndConfidenceInterval(
+                    metrics.MbPerSecond,
+                    T_95,
                 )
 
                 sizes.append(payloadSize)
-                means.append(latencyMean / 1000.0)
-                ciHalfs.append(latencyCI / 1000.0)
+                means.append(throughputMean)
+                ciHalfs.append(throughputCI)
 
             axis.errorbar(
                 sizes,
@@ -233,130 +383,36 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
 
         axis.set_title(operation.capitalize(), fontsize=11)
         axis.set_xlabel("Payload size")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        # Log scale: CP-ABE sits orders of magnitude above the symmetric-only PSK path.
-        axis.set_yscale("log")
+        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
+
+        # Keep throughput visually proportional to the measured MB/s values.
+        axis.set_ylim(bottom=0)
+
+        # Reuse the exact payload-axis policy already used by Scenario 1.
         ConfigurePayloadAxis(axis)
-        axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
-        axis.legend(fontsize=10)
+
+        axis.grid(
+            True,
+            axis="y",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.18,
+        )
+
+        axis.legend(
+            fontsize=10,
+            loc="upper left",
+        )
 
     plt.tight_layout()
-    plt.savefig(PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {PNG_FILE}")
-
-
-def PlotAsymmetry(results: dict[str, BenchmarkMetrics]) -> None:
-
-    # Smallest payload isolates the fixed asymmetric cost from the AES per-byte cost.
-    referencePayloadSize: int = PAYLOAD_SIZES[0]
-
-    figure, axis = plt.subplots(figsize=(8, 5))
-
-    figure.suptitle(
-        f"Encrypt vs Decrypt Asymmetry (payload {referencePayloadSize} B)",
-        fontsize=13,
+    plt.savefig(
+        THROUGHPUT_PNG_FILE,
+        dpi=150,
+        bbox_inches="tight",
     )
+    plt.close(figure)
 
-    barWidth: float = 0.35
-
-    maxLatency: float = 0.0
-
-    for schemeIndex, schemeName in enumerate(SCHEMES):
-
-        encryptMetrics: BenchmarkMetrics = results[
-            f"encrypt/{schemeName}/{referencePayloadSize}"
-        ]
-        decryptMetrics: BenchmarkMetrics = results[
-            f"decrypt/{schemeName}/{referencePayloadSize}"
-        ]
-
-        encryptMicroseconds: float = Mean(encryptMetrics.NsPerOperation) / 1000.0
-        decryptMicroseconds: float = Mean(decryptMetrics.NsPerOperation) / 1000.0
-
-        schemeColor: str = GetSchemeColor(schemeName)
-
-        # Solid bar = encrypt.
-        encryptBar = axis.bar(
-            schemeIndex - barWidth / 2.0,
-            encryptMicroseconds,
-            width=barWidth,
-            color=schemeColor,
-            edgecolor="#182230",
-            linewidth=0.8,
-        )
-
-        # Faded bar = decrypt.
-        decryptBar = axis.bar(
-            schemeIndex + barWidth / 2.0,
-            decryptMicroseconds,
-            width=barWidth,
-            color=schemeColor,
-            alpha=0.45,
-            edgecolor="#182230",
-            linewidth=0.8,
-        )
-
-        # Show both values in microseconds only.
-        axis.annotate(
-            FormatLatencyMicroseconds(encryptMicroseconds),
-            xy=(schemeIndex - barWidth / 2.0, encryptMicroseconds),
-            xytext=(0, 5),
-            textcoords="offset points",
-            ha="center",
-            fontsize=10,
-        )
-
-        axis.annotate(
-            FormatLatencyMicroseconds(decryptMicroseconds),
-            xy=(schemeIndex + barWidth / 2.0, decryptMicroseconds),
-            xytext=(0, 5),
-            textcoords="offset points",
-            ha="center",
-            fontsize=10,
-        )
-
-        # State the ratio explicitly, since the log-scale bars do not visually show it linearly.
-        if decryptMicroseconds > encryptMicroseconds:
-            asymmetryRatio: float = decryptMicroseconds / encryptMicroseconds
-            asymmetryText: str = f"decrypt {asymmetryRatio:.0f}× slower"
-        else:
-            asymmetryRatio = encryptMicroseconds / decryptMicroseconds
-            asymmetryText = f"encrypt {asymmetryRatio:.0f}× slower"
-
-        tallerBarHeight: float = max(encryptMicroseconds, decryptMicroseconds)
-
-        axis.annotate(
-            asymmetryText,
-            xy=(schemeIndex, tallerBarHeight),
-            xytext=(0, 22),
-            textcoords="offset points",
-            ha="center",
-            fontsize=10,
-            fontweight="bold",
-        )
-
-        maxLatency = max(maxLatency, tallerBarHeight)
-
-    axis.set_xticks(range(len(SCHEMES)))
-    axis.set_xticklabels(SCHEMES)
-    axis.set_xlabel("Scheme")
-    axis.set_ylabel("Latency (µs)")
-
-    # Keep log scale so PSK, RSA, and CP-ABE remain simultaneously visible.
-    axis.set_yscale("log")
-
-    # Add headroom so top annotations are not clipped.
-    axis.set_ylim(top=maxLatency * 12.0)
-
-    axis.legend(
-        [encryptBar, decryptBar],
-        ["Encrypt", "Decrypt"],
-        fontsize=10,
-    )
-
-    plt.tight_layout()
-    plt.savefig(ASYMMETRY_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {ASYMMETRY_PNG_FILE}")
+    print(f"Saved -> {THROUGHPUT_PNG_FILE}")
 
 
 def BuildOperationSchemeTable(
@@ -467,7 +523,7 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
     report = report.replace("{{DecryptRsaTable}}", decryptRsaTable)
     report = report.replace("{{DecryptCpabeTable}}", decryptCpabeTable)
     report = report.replace("{{LatencyPlot}}", "plot.png")
-    report = report.replace("{{AsymmetryPlot}}", "asymmetry.png")
+    report = report.replace("{{ThroughputPlot}}", "throughput.png")
 
     with open(HTML_FILE, "w", encoding="utf-8") as file:
         file.write(report)
@@ -483,7 +539,7 @@ def Main() -> None:
         sys.exit(f"[error] {BENCH_FILE} not found — run the benchmark first")
 
     PlotLatency(results)
-    PlotAsymmetry(results)
+    PlotThroughput(results)
     WriteHtmlReport(results)
 
 

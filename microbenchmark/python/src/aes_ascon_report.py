@@ -26,8 +26,8 @@ PAYLOAD_SIZES: list[int] = ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES")
 ALGORITHMS: list[str] = ["AES-GCM", "ASCON"]
 OPERATIONS: list[str] = ["encrypt", "decrypt"]
 
-AES_GCM_COLOR: str = "#be0c24"
-ASCON_COLOR: str = "#300bb6"
+AES_GCM_COLOR: str = "#d97706"
+ASCON_COLOR: str = "#7c3aed"
 
 
 class BenchmarkMetrics:
@@ -122,7 +122,7 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "AES-GCM vs ASCON (Latency vs Payload Size)",
+        "AES-GCM vs. ASCON: Latency vs. Payload Size",
         fontsize=13,
     )
 
@@ -173,7 +173,14 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
             FuncFormatter(lambda value, _: FormatBytes(int(value)))
         )
         axis.tick_params(axis="x", rotation=30)
-        axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+        axis.grid(
+            True,
+            which="both",
+            color="#ded9d2",
+            linestyle="--",
+            linewidth=0.5,
+            alpha=0.7,
+        )
         axis.legend(fontsize=10)
 
     plt.tight_layout()
@@ -186,7 +193,7 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     figure.suptitle(
-        "AES-GCM vs ASCON (Throughput vs Payload Size)",
+        "AES-GCM vs. ASCON: Throughput vs. Payload Size",
         fontsize=13,
     )
 
@@ -237,7 +244,14 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
             FuncFormatter(lambda value, _: FormatBytes(int(value)))
         )
         axis.tick_params(axis="x", rotation=30)
-        axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+        axis.grid(
+            True,
+            which="both",
+            color="#ded9d2",
+            linestyle="--",
+            linewidth=0.5,
+            alpha=0.7,
+        )
         axis.legend(fontsize=10)
 
     plt.tight_layout()
