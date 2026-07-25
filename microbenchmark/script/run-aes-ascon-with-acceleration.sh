@@ -9,7 +9,9 @@ mkdir -p "${ResultDirectory}"
 echo 'Running AES vs ASCON benchmark with hardware acceleration...'
 
 PayloadSizeCount=$(echo "${AES_ASCON_PAYLOAD_SIZES}" | tr ',' '\n' | wc -l)
-TotalLines=$((2 * 2 * PayloadSizeCount * AES_ASCON_RUNS))
+BenchmarkLines=$((2 * 2 * PayloadSizeCount * AES_ASCON_RUNS))
+FixedOverheadLines=6
+TotalLines=$((BenchmarkLines + FixedOverheadLines))
 
 GODEBUG="" ./benchmark-binary \
   -test.run=^$ \
@@ -17,7 +19,6 @@ GODEBUG="" ./benchmark-binary \
   -test.benchtime=5s \
   -test.benchmem \
   -test.count="${AES_ASCON_RUNS}" \
-  -test.cpu=1 \
   | pv \
       --force \
       --wait \

@@ -356,7 +356,8 @@ def PlotSweep(
         keygenLatencyAxis.set_xticks(sweepValues)
 
         # The lower latency plot already displays the shared key-size labels.
-        keygenLatencyAxis.tick_params(axis="x", labelbottom=False)
+        keygenLatencyAxis.tick_params(axis="x", labelbottom=True)
+        keygenLatencyAxis.set_xlabel(xLabel)
 
         keygenLatencyAxis.grid(
             True,
@@ -465,7 +466,10 @@ def PlotSweep(
     # Anchor at zero so proportions between the series are honest.
     sizeAxis.set_ylim(bottom=0)
 
-    figure.tight_layout(rect=[0.0, 0.0, 1.0, 0.94])  # type: ignore
+    if splitKeygenLatency:
+        figure.subplots_adjust(top=0.92)
+    else:
+        figure.tight_layout(rect=[0.0, 0.0, 1.0, 0.94])  # type: ignore
     figure.savefig(pngFile, dpi=150, bbox_inches="tight")
     plt.close(figure)
     print(f"Saved -> {pngFile}")
