@@ -32,16 +32,7 @@ ASCON_COLOR: str = "#7c3aed"
 
 class BenchmarkMetrics:
 
-    def __init__(
-        self,
-        operation: str,
-        algorithm: str,
-        payloadSize: int,
-    ) -> None:
-
-        self.Operation: str = operation
-        self.Algorithm: str = algorithm
-        self.PayloadSize: int = payloadSize
+    def __init__(self) -> None:
 
         self.Iterations: list[int] = []
         self.NsPerOperation: list[float] = []
@@ -93,11 +84,7 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
             benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
 
             if benchmarkCaseId not in results:
-                results[benchmarkCaseId] = BenchmarkMetrics(
-                    operation,
-                    algorithm,
-                    payloadSize,
-                )
+                results[benchmarkCaseId] = BenchmarkMetrics()
 
             metrics: BenchmarkMetrics = results[benchmarkCaseId]
 
@@ -166,20 +153,19 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
         axis.set_title(operation.capitalize(), fontsize=11)
         axis.set_xlabel("Payload size")
         axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_xscale("log", base=2)
-        axis.set_yscale("log")
         axis.set_xticks(PAYLOAD_SIZES)
+        axis.set_xlim(left=0)
+        axis.set_ylim(bottom=0)
         axis.xaxis.set_major_formatter(
             FuncFormatter(lambda value, _: FormatBytes(int(value)))
         )
         axis.tick_params(axis="x", rotation=30)
         axis.grid(
             True,
-            which="both",
-            color="#ded9d2",
-            linestyle="--",
+            axis="y",
+            linestyle="-",
             linewidth=0.5,
-            alpha=0.7,
+            alpha=0.18,
         )
         axis.legend(fontsize=10)
 
@@ -237,20 +223,19 @@ def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
         axis.set_title(operation.capitalize(), fontsize=11)
         axis.set_xlabel("Payload size")
         axis.set_ylabel("Throughput (MB/s) ± 95% CI")
-        axis.set_xscale("log", base=2)
-        axis.set_yscale("log")
         axis.set_xticks(PAYLOAD_SIZES)
+        axis.set_xlim(left=0)
+        axis.set_ylim(bottom=0)
         axis.xaxis.set_major_formatter(
             FuncFormatter(lambda value, _: FormatBytes(int(value)))
         )
         axis.tick_params(axis="x", rotation=30)
         axis.grid(
             True,
-            which="both",
-            color="#ded9d2",
-            linestyle="--",
+            axis="y",
+            linestyle="-",
             linewidth=0.5,
-            alpha=0.7,
+            alpha=0.18,
         )
         axis.legend(fontsize=10)
 
@@ -373,7 +358,6 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
     report = report.replace("{{RunCount}}", str(RUNS))
     report = report.replace("{{ConfidenceLevel}}", "95%")
     report = report.replace("{{TMultiplier}}", str(T_95))
-    report = report.replace("{{DegreesOfFreedom}}", str(RUNS - 1))
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
     report = report.replace("{{EncryptAesTable}}", encryptAesTable)
     report = report.replace("{{EncryptAsconTable}}", encryptAsconTable)

@@ -29,16 +29,7 @@ CBOR_KEYASINT_COLOR: str = "#0f766e"
 
 class BenchmarkMetrics:
 
-    def __init__(
-        self,
-        operation: str,
-        formatName: str,
-        attributeCount: int,
-    ) -> None:
-
-        self.Operation: str = operation
-        self.Format: str = formatName
-        self.AttributeCount: int = attributeCount
+    def __init__(self) -> None:
 
         self.Iterations: list[int] = []
         self.NsPerOperation: list[float] = []
@@ -94,11 +85,7 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
             benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
 
             if benchmarkCaseId not in results:
-                results[benchmarkCaseId] = BenchmarkMetrics(
-                    operation,
-                    formatName,
-                    attributeCount,
-                )
+                results[benchmarkCaseId] = BenchmarkMetrics()
 
             metrics: BenchmarkMetrics = results[benchmarkCaseId]
 
@@ -166,7 +153,7 @@ def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
         axis.set_title(operation.capitalize(), fontsize=11)
         axis.set_xlabel("Attribute count")
         axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_yscale("log")
+        axis.set_ylim(bottom=0)
         axis.set_xticks(ATTRIBUTE_COUNTS)
         axis.grid(
             True,
@@ -239,6 +226,7 @@ def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
     axes[0].set_title("Absolute Size", fontsize=11)
     axes[0].set_xlabel("Attribute count")
     axes[0].set_ylabel("Envelope size (bytes)")
+    axes[0].set_ylim(bottom=0)
     axes[0].set_xticks(ATTRIBUTE_COUNTS)
     axes[0].grid(
         True,
@@ -253,7 +241,7 @@ def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
     axes[1].set_title("Format Tax", fontsize=11)
     axes[1].set_xlabel("Attribute count")
     axes[1].set_ylabel("Bytes added over raw payload")
-    axes[1].set_yscale("log")
+    axes[1].set_ylim(bottom=0)
     axes[1].set_xticks(ATTRIBUTE_COUNTS)
     axes[1].grid(
         True,
@@ -359,7 +347,6 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
     report = report.replace("{{RunCount}}", str(RUNS))
     report = report.replace("{{ConfidenceLevel}}", "95%")
     report = report.replace("{{TMultiplier}}", str(T_95))
-    report = report.replace("{{DegreesOfFreedom}}", str(RUNS - 1))
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
     report = report.replace("{{SerializeJsonTable}}", serializeJsonTable)
     report = report.replace("{{SerializeCborTable}}", serializeCborTable)

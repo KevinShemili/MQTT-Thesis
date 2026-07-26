@@ -29,16 +29,7 @@ CPABE_COLOR: str = "#c2415d"
 
 class BenchmarkMetrics:
 
-    def __init__(
-        self,
-        operation: str,
-        schemeName: str,
-        payloadSize: int,
-    ) -> None:
-
-        self.Operation: str = operation
-        self.Scheme: str = schemeName
-        self.PayloadSize: int = payloadSize
+    def __init__(self) -> None:
 
         self.Iterations: list[int] = []
         self.NsPerOperation: list[float] = []
@@ -87,11 +78,7 @@ def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
             benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
 
             if benchmarkCaseId not in results:
-                results[benchmarkCaseId] = BenchmarkMetrics(
-                    operation,
-                    schemeName,
-                    payloadSize,
-                )
+                results[benchmarkCaseId] = BenchmarkMetrics()
 
             metrics: BenchmarkMetrics = results[benchmarkCaseId]
 
@@ -516,7 +503,6 @@ def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
     report = report.replace("{{RunCount}}", str(RUNS))
     report = report.replace("{{ConfidenceLevel}}", "95%")
     report = report.replace("{{TMultiplier}}", str(T_95))
-    report = report.replace("{{DegreesOfFreedom}}", str(RUNS - 1))
     report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
     report = report.replace("{{EncryptPskTable}}", encryptPskTable)
     report = report.replace("{{EncryptRsaTable}}", encryptRsaTable)

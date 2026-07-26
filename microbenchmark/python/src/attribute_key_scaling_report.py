@@ -239,27 +239,11 @@ def GetMeanTotalCiphertextBytes(
     return Mean(metrics.TotalCiphertextBytes)
 
 
-def GetMeanStoredKeyBytes(
-    results: dict[str, BenchmarkMetrics],
-    benchmarkCaseId: str,
-) -> float:
-
-    metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-
-    if metrics is None or len(metrics.StoredKeyBytes) == 0:
-        sys.exit(
-            f"[error] missing stored key bytes for '{benchmarkCaseId}' in {BENCH_FILE}"
-        )
-
-    return Mean(metrics.StoredKeyBytes)
-
-
 def PlotSweep(
     results: dict[str, BenchmarkMetrics],
     sweepName: str,
     sweepValues: list[int],
     sweepOperations: list[str],
-    derivedStoredKeySizes: list[float],
     xLabel: str,
     figureTitle: str,
     pngFile: str,
@@ -417,10 +401,6 @@ def PlotSweep(
             storedKeyValues.append(sweepValue)
             storedKeySizes.append(Mean(keygenMetrics.StoredKeyBytes))
 
-    if len(derivedStoredKeySizes) > 0:
-        storedKeyValues = list(sweepValues)
-        storedKeySizes = derivedStoredKeySizes
-
     sizeAxis.plot(
         singleCiphertextValues,
         singleCiphertextSizes,
@@ -538,15 +518,8 @@ def ComputeCpuCrossoverSummary(
             )
         )
 
-    rsaEncryptRSquared: float
-    rsaEncryptSlopeStandardError: float
-
     # Fit the RSA projection across the complete measured subscriber sweep.
-    (
-        summary.RsaEncryptSlopeMicrosPerSubscriber,
-        rsaEncryptRSquared,
-        rsaEncryptSlopeStandardError,
-    ) = FitLinearRegression(
+    summary.RsaEncryptSlopeMicrosPerSubscriber, _, _ = FitLinearRegression(
         subscriberValues,
         summary.MeasuredEncryptMicros,
     )
@@ -1434,14 +1407,6 @@ def WriteHtmlReport(
         rsaEncryptSlopeCI,
     ) = ComputeRsaSubscriberMarginalSlopes(results)
 
-    # How much further out the CPU intersection sits than the bandwidth one.
-    cpuGapMin: float = (
-        cpuCrossoverSummary.EncryptCrossoverMin / crossoverSummary.BytesCrossoverMin
-    )
-    cpuGapMax: float = (
-        cpuCrossoverSummary.EncryptCrossoverMax / crossoverSummary.BytesCrossoverMax
-    )
-
     # Fan-out visual: the contrast is starkest at the largest subscriber count tested.
     maxSubscriberCount: int = SUBSCRIBER_COUNTS[-1]
     fanoutCaseId: str = f"encrypt/RSASubscribers/{maxSubscriberCount}"
@@ -1473,14 +1438,6 @@ def WriteHtmlReport(
     )
     report = report.replace("{{MaxSubscriberCount}}", str(maxSubscriberCount))
     report = report.replace("{{FixedRsaKeyBits}}", str(FIXED_RSA_KEY_BITS))
-    report = report.replace(
-        "{{MinRsaKeyBits}}",
-        str(RSA_KEY_BITS_LIST[0]),
-    )
-    report = report.replace(
-        "{{MaxRsaKeyBits}}",
-        str(RSA_KEY_BITS_LIST[-1]),
-    )
     report = report.replace("{{CpabeEncryptTable}}", cpabeEncryptTable)
     report = report.replace("{{CpabeDecryptTable}}", cpabeDecryptTable)
     report = report.replace("{{CpabeKeygenTable}}", cpabeKeygenTable)
@@ -1572,12 +1529,6 @@ def WriteHtmlReport(
         "{{BytesCrossoverHigh}}", f"{crossoverSummary.BytesCrossoverMax:,.1f}"
     )
     report = report.replace(
-        "{{BytesCrossoverMin}}", f"{crossoverSummary.BytesCrossoverMin:,.1f}"
-    )
-    report = report.replace(
-        "{{BytesCrossoverMax}}", f"{crossoverSummary.BytesCrossoverMax:,.1f}"
-    )
-    report = report.replace(
         "{{BytesRsaThroughMin}}",
         f"{int(crossoverSummary.BytesCrossoverMin):,}",
     )
@@ -1607,8 +1558,6 @@ def WriteHtmlReport(
         "{{CpuRsaThroughMax}}",
         f"{int(cpuCrossoverSummary.EncryptCrossoverMax):,}",
     )
-    report = report.replace("{{BandwidthToCpuGapMin}}", f"{cpuGapMin:,.0f}")
-    report = report.replace("{{BandwidthToCpuGapMax}}", f"{cpuGapMax:,.0f}")
 
     report = report.replace(
         "{{DecryptPenaltyMin}}", f"{cpuCrossoverSummary.DecryptPenaltyMin:,.1f}"
@@ -1635,7 +1584,6 @@ def Main() -> None:
         "CPABEAttributes",
         ATTRIBUTE_COUNTS,
         OPERATIONS,
-        [],
         "Policy Attributes",
         "CP-ABE Scaling with Policy Attribute Count",
         CPABE_PNG_FILE,
@@ -1648,7 +1596,6 @@ def Main() -> None:
         "RSASubscribers",
         SUBSCRIBER_COUNTS,
         ["encrypt", "decrypt"],
-        [],
         "Subscribers",
         f"RSA Scaling with Subscriber Count (Fixed Key: {FIXED_RSA_KEY_BITS} bits)",
         RSA_SUBSCRIBERS_PNG_FILE,
@@ -1660,7 +1607,6 @@ def Main() -> None:
         "RSAKeyBits",
         RSA_KEY_BITS_LIST,
         OPERATIONS,
-        [],
         "RSA Key Bits",
         "RSA Scaling with Key Size (1 Subscriber)",
         RSA_KEY_BITS_PNG_FILE,
