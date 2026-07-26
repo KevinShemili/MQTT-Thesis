@@ -311,8 +311,8 @@ def BuildOperationAlgorithmTable(
         for iterationCount in metrics.Iterations:
             caseIterations += iterationCount
 
-        latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
-        throughputText: str = f"{throughput:.1f} ± {throughputCI:.1f}"
+        latencyText: str = f"{latencyMean:,.2f} ± {latencyCI:,.2f}"
+        throughputText: str = f"{throughput:,.1f} ± {throughputCI:,.1f}"
 
         overheadText: str = "—"
 

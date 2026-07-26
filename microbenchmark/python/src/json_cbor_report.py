@@ -310,13 +310,13 @@ def BuildOperationFormatTable(
         for iterationCount in metrics.Iterations:
             caseIterations += iterationCount
 
-        latencyText: str = f"{latencyMean:.2f} ± {latencyCI:.2f}"
+        latencyText: str = f"{latencyMean:,.2f} ± {latencyCI:,.2f}"
 
         lines.append("<tr>")
         lines.append(f"<td>{attributeCount}</td>")
         lines.append(f"<td>{latencyText}</td>")
-        lines.append(f"<td>{rawSize:.0f}</td>")
-        lines.append(f"<td>{envelopeSize:.0f}</td>")
+        lines.append(f"<td>{rawSize:,.0f}</td>")
+        lines.append(f"<td>{envelopeSize:,.0f}</td>")
         lines.append(f"<td>{overheadPercent:.2f}%</td>")
         lines.append(f"<td>{caseIterations:,}</td>")
         lines.append("</tr>")

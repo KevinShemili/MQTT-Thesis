@@ -474,7 +474,9 @@ def BuildOperationSchemeTable(
             caseIterations += iterationCount
 
         # Convert Go's nanoseconds per operation to microseconds.
-        latencyText: str = f"{latencyMean / 1000.0:.2f} ± " f"{latencyCI / 1000.0:.2f}"
+        latencyText: str = (
+            f"{latencyMean / 1000.0:,.2f} ± " f"{latencyCI / 1000.0:,.2f}"
+        )
 
         lines.append("<tr>")
         lines.append(f"<td>{FormatByteSize(payloadSize)}</td>")
