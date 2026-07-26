@@ -1,383 +1,259 @@
-import matplotlib
-import os
+from dataclasses import dataclass
 
-matplotlib.use("Agg")
+from reporting.benchmark import (
+    ENVELOPE_BYTES,
+    NS_PER_MICROSECOND,
+    NS_PER_OP,
+    RAW_BYTES,
+    BenchmarkMetrics,
+    BenchmarkSpec,
+    Series,
+    case_id,
+    collect_means,
+    collect_series,
+    load_results,
+    sum_iterations,
+    total_iterations,
+)
+from reporting.charts import (
+    AMBER,
+    TEAL,
+    VIOLET,
+    Axes,
+    PANEL_FIGURE_SIZE,
+    apply_mesh_grid,
+    draw_line_series,
+    plt,
+    save_figure,
+)
+from reporting.environment import (
+    ScenarioPaths,
+    parse_int_env,
+    parse_int_list_env,
+    resolve_paths,
+)
+from reporting.formatting import format_mean_with_ci
+from reporting.html import common_placeholders, render_report, render_table
+from reporting.panels import render_operation_panels
+from reporting.statistics import (
+    mean,
+    mean_and_confidence_interval,
+    student_t_critical_95,
+)
 
-import sys
-import matplotlib.pyplot as plt
-from utils.statistics import GetStudentTCriticalValue95
-from utils.statistics import Mean
-from utils.statistics import MeanAndConfidenceInterval
-from utils.parser import ParseIntListFromEnv
+SCENARIO = "json-cbor"
+RESULT_DIR_VAR = "JSON_CBOR_RESULT_DIR"
+TEMPLATE_NAME = "json_cbor_template.html"
 
-BENCH_FILE: str = "/results/json-cbor/bench_output.txt"
-PNG_FILE: str = "/results/json-cbor/plot.png"
-SIZE_PNG_FILE: str = "/results/json-cbor/size.png"
-HTML_FILE: str = "/results/json-cbor/report.html"
-HTML_TEMPLATE_FILE: str = "/app/template/json_cbor_template.html"
+LATENCY_PLOT = "plot.png"
+SIZE_PLOT = "size.png"
 
-RUNS: int = int(os.environ["JSON_CBOR_RUNS"])
-T_95: float = GetStudentTCriticalValue95(RUNS - 1)
-ATTRIBUTE_COUNTS: list[int] = ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS")
-FORMATS: list[str] = ["JSON", "CBOR", "CBORKeyAsInt"]
-OPERATIONS: list[str] = ["serialize", "deserialize"]
+FORMATS = ["JSON", "CBOR", "CBORKeyAsInt"]
+OPERATIONS = ["serialize", "deserialize"]
 
-JSON_COLOR: str = "#d97706"
-CBOR_COLOR: str = "#7c3aed"
-CBOR_KEYASINT_COLOR: str = "#0f766e"
+FORMAT_COLORS = {"JSON": AMBER, "CBOR": VIOLET, "CBORKeyAsInt": TEAL}
+FALLBACK_COLOR = TEAL
 
+FORMAT_LABELS = {"CBORKeyAsInt": "CBOR (int keys)"}
 
-class BenchmarkMetrics:
+X_LABEL = "Attribute count"
 
-    def __init__(self) -> None:
-
-        self.Iterations: list[int] = []
-        self.NsPerOperation: list[float] = []
-        self.EnvelopeBytes: list[float] = []
-        self.RawBytes: list[float] = []
-
-
-def GetFormatColor(formatName: str) -> str:
-    if formatName == "JSON":
-        return JSON_COLOR
-
-    if formatName == "CBOR":
-        return CBOR_COLOR
-
-    return CBOR_KEYASINT_COLOR
-
-
-def GetFormatLabel(formatName: str) -> str:
-    if formatName == "CBORKeyAsInt":
-        return "CBOR (int keys)"
-
-    return formatName
-
-
-def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
-
-    results: dict[str, BenchmarkMetrics] = {}
-
-    prefix: str = "BenchmarkEnvelope"
-
-    with open(filepath, "r", encoding="utf-8") as file:
-
-        for line in file:
-            fields: list[str] = line.strip().split()
-
-            if len(fields) == 0:
-                continue
-
-            benchmarkName: str = fields[0]
-
-            if not benchmarkName.startswith(prefix):
-                continue
-
-            # "Serialize/JSON/1Attrs" -> operation, format, attribute text.
-            operation, formatName, attributeText, *_ = benchmarkName[
-                len(prefix) :
-            ].split("/")
-            operation = operation.lower()
-
-            # Strip GOMAXPROCS suffix (e.g. "-8") first, then the "Attrs" unit label.
-            attributeCount: int = int(attributeText.split("-")[0].replace("Attrs", ""))
-
-            benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
-
-            if benchmarkCaseId not in results:
-                results[benchmarkCaseId] = BenchmarkMetrics()
-
-            metrics: BenchmarkMetrics = results[benchmarkCaseId]
-
-            iterationCount: int = int(fields[1])
-
-            # Reads each "<value> <unit>" pair after ns/op. B/op and allocs/op may still be
-            # present in this dict (Go still reports them), they are just not used below.
-            metricsByUnit: dict[str, float] = {}
-            for index in range(2, len(fields) - 1, 2):
-                unitName: str = fields[index + 1]
-                metricsByUnit[unitName] = float(fields[index])
-
-            metrics.Iterations.append(iterationCount)
-            metrics.NsPerOperation.append(metricsByUnit["ns/op"])
-            metrics.EnvelopeBytes.append(metricsByUnit["envelope_bytes/op"])
-            metrics.RawBytes.append(metricsByUnit["raw_bytes/op"])
-
-    return results
+SPEC = BenchmarkSpec(
+    prefix="BenchmarkEnvelope",
+    value_suffix="Attrs",
+    required_units=(NS_PER_OP, ENVELOPE_BYTES, RAW_BYTES),
+)
 
 
-def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
+@dataclass(frozen=True)
+class Config:
+    runs: int
+    t_critical: float
+    attribute_counts: list[int]
+    paths: ScenarioPaths
 
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
-    figure.suptitle(
-        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
-        fontsize=13,
+def load_config() -> Config:
+    runs = parse_int_env("JSON_CBOR_RUNS")
+
+    return Config(
+        runs=runs,
+        t_critical=student_t_critical_95(runs - 1),
+        attribute_counts=parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS"),
+        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
     )
 
-    for axis, operation in zip(axes, OPERATIONS):
 
-        for formatName in FORMATS:
+def format_color(format_name: str) -> str:
+    return FORMAT_COLORS.get(format_name, FALLBACK_COLOR)
 
-            means: list[float] = []
-            ciHalfs: list[float] = []
-            counts: list[int] = []
 
-            for attributeCount in ATTRIBUTE_COUNTS:
+def format_label(format_name: str) -> str:
+    return FORMAT_LABELS.get(format_name, format_name)
 
-                benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-                if metrics is None:
-                    continue
 
-                latencyMean, latencyCI = MeanAndConfidenceInterval(
-                    metrics.NsPerOperation, T_95
-                )
+def attribute_cases(config: Config, operation: str, format_name: str):
+    return [
+        (count, case_id(operation, format_name, count))
+        for count in config.attribute_counts
+    ]
 
-                counts.append(attributeCount)
-                means.append(latencyMean / 1000.0)
-                ciHalfs.append(latencyCI / 1000.0)
 
-            axis.errorbar(
-                counts,
-                means,
-                yerr=ciHalfs,
-                label=GetFormatLabel(formatName),
-                color=GetFormatColor(formatName),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-                capsize=4,
-            )
+def configure_attribute_axis(config: Config, axis: Axes) -> None:
+    axis.set_xticks(config.attribute_counts)
+    apply_mesh_grid(axis)
 
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Attribute count")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        axis.set_xticks(ATTRIBUTE_COUNTS)
-        axis.grid(
-            True,
-            which="both",
-            color="#ded9d2",
-            linestyle="--",
-            linewidth=0.5,
-            alpha=0.7,
+
+def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+
+    def collect(operation: str, format_name: str) -> Series:
+        return collect_series(
+            results,
+            attribute_cases(config, operation, format_name),
+            NS_PER_OP,
+            config.t_critical,
+            NS_PER_MICROSECOND,
         )
-        axis.legend(fontsize=10)
 
-    plt.tight_layout()
-    plt.savefig(PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {PNG_FILE}")
+    render_operation_panels(
+        OPERATIONS,
+        FORMATS,
+        collect,
+        title="JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
+        x_label=X_LABEL,
+        y_label="Latency (µs) ± 95% CI",
+        color_for=format_color,
+        label_for=format_label,
+        configure_axis=lambda axis: configure_attribute_axis(config, axis),
+        output_path=config.paths.figure(LATENCY_PLOT),
+    )
 
 
-def PlotSize(results: dict[str, BenchmarkMetrics]) -> None:
+def plot_size(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
-    # Two panels: absolute envelope size on the left, format tax (bytes added over raw) on the right.
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
 
     figure.suptitle(
         "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Attribute Count",
         fontsize=13,
     )
 
-    for formatName in FORMATS:
+    for format_name in FORMATS:
 
-        sizes: list[float] = []
-        overheadBytesList: list[float] = []
-        counts: list[int] = []
+        cases = attribute_cases(config, "serialize", format_name)
+        counts, envelope_sizes = collect_means(results, cases, ENVELOPE_BYTES)
+        _, raw_sizes = collect_means(results, cases, RAW_BYTES)
 
-        for attributeCount in ATTRIBUTE_COUNTS:
+        format_tax = [
+            envelope - raw for envelope, raw in zip(envelope_sizes, raw_sizes)
+        ]
 
-            benchmarkCaseId: str = f"serialize/{formatName}/{attributeCount}"
-            metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-            if metrics is None:
-                continue
+        for axis, values in ((axes[0], envelope_sizes), (axes[1], format_tax)):
+            draw_line_series(
+                axis,
+                counts,
+                values,
+                format_label(format_name),
+                format_color(format_name),
+            )
 
-            envelopeSize: float = Mean(metrics.EnvelopeBytes)
-            rawSize: float = Mean(metrics.RawBytes)
+    for axis, title, y_label in (
+        (axes[0], "Absolute Size", "Envelope size (bytes)"),
+        (axes[1], "Format Tax", "Bytes added over raw payload"),
+    ):
+        axis.set_title(title, fontsize=11)
+        axis.set_xlabel(X_LABEL)
+        axis.set_ylabel(y_label)
+        axis.set_ylim(bottom=0)
+        configure_attribute_axis(config, axis)
+        axis.legend(fontsize=10)
 
-            # Bytes added by the format over the raw payload — the fixed "tax" this format charges.
-            overheadBytesValue: float = envelopeSize - rawSize
-
-            counts.append(attributeCount)
-            sizes.append(envelopeSize)
-            overheadBytesList.append(overheadBytesValue)
-
-        axes[0].plot(
-            counts,
-            sizes,
-            label=GetFormatLabel(formatName),
-            color=GetFormatColor(formatName),
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
-
-        axes[1].plot(
-            counts,
-            overheadBytesList,
-            label=GetFormatLabel(formatName),
-            color=GetFormatColor(formatName),
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
-
-    axes[0].set_title("Absolute Size", fontsize=11)
-    axes[0].set_xlabel("Attribute count")
-    axes[0].set_ylabel("Envelope size (bytes)")
-    axes[0].set_ylim(bottom=0)
-    axes[0].set_xticks(ATTRIBUTE_COUNTS)
-    axes[0].grid(
-        True,
-        which="both",
-        color="#ded9d2",
-        linestyle="--",
-        linewidth=0.5,
-        alpha=0.7,
-    )
-    axes[0].legend(fontsize=10)
-
-    axes[1].set_title("Format Tax", fontsize=11)
-    axes[1].set_xlabel("Attribute count")
-    axes[1].set_ylabel("Bytes added over raw payload")
-    axes[1].set_ylim(bottom=0)
-    axes[1].set_xticks(ATTRIBUTE_COUNTS)
-    axes[1].grid(
-        True,
-        which="both",
-        color="#ded9d2",
-        linestyle="--",
-        linewidth=0.5,
-        alpha=0.7,
-    )
-    axes[1].legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(SIZE_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {SIZE_PNG_FILE}")
+    figure.tight_layout()
+    save_figure(figure, config.paths.figure(SIZE_PLOT))
 
 
-def BuildOperationFormatTable(
+def build_table(
     results: dict[str, BenchmarkMetrics],
+    config: Config,
     operation: str,
-    formatName: str,
+    format_name: str,
 ) -> str:
 
-    lines: list[str] = []
+    rows = []
 
-    lines.append("<table>")
-    lines.append("<thead>")
-    lines.append("<tr>")
-    lines.append("<th>Attributes</th>")
-    lines.append("<th>Latency (ns/op)</th>")
-    lines.append("<th>Raw (B)</th>")
-    lines.append("<th>Envelope Size (B)</th>")
-    lines.append("<th>Format Overhead (%)</th>")
-    lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
-    lines.append("</tr>")
-    lines.append("</thead>")
-    lines.append("<tbody>")
+    for attribute_count in config.attribute_counts:
 
-    for attributeCount in ATTRIBUTE_COUNTS:
-
-        benchmarkCaseId: str = f"{operation}/{formatName}/{attributeCount}"
-        metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+        metrics = results.get(case_id(operation, format_name, attribute_count))
         if metrics is None:
             continue
 
-        latencyMean, latencyCI = MeanAndConfidenceInterval(metrics.NsPerOperation, T_95)
+        latency_mean, latency_ci = mean_and_confidence_interval(
+            metrics.ns_per_op, config.t_critical
+        )
 
-        envelopeSize: float = Mean(metrics.EnvelopeBytes)
-        rawSize: float = Mean(metrics.RawBytes)
+        envelope_size = mean(metrics.samples(ENVELOPE_BYTES))
+        raw_size = mean(metrics.samples(RAW_BYTES))
 
-        overheadPercent: float = (envelopeSize - rawSize) / rawSize * 100.0
+        overhead_percent = (envelope_size - raw_size) / raw_size * 100.0
 
-        caseIterations: int = 0
+        rows.append(
+            [
+                str(attribute_count),
+                format_mean_with_ci(latency_mean, latency_ci),
+                f"{raw_size:,.0f}",
+                f"{envelope_size:,.0f}",
+                f"{overhead_percent:.2f}%",
+                f"{sum_iterations(metrics):,}",
+            ]
+        )
 
-        for iterationCount in metrics.Iterations:
-            caseIterations += iterationCount
-
-        latencyText: str = f"{latencyMean:,.2f} ± {latencyCI:,.2f}"
-
-        lines.append("<tr>")
-        lines.append(f"<td>{attributeCount}</td>")
-        lines.append(f"<td>{latencyText}</td>")
-        lines.append(f"<td>{rawSize:,.0f}</td>")
-        lines.append(f"<td>{envelopeSize:,.0f}</td>")
-        lines.append(f"<td>{overheadPercent:.2f}%</td>")
-        lines.append(f"<td>{caseIterations:,}</td>")
-        lines.append("</tr>")
-
-    lines.append("</tbody>")
-    lines.append("</table>")
-
-    return "\n".join(lines)
-
-
-def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
-
-    totalIterations: int = 0
-
-    for metrics in results.values():
-        for iterationCount in metrics.Iterations:
-            totalIterations += iterationCount
-
-    # Six filtered tables — one per operation/format pair.
-    serializeJsonTable: str = BuildOperationFormatTable(results, "serialize", "JSON")
-    serializeCborTable: str = BuildOperationFormatTable(results, "serialize", "CBOR")
-    serializeCborKeyAsIntTable: str = BuildOperationFormatTable(
-        results, "serialize", "CBORKeyAsInt"
-    )
-    deserializeJsonTable: str = BuildOperationFormatTable(
-        results, "deserialize", "JSON"
-    )
-    deserializeCborTable: str = BuildOperationFormatTable(
-        results, "deserialize", "CBOR"
-    )
-    deserializeCborKeyAsIntTable: str = BuildOperationFormatTable(
-        results, "deserialize", "CBORKeyAsInt"
+    return render_table(
+        [
+            "Attributes",
+            "Latency (ns/op)",
+            "Raw (B)",
+            "Envelope Size (B)",
+            "Format Overhead (%)",
+            f"Iters (Σ{config.runs} runs)",
+        ],
+        rows,
     )
 
-    with open(HTML_TEMPLATE_FILE, "r", encoding="utf-8") as file:
-        template: str = file.read()
 
-    report: str = template
+def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
-    report = report.replace("{{RunCount}}", str(RUNS))
-    report = report.replace("{{ConfidenceLevel}}", "95%")
-    report = report.replace("{{TMultiplier}}", str(T_95))
-    report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
-    report = report.replace("{{SerializeJsonTable}}", serializeJsonTable)
-    report = report.replace("{{SerializeCborTable}}", serializeCborTable)
-    report = report.replace(
-        "{{SerializeCborKeyAsIntTable}}", serializeCborKeyAsIntTable
-    )
-    report = report.replace("{{DeserializeJsonTable}}", deserializeJsonTable)
-    report = report.replace("{{DeserializeCborTable}}", deserializeCborTable)
-    report = report.replace(
-        "{{DeserializeCborKeyAsIntTable}}", deserializeCborKeyAsIntTable
-    )
-    report = report.replace("{{LatencyPlot}}", "plot.png")
-    report = report.replace("{{SizePlot}}", "size.png")
+    tables = {
+        f"{operation.capitalize()}{key}Table": build_table(
+            results, config, operation, format_name
+        )
+        for operation in OPERATIONS
+        for key, format_name in (
+            ("Json", "JSON"),
+            ("Cbor", "CBOR"),
+            ("CborKeyAsInt", "CBORKeyAsInt"),
+        )
+    }
 
-    with open(HTML_FILE, "w", encoding="utf-8") as file:
-        file.write(report)
+    placeholders = {
+        **common_placeholders(
+            config.runs, config.t_critical, total_iterations(results)
+        ),
+        **tables,
+        "LatencyPlot": LATENCY_PLOT,
+        "SizePlot": SIZE_PLOT,
+    }
 
-    print(f"Saved -> {HTML_FILE}")
+    render_report(config.paths.template, config.paths.report, placeholders)
 
 
-def Main() -> None:
+def main() -> None:
+    config = load_config()
+    results = load_results(config.paths.bench_output, SPEC)
 
-    try:
-        results: dict[str, BenchmarkMetrics] = ParseBenchmarkFile(BENCH_FILE)
-    except FileNotFoundError:
-        sys.exit(f"[error] {BENCH_FILE} not found — run the benchmark first")
-
-    PlotLatency(results)
-    PlotSize(results)
-    WriteHtmlReport(results)
+    plot_latency(results, config)
+    plot_size(results, config)
+    write_html_report(results, config)
 
 
 if __name__ == "__main__":
-    Main()
+    main()

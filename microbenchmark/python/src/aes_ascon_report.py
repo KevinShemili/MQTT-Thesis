@@ -1,388 +1,218 @@
-import matplotlib
-import os
+from dataclasses import dataclass
 
-matplotlib.use("Agg")
-
-import sys
-import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-from utils.parser import ParseIntListFromEnv
-from utils.statistics import GetStudentTCriticalValue95
-from utils.statistics import Mean
-from utils.statistics import MeanAndConfidenceInterval
 
-RESULT_DIR: str = os.environ.get("AES_ASCON_RESULT_DIR", "/results/aes-ascon")
+from reporting.benchmark import (
+    MB_PER_SECOND,
+    NS_PER_MICROSECOND,
+    NS_PER_OP,
+    WIRE_OVERHEAD_BYTES,
+    BenchmarkMetrics,
+    BenchmarkSpec,
+    Series,
+    case_id,
+    collect_series,
+    load_results,
+    sum_iterations,
+    total_iterations,
+)
+from reporting.charts import AMBER, VIOLET, Axes, apply_value_grid
+from reporting.environment import (
+    ScenarioPaths,
+    parse_int_env,
+    parse_int_list_env,
+    resolve_paths,
+)
+from reporting.formatting import format_compact_byte_size, format_mean_with_ci
+from reporting.html import common_placeholders, render_report, render_table
+from reporting.panels import render_operation_panels
+from reporting.statistics import (
+    mean,
+    mean_and_confidence_interval,
+    student_t_critical_95,
+)
 
-BENCH_FILE: str = os.path.join(RESULT_DIR, "bench_output.txt")
-PNG_FILE: str = os.path.join(RESULT_DIR, "plot.png")
-THROUGHPUT_PNG_FILE: str = os.path.join(RESULT_DIR, "throughput.png")
-HTML_FILE: str = os.path.join(RESULT_DIR, "report.html")
-HTML_TEMPLATE_FILE: str = "/app/template/aes_ascon_template.html"
+SLUG = "aes-ascon"
+RESULT_DIR_VAR = "AES_ASCON_RESULT_DIR"
+TEMPLATE_NAME = "aes_ascon_template.html"
 
-RUNS: int = int(os.environ["AES_ASCON_RUNS"])
-T_95: float = GetStudentTCriticalValue95(RUNS - 1)
+LATENCY_PLOT = "plot.png"
+THROUGHPUT_PLOT = "throughput.png"
 
-PAYLOAD_SIZES: list[int] = ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES")
-ALGORITHMS: list[str] = ["AES-GCM", "ASCON"]
-OPERATIONS: list[str] = ["encrypt", "decrypt"]
+ALGORITHMS = ["AES-GCM", "ASCON"]
+OPERATIONS = ["encrypt", "decrypt"]
 
-AES_GCM_COLOR: str = "#d97706"
-ASCON_COLOR: str = "#7c3aed"
+ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
+FALLBACK_COLOR = VIOLET
 
-
-class BenchmarkMetrics:
-
-    def __init__(self) -> None:
-
-        self.Iterations: list[int] = []
-        self.NsPerOperation: list[float] = []
-        self.MbPerSecond: list[float] = []
-        self.OverheadBytes: list[float] = []
-
-
-def GetAlgorithmColor(algorithm: str) -> str:
-    if algorithm == "AES-GCM":
-        return AES_GCM_COLOR
-
-    return ASCON_COLOR
-
-
-def FormatBytes(value: int) -> str:
-    if value >= 1024:
-        return f"{value // 1024}KB"
-
-    return f"{value}B"
-
-
-def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
-
-    results: dict[str, BenchmarkMetrics] = {}
-
-    prefix: str = "BenchmarkAESASCON"
-
-    with open(filepath, "r", encoding="utf-8") as file:
-
-        for line in file:
-            fields: list[str] = line.strip().split()
-
-            if len(fields) == 0:
-                continue
-
-            benchmarkName: str = fields[0]
-
-            if not benchmarkName.startswith(prefix):
-                continue
-
-            benchmarkParts: list[str] = benchmarkName[len(prefix) :].split("/")
-
-            operation: str = benchmarkParts[0].lower()
-            algorithm: str = benchmarkParts[1]
-            payloadText: str = benchmarkParts[2]
-
-            payloadSize: int = int(payloadText.split("-")[0].replace("B", ""))
-
-            benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
-
-            if benchmarkCaseId not in results:
-                results[benchmarkCaseId] = BenchmarkMetrics()
-
-            metrics: BenchmarkMetrics = results[benchmarkCaseId]
-
-            iterationCount: int = int(fields[1])
-
-            metricsByUnit: dict[str, float] = {}
-
-            for index in range(2, len(fields) - 1, 2):
-                unitName: str = fields[index + 1]
-                metricsByUnit[unitName] = float(fields[index])
-
-            metrics.Iterations.append(iterationCount)
-            metrics.NsPerOperation.append(metricsByUnit["ns/op"])
-            metrics.MbPerSecond.append(metricsByUnit["MB/s"])
-            metrics.OverheadBytes.append(metricsByUnit["wire_overhead_bytes/op"])
-
-    return results
+SPEC = BenchmarkSpec(
+    prefix="BenchmarkAESASCON",
+    value_suffix="B",
+    required_units=(NS_PER_OP, MB_PER_SECOND, WIRE_OVERHEAD_BYTES),
+)
 
 
-def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
+@dataclass(frozen=True)
+class Config:
+    runs: int
+    t_critical: float
+    payload_sizes: list[int]
+    paths: ScenarioPaths
 
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
 
-    figure.suptitle(
-        "AES-GCM vs. ASCON: Latency vs. Payload Size",
-        fontsize=13,
+def load_config() -> Config:
+    runs = parse_int_env("AES_ASCON_RUNS")
+
+    return Config(
+        runs=runs,
+        t_critical=student_t_critical_95(runs - 1),
+        payload_sizes=parse_int_list_env("AES_ASCON_PAYLOAD_SIZES"),
+        paths=resolve_paths(SLUG, RESULT_DIR_VAR, TEMPLATE_NAME),
     )
 
-    for axis, operation in zip(axes, OPERATIONS):
 
-        for algorithm in ALGORITHMS:
-
-            means: list[float] = []
-            ciHalfs: list[float] = []
-            sizes: list[int] = []
-
-            for payloadSize in PAYLOAD_SIZES:
-
-                benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-
-                if metrics is None:
-                    continue
-
-                latencyMean, latencyCI = MeanAndConfidenceInterval(
-                    metrics.NsPerOperation,
-                    T_95,
-                )
-
-                sizes.append(payloadSize)
-                means.append(latencyMean / 1000.0)
-                ciHalfs.append(latencyCI / 1000.0)
-
-            axis.errorbar(
-                sizes,
-                means,
-                yerr=ciHalfs,
-                label=algorithm,
-                color=GetAlgorithmColor(algorithm),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-                capsize=4,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_xticks(PAYLOAD_SIZES)
-        axis.set_xlim(left=0)
-        axis.set_ylim(bottom=0)
-        axis.xaxis.set_major_formatter(
-            FuncFormatter(lambda value, _: FormatBytes(int(value)))
-        )
-        axis.tick_params(axis="x", rotation=30)
-        axis.grid(
-            True,
-            axis="y",
-            linestyle="-",
-            linewidth=0.5,
-            alpha=0.18,
-        )
-        axis.legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {PNG_FILE}")
+def algorithm_color(algorithm: str) -> str:
+    return ALGORITHM_COLORS.get(algorithm, FALLBACK_COLOR)
 
 
-def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    figure.suptitle(
-        "AES-GCM vs. ASCON: Throughput vs. Payload Size",
-        fontsize=13,
+def configure_payload_axis(config: Config, axis: Axes) -> None:
+    axis.set_xticks(config.payload_sizes)
+    axis.set_xlim(left=0)
+    axis.xaxis.set_major_formatter(
+        FuncFormatter(lambda value, _: format_compact_byte_size(int(value)))
     )
-
-    for axis, operation in zip(axes, OPERATIONS):
-
-        for algorithm in ALGORITHMS:
-
-            means: list[float] = []
-            ciHalfs: list[float] = []
-            sizes: list[int] = []
-
-            for payloadSize in PAYLOAD_SIZES:
-
-                benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-
-                if metrics is None:
-                    continue
-
-                throughputMean, throughputCI = MeanAndConfidenceInterval(
-                    metrics.MbPerSecond,
-                    T_95,
-                )
-
-                sizes.append(payloadSize)
-                means.append(throughputMean)
-                ciHalfs.append(throughputCI)
-
-            axis.errorbar(
-                sizes,
-                means,
-                yerr=ciHalfs,
-                label=algorithm,
-                color=GetAlgorithmColor(algorithm),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-                capsize=4,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
-        axis.set_xticks(PAYLOAD_SIZES)
-        axis.set_xlim(left=0)
-        axis.set_ylim(bottom=0)
-        axis.xaxis.set_major_formatter(
-            FuncFormatter(lambda value, _: FormatBytes(int(value)))
-        )
-        axis.tick_params(axis="x", rotation=30)
-        axis.grid(
-            True,
-            axis="y",
-            linestyle="-",
-            linewidth=0.5,
-            alpha=0.18,
-        )
-        axis.legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(THROUGHPUT_PNG_FILE, dpi=150, bbox_inches="tight")
-    print(f"Saved -> {THROUGHPUT_PNG_FILE}")
+    axis.tick_params(axis="x", rotation=30)
+    apply_value_grid(axis)
 
 
-def BuildOperationAlgorithmTable(
+def plot_metric(
     results: dict[str, BenchmarkMetrics],
+    config: Config,
+    unit: str,
+    divisor: float,
+    title: str,
+    y_label: str,
+    output_path: str,
+) -> None:
+
+    def collect(operation: str, algorithm: str) -> Series:
+        return collect_series(
+            results,
+            [
+                (size, case_id(operation, algorithm, size))
+                for size in config.payload_sizes
+            ],
+            unit,
+            config.t_critical,
+            divisor,
+        )
+
+    render_operation_panels(
+        OPERATIONS,
+        ALGORITHMS,
+        collect,
+        title=title,
+        x_label="Payload size",
+        y_label=y_label,
+        color_for=algorithm_color,
+        configure_axis=lambda axis: configure_payload_axis(config, axis),
+        output_path=output_path,
+    )
+
+
+def build_table(
+    results: dict[str, BenchmarkMetrics],
+    config: Config,
     operation: str,
     algorithm: str,
 ) -> str:
 
-    lines: list[str] = []
+    rows = []
 
-    lines.append("<table>")
-    lines.append("<thead>")
-    lines.append("<tr>")
-    lines.append("<th>Payload</th>")
-    lines.append("<th>Latency (ns/op)</th>")
-    lines.append("<th>Throughput (MB/s)</th>")
-    lines.append("<th>Tag + Nonce (B)</th>")
-    lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
-    lines.append("</tr>")
-    lines.append("</thead>")
-    lines.append("<tbody>")
+    for payload_size in config.payload_sizes:
 
-    for payloadSize in PAYLOAD_SIZES:
-
-        benchmarkCaseId: str = f"{operation}/{algorithm}/{payloadSize}"
-        metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-
+        metrics = results.get(case_id(operation, algorithm, payload_size))
         if metrics is None:
             continue
 
-        latencyMean, latencyCI = MeanAndConfidenceInterval(
-            metrics.NsPerOperation,
-            T_95,
+        latency_mean, latency_ci = mean_and_confidence_interval(
+            metrics.ns_per_op, config.t_critical
         )
 
-        throughput: float = 0.0
-        throughputCI: float = 0.0
-
-        if len(metrics.MbPerSecond) > 0:
-            throughput, throughputCI = MeanAndConfidenceInterval(
-                metrics.MbPerSecond,
-                T_95,
+        throughput, throughput_ci = 0.0, 0.0
+        if len(metrics.samples(MB_PER_SECOND)) > 0:
+            throughput, throughput_ci = mean_and_confidence_interval(
+                metrics.samples(MB_PER_SECOND), config.t_critical
             )
 
-        overhead: float = 0.0
+        overhead = 0.0
+        if len(metrics.samples(WIRE_OVERHEAD_BYTES)) > 0:
+            overhead = mean(metrics.samples(WIRE_OVERHEAD_BYTES))
 
-        if len(metrics.OverheadBytes) > 0:
-            overhead = Mean(metrics.OverheadBytes)
+        rows.append(
+            [
+                format_compact_byte_size(payload_size),
+                format_mean_with_ci(latency_mean, latency_ci),
+                format_mean_with_ci(throughput, throughput_ci, decimals=1),
+                f"{overhead:.0f}" if overhead != 0.0 else "—",
+                f"{sum_iterations(metrics):,}",
+            ]
+        )
 
-        caseIterations: int = 0
-
-        for iterationCount in metrics.Iterations:
-            caseIterations += iterationCount
-
-        latencyText: str = f"{latencyMean:,.2f} ± {latencyCI:,.2f}"
-        throughputText: str = f"{throughput:,.1f} ± {throughputCI:,.1f}"
-
-        overheadText: str = "—"
-
-        if overhead != 0.0:
-            overheadText = f"{overhead:.0f}"
-
-        lines.append("<tr>")
-        lines.append(f"<td>{FormatBytes(payloadSize)}</td>")
-        lines.append(f"<td>{latencyText}</td>")
-        lines.append(f"<td>{throughputText}</td>")
-        lines.append(f"<td>{overheadText}</td>")
-        lines.append(f"<td>{caseIterations:,}</td>")
-        lines.append("</tr>")
-
-    lines.append("</tbody>")
-    lines.append("</table>")
-
-    return "\n".join(lines)
-
-
-def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
-
-    totalIterations: int = 0
-
-    for metrics in results.values():
-        for iterationCount in metrics.Iterations:
-            totalIterations += iterationCount
-
-    encryptAesTable: str = BuildOperationAlgorithmTable(
-        results,
-        "encrypt",
-        "AES-GCM",
+    return render_table(
+        [
+            "Payload",
+            "Latency (ns/op)",
+            "Throughput (MB/s)",
+            "Tag + Nonce (B)",
+            f"Iters (Σ{config.runs} runs)",
+        ],
+        rows,
     )
 
-    encryptAsconTable: str = BuildOperationAlgorithmTable(
+
+def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+
+    placeholders = {
+        **common_placeholders(
+            config.runs, config.t_critical, total_iterations(results)
+        ),
+        "EncryptAesTable": build_table(results, config, "encrypt", "AES-GCM"),
+        "EncryptAsconTable": build_table(results, config, "encrypt", "ASCON"),
+        "DecryptAesTable": build_table(results, config, "decrypt", "AES-GCM"),
+        "DecryptAsconTable": build_table(results, config, "decrypt", "ASCON"),
+        "LatencyPlot": LATENCY_PLOT,
+        "ThroughputPlot": THROUGHPUT_PLOT,
+    }
+
+    render_report(config.paths.template, config.paths.report, placeholders)
+
+
+def main() -> None:
+    config = load_config()
+    results = load_results(config.paths.bench_output, SPEC)
+
+    plot_metric(
         results,
-        "encrypt",
-        "ASCON",
+        config,
+        NS_PER_OP,
+        NS_PER_MICROSECOND,
+        "AES-GCM vs. ASCON: Latency vs. Payload Size",
+        "Latency (µs) ± 95% CI",
+        config.paths.figure(LATENCY_PLOT),
+    )
+    plot_metric(
+        results,
+        config,
+        MB_PER_SECOND,
+        1.0,
+        "AES-GCM vs. ASCON: Throughput vs. Payload Size",
+        "Throughput (MB/s) ± 95% CI",
+        config.paths.figure(THROUGHPUT_PLOT),
     )
 
-    decryptAesTable: str = BuildOperationAlgorithmTable(
-        results,
-        "decrypt",
-        "AES-GCM",
-    )
-
-    decryptAsconTable: str = BuildOperationAlgorithmTable(
-        results,
-        "decrypt",
-        "ASCON",
-    )
-
-    with open(HTML_TEMPLATE_FILE, "r", encoding="utf-8") as file:
-        template: str = file.read()
-
-    report: str = template
-
-    report = report.replace("{{RunCount}}", str(RUNS))
-    report = report.replace("{{ConfidenceLevel}}", "95%")
-    report = report.replace("{{TMultiplier}}", str(T_95))
-    report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
-    report = report.replace("{{EncryptAesTable}}", encryptAesTable)
-    report = report.replace("{{EncryptAsconTable}}", encryptAsconTable)
-    report = report.replace("{{DecryptAesTable}}", decryptAesTable)
-    report = report.replace("{{DecryptAsconTable}}", decryptAsconTable)
-    report = report.replace("{{LatencyPlot}}", "plot.png")
-    report = report.replace("{{ThroughputPlot}}", "throughput.png")
-
-    with open(HTML_FILE, "w", encoding="utf-8") as file:
-        file.write(report)
-
-    print(f"Saved -> {HTML_FILE}")
-
-
-def Main() -> None:
-
-    try:
-        results: dict[str, BenchmarkMetrics] = ParseBenchmarkFile(BENCH_FILE)
-    except FileNotFoundError:
-        sys.exit(f"[error] {BENCH_FILE} not found — run the benchmark first")
-
-    PlotLatency(results)
-    PlotThroughput(results)
-    WriteHtmlReport(results)
+    write_html_report(results, config)
 
 
 if __name__ == "__main__":
-    Main()
+    main()

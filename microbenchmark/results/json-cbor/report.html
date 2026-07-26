@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Payload Size Scaling Microbenchmark</title>
+    <title>Envelope Serialization Microbenchmark</title>
 
     <style>
         :root {
@@ -312,8 +312,8 @@
 <body>
     <main class="page">
         <header class="hero">
-            <div class="eyebrow">Microbenchmark Scenario 1</div>
-            <h1>Cryptographic Schemes under Payload Size Scaling</h1>
+            <div class="eyebrow">Microbenchmark Scenario 3</div>
+            <h1>Envelope Serialization under Attribute Scaling</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -333,8 +333,8 @@
             </div>
 
             <div class="metric">
-                <div class="metric-label">Crypto operations</div>
-                <div class="metric-value">2,072,786,782</div>
+                <div class="metric-label">Marshal operations</div>
+                <div class="metric-value">687,313,527</div>
             </div>
         </section>
 
@@ -346,20 +346,21 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Latency vs. Payload Size</h3>
+                        <h3>Serialization Latency vs. Policy Attributes</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="plot.png" alt="Scheme latency over payload size">
+                        <img src="plot.png" alt="Serialization latency over policy attribute count">
                     </div>
                 </article>
+
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Throughput vs. Payload Size</h3>
+                        <h3>Envelope Size vs. Policy Attributes</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="throughput.png" alt="Scheme throughput over payload size">
+                        <img src="size.png" alt="Envelope size and format overhead over policy attribute count">
                     </div>
                 </article>
             </div>
@@ -371,79 +372,72 @@
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Encrypt</h3>
+                <h3 class="operation-heading">Serialize</h3>
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Payload Size Scaling</h3>
+                        <h3>JSON: Attribute Scaling</h3>
 
                         <div class="table-wrapper">
                             <table>
 <thead>
 <tr>
-<th>Raw Size</th>
-<th>Latency (µs/op)</th>
-<th>Wire Size</th>
-<th>Overhead (%)</th>
+<th>Attributes</th>
+<th>Latency (ns/op)</th>
+<th>Raw (B)</th>
+<th>Envelope Size (B)</th>
+<th>Format Overhead (%)</th>
 <th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>16 B</td>
-<td>0.14 ± 0.00</td>
-<td>44 B</td>
-<td>175.00%</td>
-<td>322,134,575</td>
+<td>1</td>
+<td>3,411.88 ± 33.10</td>
+<td>2,660</td>
+<td>3,598</td>
+<td>35.26%</td>
+<td>13,917,386</td>
 </tr>
 <tr>
-<td>256 B</td>
-<td>0.18 ± 0.00</td>
-<td>284 B</td>
-<td>10.94%</td>
-<td>265,316,051</td>
+<td>2</td>
+<td>3,795.38 ± 47.49</td>
+<td>3,013</td>
+<td>4,070</td>
+<td>35.08%</td>
+<td>12,547,935</td>
 </tr>
 <tr>
-<td>4 KB</td>
-<td>0.79 ± 0.01</td>
-<td>4.03 KB</td>
-<td>0.68%</td>
-<td>60,941,051</td>
+<td>5</td>
+<td>5,026.75 ± 35.89</td>
+<td>4,072</td>
+<td>5,482</td>
+<td>34.63%</td>
+<td>8,419,482</td>
 </tr>
 <tr>
-<td>64 KB</td>
-<td>10.86 ± 0.17</td>
-<td>64.03 KB</td>
-<td>0.04%</td>
-<td>4,593,895</td>
+<td>10</td>
+<td>7,229.25 ± 64.59</td>
+<td>5,837</td>
+<td>7,834</td>
+<td>34.21%</td>
+<td>6,769,653</td>
 </tr>
 <tr>
-<td>256 KB</td>
-<td>44.16 ± 2.29</td>
-<td>256.03 KB</td>
-<td>0.01%</td>
-<td>1,114,199</td>
+<td>20</td>
+<td>12,549.50 ± 232.17</td>
+<td>9,387</td>
+<td>12,570</td>
+<td>33.91%</td>
+<td>3,745,416</td>
 </tr>
 <tr>
-<td>1 MB</td>
-<td>173.66 ± 2.31</td>
-<td>1 MB</td>
-<td>&lt;0.01%</td>
-<td>271,312</td>
-</tr>
-<tr>
-<td>4 MB</td>
-<td>707.78 ± 13.69</td>
-<td>4 MB</td>
-<td>&lt;0.01%</td>
-<td>71,340</td>
-</tr>
-<tr>
-<td>16 MB</td>
-<td>3,309.25 ± 36.67</td>
-<td>16 MB</td>
-<td>&lt;0.01%</td>
-<td>14,659</td>
+<td>50</td>
+<td>25,507.25 ± 406.52</td>
+<td>20,037</td>
+<td>26,770</td>
+<td>33.60%</td>
+<td>1,920,444</td>
 </tr>
 </tbody>
 </table>
@@ -451,75 +445,68 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Payload Size Scaling</h3>
+                        <h3>CBOR: Attribute Scaling</h3>
 
                         <div class="table-wrapper">
                             <table>
 <thead>
 <tr>
-<th>Raw Size</th>
-<th>Latency (µs/op)</th>
-<th>Wire Size</th>
-<th>Overhead (%)</th>
+<th>Attributes</th>
+<th>Latency (ns/op)</th>
+<th>Raw (B)</th>
+<th>Envelope Size (B)</th>
+<th>Format Overhead (%)</th>
 <th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>16 B</td>
-<td>210.76 ± 3.31</td>
-<td>428 B</td>
-<td>2575.00%</td>
-<td>225,162</td>
+<td>1</td>
+<td>927.92 ± 9.36</td>
+<td>2,660</td>
+<td>2,702</td>
+<td>1.58%</td>
+<td>52,376,982</td>
 </tr>
 <tr>
-<td>256 B</td>
-<td>202.88 ± 3.33</td>
-<td>668 B</td>
-<td>160.94%</td>
-<td>232,700</td>
+<td>2</td>
+<td>981.02 ± 16.98</td>
+<td>3,013</td>
+<td>3,055</td>
+<td>1.39%</td>
+<td>49,453,149</td>
 </tr>
 <tr>
-<td>4 KB</td>
-<td>202.02 ± 3.68</td>
-<td>4.4 KB</td>
-<td>10.06%</td>
-<td>234,201</td>
+<td>5</td>
+<td>1,390.38 ± 19.64</td>
+<td>4,072</td>
+<td>4,114</td>
+<td>1.03%</td>
+<td>34,131,662</td>
 </tr>
 <tr>
-<td>64 KB</td>
-<td>208.43 ± 1.78</td>
-<td>64.4 KB</td>
-<td>0.63%</td>
-<td>226,531</td>
+<td>10</td>
+<td>1,716.75 ± 66.63</td>
+<td>5,837</td>
+<td>5,879</td>
+<td>0.72%</td>
+<td>27,877,352</td>
 </tr>
 <tr>
-<td>256 KB</td>
-<td>242.72 ± 3.27</td>
-<td>256.4 KB</td>
-<td>0.16%</td>
-<td>195,535</td>
+<td>20</td>
+<td>2,447.75 ± 45.86</td>
+<td>9,387</td>
+<td>9,429</td>
+<td>0.45%</td>
+<td>19,323,683</td>
 </tr>
 <tr>
-<td>1 MB</td>
-<td>377.52 ± 4.67</td>
-<td>1.0004 MB</td>
-<td>0.04%</td>
-<td>126,424</td>
-</tr>
-<tr>
-<td>4 MB</td>
-<td>946.28 ± 30.95</td>
-<td>4.0004 MB</td>
-<td>&lt;0.01%</td>
-<td>49,358</td>
-</tr>
-<tr>
-<td>16 MB</td>
-<td>3,648.08 ± 107.73</td>
-<td>16.0004 MB</td>
-<td>&lt;0.01%</td>
-<td>13,125</td>
+<td>50</td>
+<td>5,286.50 ± 102.92</td>
+<td>20,037</td>
+<td>20,079</td>
+<td>0.21%</td>
+<td>7,942,252</td>
 </tr>
 </tbody>
 </table>
@@ -527,75 +514,68 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Payload Size Scaling</h3>
+                        <h3>CBOR (Int Keys): Attribute Scaling</h3>
 
                         <div class="table-wrapper">
                             <table>
 <thead>
 <tr>
-<th>Raw Size</th>
-<th>Latency (µs/op)</th>
-<th>Wire Size</th>
-<th>Overhead (%)</th>
+<th>Attributes</th>
+<th>Latency (ns/op)</th>
+<th>Raw (B)</th>
+<th>Envelope Size (B)</th>
+<th>Format Overhead (%)</th>
 <th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>16 B</td>
-<td>62,100.93 ± 702.02</td>
-<td>3.74 KB</td>
-<td>23850.00%</td>
-<td>779</td>
+<td>1</td>
+<td>1,005.19 ± 6.52</td>
+<td>2,660</td>
+<td>2,671</td>
+<td>0.41%</td>
+<td>47,918,349</td>
 </tr>
 <tr>
-<td>256 B</td>
-<td>62,286.06 ± 928.71</td>
-<td>3.98 KB</td>
-<td>1490.62%</td>
-<td>791</td>
+<td>2</td>
+<td>969.49 ± 6.02</td>
+<td>3,013</td>
+<td>3,024</td>
+<td>0.37%</td>
+<td>49,574,163</td>
 </tr>
 <tr>
-<td>4 KB</td>
-<td>60,876.70 ± 1,324.36</td>
-<td>7.73 KB</td>
-<td>93.16%</td>
-<td>795</td>
+<td>5</td>
+<td>1,443.12 ± 9.05</td>
+<td>4,072</td>
+<td>4,083</td>
+<td>0.27%</td>
+<td>33,019,133</td>
 </tr>
 <tr>
-<td>64 KB</td>
-<td>60,741.17 ± 737.85</td>
-<td>67.73 KB</td>
-<td>5.82%</td>
-<td>785</td>
+<td>10</td>
+<td>1,733.12 ± 26.91</td>
+<td>5,837</td>
+<td>5,848</td>
+<td>0.19%</td>
+<td>26,844,356</td>
 </tr>
 <tr>
-<td>256 KB</td>
-<td>59,056.96 ± 330.93</td>
-<td>259.73 KB</td>
-<td>1.46%</td>
-<td>799</td>
+<td>20</td>
+<td>2,523.75 ± 136.72</td>
+<td>9,387</td>
+<td>9,398</td>
+<td>0.12%</td>
+<td>18,392,983</td>
 </tr>
 <tr>
-<td>1 MB</td>
-<td>58,724.21 ± 649.20</td>
-<td>1.0036 MB</td>
-<td>0.36%</td>
-<td>798</td>
-</tr>
-<tr>
-<td>4 MB</td>
-<td>59,256.47 ± 704.14</td>
-<td>4.0036 MB</td>
-<td>0.09%</td>
-<td>798</td>
-</tr>
-<tr>
-<td>16 MB</td>
-<td>61,843.44 ± 847.83</td>
-<td>16.0036 MB</td>
-<td>0.02%</td>
-<td>795</td>
+<td>50</td>
+<td>5,223.12 ± 69.69</td>
+<td>20,037</td>
+<td>20,048</td>
+<td>0.05%</td>
+<td>8,000,000</td>
 </tr>
 </tbody>
 </table>
@@ -605,79 +585,72 @@
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Decrypt</h3>
+                <h3 class="operation-heading">Deserialize</h3>
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Payload Size Scaling</h3>
+                        <h3>JSON: Attribute Scaling</h3>
 
                         <div class="table-wrapper">
                             <table>
 <thead>
 <tr>
-<th>Raw Size</th>
-<th>Latency (µs/op)</th>
-<th>Wire Size</th>
-<th>Overhead (%)</th>
+<th>Attributes</th>
+<th>Latency (ns/op)</th>
+<th>Raw (B)</th>
+<th>Envelope Size (B)</th>
+<th>Format Overhead (%)</th>
 <th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>16 B</td>
-<td>0.05 ± 0.00</td>
-<td>44 B</td>
-<td>175.00%</td>
-<td>793,449,944</td>
+<td>1</td>
+<td>21,450.50 ± 381.37</td>
+<td>2,660</td>
+<td>3,598</td>
+<td>35.26%</td>
+<td>2,248,879</td>
 </tr>
 <tr>
-<td>256 B</td>
-<td>0.09 ± 0.00</td>
-<td>284 B</td>
-<td>10.94%</td>
-<td>544,232,426</td>
+<td>2</td>
+<td>23,790.00 ± 434.65</td>
+<td>3,013</td>
+<td>4,070</td>
+<td>35.08%</td>
+<td>2,076,289</td>
 </tr>
 <tr>
-<td>4 KB</td>
-<td>0.66 ± 0.01</td>
-<td>4.03 KB</td>
-<td>0.68%</td>
-<td>72,553,709</td>
+<td>5</td>
+<td>31,646.12 ± 608.82</td>
+<td>4,072</td>
+<td>5,482</td>
+<td>34.63%</td>
+<td>1,523,412</td>
 </tr>
 <tr>
-<td>64 KB</td>
-<td>9.97 ± 0.14</td>
-<td>64.03 KB</td>
-<td>0.04%</td>
-<td>5,032,862</td>
+<td>10</td>
+<td>44,371.50 ± 907.03</td>
+<td>5,837</td>
+<td>7,834</td>
+<td>34.21%</td>
+<td>1,096,339</td>
 </tr>
 <tr>
-<td>256 KB</td>
-<td>39.26 ± 0.22</td>
-<td>256.03 KB</td>
-<td>0.01%</td>
-<td>1,240,550</td>
+<td>20</td>
+<td>70,397.12 ± 1,145.96</td>
+<td>9,387</td>
+<td>12,570</td>
+<td>33.91%</td>
+<td>686,929</td>
 </tr>
 <tr>
-<td>1 MB</td>
-<td>168.47 ± 5.40</td>
-<td>1 MB</td>
-<td>&lt;0.01%</td>
-<td>282,110</td>
-</tr>
-<tr>
-<td>4 MB</td>
-<td>670.93 ± 8.24</td>
-<td>4 MB</td>
-<td>&lt;0.01%</td>
-<td>74,773</td>
-</tr>
-<tr>
-<td>16 MB</td>
-<td>3,280.21 ± 73.51</td>
-<td>16 MB</td>
-<td>&lt;0.01%</td>
-<td>14,973</td>
+<td>50</td>
+<td>149,634.00 ± 2,146.13</td>
+<td>20,037</td>
+<td>26,770</td>
+<td>33.60%</td>
+<td>317,764</td>
 </tr>
 </tbody>
 </table>
@@ -685,75 +658,68 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Payload Size Scaling</h3>
+                        <h3>CBOR: Attribute Scaling</h3>
 
                         <div class="table-wrapper">
                             <table>
 <thead>
 <tr>
-<th>Raw Size</th>
-<th>Latency (µs/op)</th>
-<th>Wire Size</th>
-<th>Overhead (%)</th>
+<th>Attributes</th>
+<th>Latency (ns/op)</th>
+<th>Raw (B)</th>
+<th>Envelope Size (B)</th>
+<th>Format Overhead (%)</th>
 <th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>16 B</td>
-<td>3,096.14 ± 18.51</td>
-<td>428 B</td>
-<td>2575.00%</td>
-<td>15,817</td>
+<td>1</td>
+<td>1,648.75 ± 35.30</td>
+<td>2,660</td>
+<td>2,702</td>
+<td>1.58%</td>
+<td>28,124,061</td>
 </tr>
 <tr>
-<td>256 B</td>
-<td>3,110.16 ± 31.45</td>
-<td>668 B</td>
-<td>160.94%</td>
-<td>15,609</td>
+<td>2</td>
+<td>1,573.62 ± 20.82</td>
+<td>3,013</td>
+<td>3,055</td>
+<td>1.39%</td>
+<td>28,897,374</td>
 </tr>
 <tr>
-<td>4 KB</td>
-<td>3,104.30 ± 40.65</td>
-<td>4.4 KB</td>
-<td>10.06%</td>
-<td>15,198</td>
+<td>5</td>
+<td>2,018.38 ± 41.56</td>
+<td>4,072</td>
+<td>4,114</td>
+<td>1.03%</td>
+<td>23,361,221</td>
 </tr>
 <tr>
-<td>64 KB</td>
-<td>3,104.81 ± 31.24</td>
-<td>64.4 KB</td>
-<td>0.63%</td>
-<td>15,556</td>
+<td>10</td>
+<td>2,249.38 ± 39.36</td>
+<td>5,837</td>
+<td>5,879</td>
+<td>0.72%</td>
+<td>20,920,150</td>
 </tr>
 <tr>
-<td>256 KB</td>
-<td>3,144.66 ± 38.10</td>
-<td>256.4 KB</td>
-<td>0.16%</td>
-<td>14,783</td>
+<td>20</td>
+<td>3,064.88 ± 77.34</td>
+<td>9,387</td>
+<td>9,429</td>
+<td>0.45%</td>
+<td>15,458,476</td>
 </tr>
 <tr>
-<td>1 MB</td>
-<td>3,265.89 ± 26.11</td>
-<td>1.0004 MB</td>
-<td>0.04%</td>
-<td>14,735</td>
-</tr>
-<tr>
-<td>4 MB</td>
-<td>3,786.65 ± 83.34</td>
-<td>4.0004 MB</td>
-<td>&lt;0.01%</td>
-<td>12,841</td>
-</tr>
-<tr>
-<td>16 MB</td>
-<td>6,397.96 ± 178.47</td>
-<td>16.0004 MB</td>
-<td>&lt;0.01%</td>
-<td>7,659</td>
+<td>50</td>
+<td>5,619.12 ± 134.52</td>
+<td>20,037</td>
+<td>20,079</td>
+<td>0.21%</td>
+<td>7,926,864</td>
 </tr>
 </tbody>
 </table>
@@ -761,75 +727,68 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Payload Size Scaling</h3>
+                        <h3>CBOR (Int Keys): Attribute Scaling</h3>
 
                         <div class="table-wrapper">
                             <table>
 <thead>
 <tr>
-<th>Raw Size</th>
-<th>Latency (µs/op)</th>
-<th>Wire Size</th>
-<th>Overhead (%)</th>
+<th>Attributes</th>
+<th>Latency (ns/op)</th>
+<th>Raw (B)</th>
+<th>Envelope Size (B)</th>
+<th>Format Overhead (%)</th>
 <th>Iters (Σ8 runs)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>16 B</td>
-<td>13,951.61 ± 198.96</td>
-<td>3.74 KB</td>
-<td>23850.00%</td>
-<td>3,421</td>
+<td>1</td>
+<td>1,559.25 ± 38.85</td>
+<td>2,660</td>
+<td>2,671</td>
+<td>0.41%</td>
+<td>30,196,389</td>
 </tr>
 <tr>
-<td>256 B</td>
-<td>13,796.80 ± 113.07</td>
-<td>3.98 KB</td>
-<td>1490.62%</td>
-<td>3,479</td>
+<td>2</td>
+<td>1,453.88 ± 30.48</td>
+<td>3,013</td>
+<td>3,024</td>
+<td>0.37%</td>
+<td>32,630,035</td>
 </tr>
 <tr>
-<td>4 KB</td>
-<td>13,809.47 ± 136.89</td>
-<td>7.73 KB</td>
-<td>93.16%</td>
-<td>3,466</td>
+<td>5</td>
+<td>1,922.62 ± 25.20</td>
+<td>4,072</td>
+<td>4,083</td>
+<td>0.27%</td>
+<td>24,239,820</td>
 </tr>
 <tr>
-<td>64 KB</td>
-<td>13,852.60 ± 314.26</td>
-<td>67.73 KB</td>
-<td>5.82%</td>
-<td>3,465</td>
+<td>10</td>
+<td>2,128.38 ± 22.93</td>
+<td>5,837</td>
+<td>5,848</td>
+<td>0.19%</td>
+<td>22,198,914</td>
 </tr>
 <tr>
-<td>256 KB</td>
-<td>13,630.59 ± 234.70</td>
-<td>259.73 KB</td>
-<td>1.46%</td>
-<td>3,512</td>
+<td>20</td>
+<td>3,085.50 ± 147.61</td>
+<td>9,387</td>
+<td>9,398</td>
+<td>0.12%</td>
+<td>15,411,329</td>
 </tr>
 <tr>
-<td>1 MB</td>
-<td>13,986.73 ± 334.38</td>
-<td>1.0036 MB</td>
-<td>0.36%</td>
-<td>3,359</td>
-</tr>
-<tr>
-<td>4 MB</td>
-<td>14,357.25 ± 113.53</td>
-<td>4.0036 MB</td>
-<td>0.09%</td>
-<td>3,304</td>
-</tr>
-<tr>
-<td>16 MB</td>
-<td>17,188.89 ± 315.48</td>
-<td>16.0036 MB</td>
-<td>0.02%</td>
-<td>2,773</td>
+<td>50</td>
+<td>5,671.50 ± 125.52</td>
+<td>20,037</td>
+<td>20,048</td>
+<td>0.05%</td>
+<td>7,824,902</td>
 </tr>
 </tbody>
 </table>

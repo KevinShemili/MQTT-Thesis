@@ -1,535 +1,310 @@
-import matplotlib
-import os
+from dataclasses import dataclass
 
-matplotlib.use("Agg")
+from reporting.benchmark import (
+    MB_PER_SECOND,
+    NS_PER_MICROSECOND,
+    NS_PER_OP,
+    WIRE_OVERHEAD_BYTES,
+    BenchmarkMetrics,
+    BenchmarkSpec,
+    Series,
+    case_id,
+    collect_series,
+    load_results,
+    sum_iterations,
+    total_iterations,
+)
+from reporting.charts import (
+    CRIMSON,
+    TEAL,
+    VIOLET,
+    Axes,
+    apply_value_grid,
+    draw_error_series,
+)
+from reporting.environment import (
+    ScenarioPaths,
+    parse_int_env,
+    parse_int_list_env,
+    resolve_paths,
+)
+from reporting.formatting import (
+    MEBIBYTE,
+    format_byte_size,
+    format_compact_byte_size,
+    format_mean_with_ci,
+)
+from reporting.html import common_placeholders, render_report, render_table
+from reporting.panels import render_operation_panels, series_maximum
+from reporting.statistics import (
+    mean,
+    mean_and_confidence_interval,
+    student_t_critical_95,
+)
 
-import sys
-import matplotlib.pyplot as plt
-from utils.statistics import GetStudentTCriticalValue95
-from utils.statistics import Mean
-from utils.statistics import MeanAndConfidenceInterval
-from utils.parser import ParseIntListFromEnv
+SLUG = "payload-scaling"
+RESULT_DIR_VAR = "PAYLOAD_SCALING_RESULT_DIR"
+TEMPLATE_NAME = "payload_scaling_template.html"
 
-BENCH_FILE: str = "/results/payload-scaling/bench_output.txt"
-PNG_FILE: str = "/results/payload-scaling/plot.png"
-THROUGHPUT_PNG_FILE: str = "/results/payload-scaling/throughput.png"
-HTML_FILE: str = "/results/payload-scaling/report.html"
-HTML_TEMPLATE_FILE: str = "/app/template/payload_scaling_template.html"
+LATENCY_PLOT = "plot.png"
+THROUGHPUT_PLOT = "throughput.png"
 
-RUNS: int = int(os.environ["PAYLOAD_SCALING_RUNS"])
-T_95: float = GetStudentTCriticalValue95(RUNS - 1)
-PAYLOAD_SIZES: list[int] = ParseIntListFromEnv("PAYLOAD_SCALING_PAYLOAD_SIZES")
-SCHEMES: list[str] = ["PSK", "RSA", "CPABE"]
-OPERATIONS: list[str] = ["encrypt", "decrypt"]
+SCHEMES = ["PSK", "RSA", "CPABE"]
+OPERATIONS = ["encrypt", "decrypt"]
 
-PSK_COLOR: str = "#0f766e"
-RSA_COLOR: str = "#7c3aed"
-CPABE_COLOR: str = "#c2415d"
+SCHEME_COLORS = {"PSK": TEAL, "RSA": VIOLET, "CPABE": CRIMSON}
+FALLBACK_COLOR = CRIMSON
 
+X_LABEL = "Payload size"
+LEGEND = {"fontsize": 10, "loc": "upper left"}
 
-class BenchmarkMetrics:
+AXIS_TICK_STEP = 4 * MEBIBYTE
 
-    def __init__(self) -> None:
+AXIS_HEADROOM = 1.03
 
-        self.Iterations: list[int] = []
-        self.NsPerOperation: list[float] = []
-        self.MbPerSecond: list[float] = []
-        self.WireOverheadBytes: list[float] = []
+ZOOM_BOUNDS = [0.08, 0.08, 0.47, 0.32]
+ZOOM_HEADROOM = 1.10
 
-
-def GetSchemeColor(schemeName: str) -> str:
-    if schemeName == "PSK":
-        return PSK_COLOR
-
-    if schemeName == "RSA":
-        return RSA_COLOR
-
-    return CPABE_COLOR
-
-
-def ParseBenchmarkFile(filepath: str) -> dict[str, BenchmarkMetrics]:
-
-    results: dict[str, BenchmarkMetrics] = {}
-
-    prefix: str = "BenchmarkPayloadScaling"
-
-    with open(filepath, "r", encoding="utf-8") as file:
-
-        for line in file:
-            fields: list[str] = line.strip().split()
-
-            if len(fields) == 0:
-                continue
-
-            benchmarkName: str = fields[0]
-
-            if not benchmarkName.startswith(prefix):
-                continue
-
-            # "Encrypt/PSK/64B-1" -> operation, scheme, payload size text.
-            operation, schemeName, payloadSizeText, *_ = benchmarkName[
-                len(prefix) :
-            ].split("/")
-            operation = operation.lower()
-
-            # Strip GOMAXPROCS suffix (e.g. "-1") first, then the "B" unit label.
-            payloadSize: int = int(payloadSizeText.split("-")[0].replace("B", ""))
-
-            benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
-
-            if benchmarkCaseId not in results:
-                results[benchmarkCaseId] = BenchmarkMetrics()
-
-            metrics: BenchmarkMetrics = results[benchmarkCaseId]
-
-            iterationCount: int = int(fields[1])
-
-            # Reads each "<value> <unit>" pair after ns/op. B/op and allocs/op may still be
-            # present in this dict (Go still reports them), they are just not used below.
-            metricsByUnit: dict[str, float] = {}
-            for index in range(2, len(fields) - 1, 2):
-                unitName: str = fields[index + 1]
-                metricsByUnit[unitName] = float(fields[index])
-
-            metrics.Iterations.append(iterationCount)
-            metrics.NsPerOperation.append(metricsByUnit["ns/op"])
-            metrics.MbPerSecond.append(metricsByUnit["MB/s"])
-
-            # Wire overhead is only reported by the encrypt benchmark, decrypt lines lack it.
-            if "wire_overhead_bytes/op" in metricsByUnit:
-                metrics.WireOverheadBytes.append(
-                    metricsByUnit["wire_overhead_bytes/op"]
-                )
-
-    return results
+SPEC = BenchmarkSpec(
+    prefix="BenchmarkPayloadScaling",
+    value_suffix="B",
+    required_units=(NS_PER_OP, MB_PER_SECOND),
+    optional_units=(WIRE_OVERHEAD_BYTES,),
+)
 
 
-def GetSchemeOverheadBytes(
+@dataclass(frozen=True)
+class Config:
+    runs: int
+    t_critical: float
+    payload_sizes: list[int]
+    paths: ScenarioPaths
+
+
+def load_config() -> Config:
+    runs = parse_int_env("PAYLOAD_SCALING_RUNS")
+
+    return Config(
+        runs=runs,
+        t_critical=student_t_critical_95(runs - 1),
+        payload_sizes=parse_int_list_env("PAYLOAD_SCALING_PAYLOAD_SIZES"),
+        paths=resolve_paths(SLUG, RESULT_DIR_VAR, TEMPLATE_NAME),
+    )
+
+
+def scheme_color(scheme_name: str) -> str:
+    return SCHEME_COLORS.get(scheme_name, FALLBACK_COLOR)
+
+
+def configure_payload_axis(config: Config, axis: Axes) -> None:
+
+    max_payload_size = config.payload_sizes[-1]
+    tick_values = list(range(0, max_payload_size + AXIS_TICK_STEP, AXIS_TICK_STEP))
+
+    axis.set_xticks(tick_values)
+    axis.set_xticklabels(
+        ["0" if tick == 0 else format_compact_byte_size(tick) for tick in tick_values]
+    )
+    axis.set_xlim(0, max_payload_size * AXIS_HEADROOM)
+
+    apply_value_grid(axis)
+
+
+def scheme_overhead_bytes(
     results: dict[str, BenchmarkMetrics],
-    schemeName: str,
+    config: Config,
+    scheme_name: str,
 ) -> float:
 
-    # Overhead is a fixed per-scheme constant, so pooling every encrypt case's
-    # samples and taking the mean just recovers that constant.
-    overheadSamples: list[float] = []
+    overhead_samples = []
 
-    for payloadSize in PAYLOAD_SIZES:
-
-        metrics: BenchmarkMetrics | None = results.get(
-            f"encrypt/{schemeName}/{payloadSize}"
-        )
+    for payload_size in config.payload_sizes:
+        metrics = results.get(case_id("encrypt", scheme_name, payload_size))
         if metrics is None:
             continue
 
-        overheadSamples.extend(metrics.WireOverheadBytes)
+        overhead_samples.extend(metrics.samples(WIRE_OVERHEAD_BYTES))
 
-    return Mean(overheadSamples)
+    return mean(overhead_samples)
 
 
-def FormatPayloadSizeLabel(payloadSizeBytes: int) -> str:
-
-    # Short human units keep axis labels readable.
-    if payloadSizeBytes >= 1024 * 1024:
-        return f"{payloadSizeBytes // (1024 * 1024)}MB"
-
-    if payloadSizeBytes >= 1024:
-        return f"{payloadSizeBytes // 1024}KB"
-
-    return f"{payloadSizeBytes}B"
-
-
-def FormatByteSize(byteCount: int) -> str:
-
-    # Display large table values in megabytes while preserving small overhead differences.
-    if byteCount >= 1024 * 1024:
-        megabytes: float = byteCount / float(1024 * 1024)
-        formattedMegabytes: str = f"{megabytes:.4f}".rstrip("0").rstrip(".")
-        return f"{formattedMegabytes} MB"
-
-    # Display medium table values in kilobytes.
-    if byteCount >= 1024:
-        kilobytes: float = byteCount / float(1024)
-        formattedKilobytes: str = f"{kilobytes:.2f}".rstrip("0").rstrip(".")
-        return f"{formattedKilobytes} KB"
-
-    return f"{byteCount} B"
-
-
-def ConfigurePayloadAxis(axis) -> None:
-
-    # Keep payload position proportional to the actual number of bytes.
-    maxPayloadSize: int = PAYLOAD_SIZES[-1]
-
-    # Use regular 4 MiB ticks so the linear axis remains readable.
-    tickStep: int = 4 * 1024 * 1024
-    tickValues: list[int] = list(range(0, maxPayloadSize + tickStep, tickStep))
-
-    axis.set_xticks(tickValues)
-
-    axis.set_xticklabels(
-        [
-            "0" if tickValue == 0 else FormatPayloadSizeLabel(tickValue)
-            for tickValue in tickValues
-        ]
-    )
-
-    axis.set_xlim(0, maxPayloadSize * 1.03)
-
-
-def PlotLatency(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    figure.suptitle(
-        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
-        fontsize=13,
-    )
-
-    for axis, operation in zip(axes, OPERATIONS):
-
-        zoomAxis = None
-        zoomMaximum: float = 0.0
-
-        # CP-ABE dominates publisher latency, so add a linear zoom for PSK and RSA.
-        if operation == "encrypt":
-            zoomAxis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])
-
-        for schemeName in SCHEMES:
-
-            means: list[float] = []
-            ciHalfs: list[float] = []
-            payloadSizes: list[int] = []
-
-            for payloadSize in PAYLOAD_SIZES:
-
-                benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-                if metrics is None:
-                    continue
-
-                latencyMean: float
-                latencyCI: float
-
-                latencyMean, latencyCI = MeanAndConfidenceInterval(
-                    metrics.NsPerOperation,
-                    T_95,
-                )
-
-                meanMicroseconds: float = latencyMean / 1000.0
-                ciMicroseconds: float = latencyCI / 1000.0
-
-                payloadSizes.append(payloadSize)
-                means.append(meanMicroseconds)
-                ciHalfs.append(ciMicroseconds)
-
-            axis.errorbar(
-                payloadSizes,
-                means,
-                yerr=ciHalfs,
-                label=schemeName,
-                color=GetSchemeColor(schemeName),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-                capsize=4,
-            )
-
-            # Repeat only the lower-latency schemes inside the Encrypt zoom.
-            if zoomAxis is not None and schemeName != "CPABE":
-
-                zoomAxis.errorbar(
-                    payloadSizes,
-                    means,
-                    yerr=ciHalfs,
-                    label=schemeName,
-                    color=GetSchemeColor(schemeName),
-                    marker="o",
-                    linewidth=1.6,
-                    markersize=4,
-                    capsize=3,
-                )
-
-                for meanMicroseconds, ciMicroseconds in zip(means, ciHalfs):
-                    zoomMaximum = max(
-                        zoomMaximum,
-                        meanMicroseconds + ciMicroseconds,
-                    )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-
-        # Keep the main graph genuinely linear and zero-based.
-        axis.set_ylim(bottom=0)
-
-        ConfigurePayloadAxis(axis)
-
-        axis.grid(
-            True,
-            axis="y",
-            linestyle="-",
-            linewidth=0.5,
-            alpha=0.18,
-        )
-
-        axis.legend(
-            fontsize=10,
-            loc="upper left",
-        )
-
-        if zoomAxis is not None:
-
-            # Keep the zoom linear and zero-based as well.
-            zoomAxis.set_ylim(0.0, zoomMaximum * 1.10)
-            zoomAxis.set_xlim(0, PAYLOAD_SIZES[-1] * 1.03)
-            zoomAxis.set_xticks([])
-
-            zoomAxis.set_title(
-                "PSK + RSA Zoom",
-                fontsize=9,
-            )
-
-            zoomAxis.set_ylabel(
-                "µs",
-                fontsize=8,
-            )
-
-            zoomAxis.tick_params(
-                axis="both",
-                labelsize=8,
-            )
-
-            zoomAxis.grid(
-                True,
-                axis="y",
-                linestyle="-",
-                linewidth=0.4,
-                alpha=0.18,
-            )
-
-            zoomAxis.legend(
-                fontsize=8,
-                loc="upper left",
-            )
-
-    plt.tight_layout()
-    plt.savefig(PNG_FILE, dpi=150, bbox_inches="tight")
-    plt.close(figure)
-
-    print(f"Saved -> {PNG_FILE}")
-
-
-def PlotThroughput(results: dict[str, BenchmarkMetrics]) -> None:
-
-    figure, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    figure.suptitle(
-        "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
-        fontsize=13,
-    )
-
-    for axis, operation in zip(axes, OPERATIONS):
-
-        for schemeName in SCHEMES:
-
-            means: list[float] = []
-            ciHalfs: list[float] = []
-            sizes: list[int] = []
-
-            for payloadSize in PAYLOAD_SIZES:
-
-                benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
-                metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
-
-                if metrics is None:
-                    continue
-
-                throughputMean: float
-                throughputCI: float
-
-                throughputMean, throughputCI = MeanAndConfidenceInterval(
-                    metrics.MbPerSecond,
-                    T_95,
-                )
-
-                sizes.append(payloadSize)
-                means.append(throughputMean)
-                ciHalfs.append(throughputCI)
-
-            axis.errorbar(
-                sizes,
-                means,
-                yerr=ciHalfs,
-                label=schemeName,
-                color=GetSchemeColor(schemeName),
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-                capsize=4,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
-
-        # Keep throughput visually proportional to the measured MB/s values.
-        axis.set_ylim(bottom=0)
-
-        # Reuse the exact payload-axis policy already used by Scenario 1.
-        ConfigurePayloadAxis(axis)
-
-        axis.grid(
-            True,
-            axis="y",
-            linestyle="-",
-            linewidth=0.5,
-            alpha=0.18,
-        )
-
-        axis.legend(
-            fontsize=10,
-            loc="upper left",
-        )
-
-    plt.tight_layout()
-    plt.savefig(
-        THROUGHPUT_PNG_FILE,
-        dpi=150,
-        bbox_inches="tight",
-    )
-    plt.close(figure)
-
-    print(f"Saved -> {THROUGHPUT_PNG_FILE}")
-
-
-def BuildOperationSchemeTable(
-    results: dict[str, BenchmarkMetrics],
+def add_zoom_inset(
+    config: Config,
+    axis: Axes,
     operation: str,
-    schemeName: str,
+    drawn: list[tuple[str, Series]],
+) -> None:
+
+    if operation != "encrypt":
+        return
+
+    zoom_axis = axis.inset_axes(ZOOM_BOUNDS) # type: ignore
+    zoomed = [(name, series) for name, series in drawn if name != "CPABE"]
+
+    for name, series in zoomed:
+        draw_error_series(
+            zoom_axis,
+            series,
+            name,
+            scheme_color(name),
+            linewidth=1.6,
+            markersize=4,
+            capsize=3,
+        )
+
+    zoom_axis.set_ylim(
+        0.0, series_maximum(series for _, series in zoomed) * ZOOM_HEADROOM
+    )
+    zoom_axis.set_xlim(0, config.payload_sizes[-1] * AXIS_HEADROOM)
+    zoom_axis.set_xticks([])
+    zoom_axis.set_title("PSK + RSA Zoom", fontsize=9)
+    zoom_axis.set_ylabel("µs", fontsize=8)
+    zoom_axis.tick_params(axis="both", labelsize=8)
+    apply_value_grid(zoom_axis, linewidth=0.4)
+    zoom_axis.legend(fontsize=8, loc="upper left")
+
+
+def plot_metric(
+    results: dict[str, BenchmarkMetrics],
+    config: Config,
+    unit: str,
+    divisor: float,
+    title: str,
+    y_label: str,
+    output_path: str,
+    with_zoom: bool = False,
+) -> None:
+
+    def collect(operation: str, scheme_name: str) -> Series:
+        return collect_series(
+            results,
+            [
+                (size, case_id(operation, scheme_name, size))
+                for size in config.payload_sizes
+            ],
+            unit,
+            config.t_critical,
+            divisor,
+        )
+
+    render_operation_panels(
+        OPERATIONS,
+        SCHEMES,
+        collect,
+        title=title,
+        x_label=X_LABEL,
+        y_label=y_label,
+        color_for=scheme_color,
+        configure_axis=lambda axis: configure_payload_axis(config, axis),
+        output_path=output_path,
+        legend_kwargs=LEGEND,
+        on_panel=(
+            (
+                lambda axis, operation, drawn: add_zoom_inset(
+                    config, axis, operation, drawn
+                )
+            )
+            if with_zoom
+            else None
+        ),
+    )
+
+
+def build_table(
+    results: dict[str, BenchmarkMetrics],
+    config: Config,
+    operation: str,
+    scheme_name: str,
 ) -> str:
 
-    # The same fixed cryptographic envelope is used in both directions.
-    overheadBytesValue: float = GetSchemeOverheadBytes(results, schemeName)
+    overhead_bytes = int(round(scheme_overhead_bytes(results, config, scheme_name)))
 
-    lines: list[str] = []
+    rows = []
 
-    lines.append("<table>")
-    lines.append("<thead>")
-    lines.append("<tr>")
-    lines.append("<th>Raw Size</th>")
-    lines.append("<th>Latency (µs/op)</th>")
-    lines.append("<th>Wire Size</th>")
-    lines.append("<th>Overhead (%)</th>")
-    lines.append(f"<th>Iters (Σ{RUNS} runs)</th>")
-    lines.append("</tr>")
-    lines.append("</thead>")
-    lines.append("<tbody>")
+    for payload_size in config.payload_sizes:
 
-    for payloadSize in PAYLOAD_SIZES:
-
-        benchmarkCaseId: str = f"{operation}/{schemeName}/{payloadSize}"
-        metrics: BenchmarkMetrics | None = results.get(benchmarkCaseId)
+        metrics = results.get(case_id(operation, scheme_name, payload_size))
         if metrics is None:
             continue
 
-        latencyMean: float
-        latencyCI: float
-
-        latencyMean, latencyCI = MeanAndConfidenceInterval(
-            metrics.NsPerOperation,
-            T_95,
+        latency_mean, latency_ci = mean_and_confidence_interval(
+            metrics.ns_per_op, config.t_critical
         )
 
-        # Convert the measured fixed overhead back to an integer byte count.
-        overheadBytes: int = int(round(overheadBytesValue))
+        overhead_percent = overhead_bytes / payload_size * 100.0
 
-        # Add the fixed cryptographic overhead to the raw payload.
-        wireSizeBytes: int = payloadSize + overheadBytes
-
-        # Express the added bytes relative to the original raw payload.
-        overheadPercent: float = overheadBytes / payloadSize * 100.0
-
-        # Avoid displaying a small nonzero overhead as 0.00%.
-        if overheadPercent < 0.01:
-            overheadText: str = "&lt;0.01%"
-        else:
-            overheadText = f"{overheadPercent:.2f}%"
-
-        caseIterations: int = 0
-
-        for iterationCount in metrics.Iterations:
-            caseIterations += iterationCount
-
-        # Convert Go's nanoseconds per operation to microseconds.
-        latencyText: str = (
-            f"{latencyMean / 1000.0:,.2f} ± " f"{latencyCI / 1000.0:,.2f}"
+        rows.append(
+            [
+                format_byte_size(payload_size),
+                format_mean_with_ci(
+                    latency_mean / NS_PER_MICROSECOND, latency_ci / NS_PER_MICROSECOND
+                ),
+                format_byte_size(payload_size + overhead_bytes),
+                f"{overhead_percent:.2f}%" if overhead_percent >= 0.01 else "&lt;0.01%",
+                f"{sum_iterations(metrics):,}",
+            ]
         )
 
-        lines.append("<tr>")
-        lines.append(f"<td>{FormatByteSize(payloadSize)}</td>")
-        lines.append(f"<td>{latencyText}</td>")
-        lines.append(f"<td>{FormatByteSize(wireSizeBytes)}</td>")
-        lines.append(f"<td>{overheadText}</td>")
-        lines.append(f"<td>{caseIterations:,}</td>")
-        lines.append("</tr>")
-
-    lines.append("</tbody>")
-    lines.append("</table>")
-
-    return "\n".join(lines)
+    return render_table(
+        [
+            "Raw Size",
+            "Latency (µs/op)",
+            "Wire Size",
+            "Overhead (%)",
+            f"Iters (Σ{config.runs} runs)",
+        ],
+        rows,
+    )
 
 
-def WriteHtmlReport(results: dict[str, BenchmarkMetrics]) -> None:
+def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
-    totalIterations: int = 0
+    tables = {
+        f"{operation.capitalize()}{scheme_name.capitalize()}Table": build_table(
+            results, config, operation, scheme_name
+        )
+        for operation in OPERATIONS
+        for scheme_name in SCHEMES
+    }
 
-    for metrics in results.values():
-        for iterationCount in metrics.Iterations:
-            totalIterations += iterationCount
+    placeholders = {
+        **common_placeholders(
+            config.runs, config.t_critical, total_iterations(results)
+        ),
+        **tables,
+        "LatencyPlot": LATENCY_PLOT,
+        "ThroughputPlot": THROUGHPUT_PLOT,
+    }
 
-    # Six filtered tables — one per operation/scheme pair.
-    encryptPskTable: str = BuildOperationSchemeTable(results, "encrypt", "PSK")
-    encryptRsaTable: str = BuildOperationSchemeTable(results, "encrypt", "RSA")
-    encryptCpabeTable: str = BuildOperationSchemeTable(results, "encrypt", "CPABE")
-    decryptPskTable: str = BuildOperationSchemeTable(results, "decrypt", "PSK")
-    decryptRsaTable: str = BuildOperationSchemeTable(results, "decrypt", "RSA")
-    decryptCpabeTable: str = BuildOperationSchemeTable(results, "decrypt", "CPABE")
-
-    with open(HTML_TEMPLATE_FILE, "r", encoding="utf-8") as file:
-        template: str = file.read()
-
-    report: str = template
-
-    report = report.replace("{{RunCount}}", str(RUNS))
-    report = report.replace("{{ConfidenceLevel}}", "95%")
-    report = report.replace("{{TMultiplier}}", str(T_95))
-    report = report.replace("{{TotalIterations}}", f"{totalIterations:,}")
-    report = report.replace("{{EncryptPskTable}}", encryptPskTable)
-    report = report.replace("{{EncryptRsaTable}}", encryptRsaTable)
-    report = report.replace("{{EncryptCpabeTable}}", encryptCpabeTable)
-    report = report.replace("{{DecryptPskTable}}", decryptPskTable)
-    report = report.replace("{{DecryptRsaTable}}", decryptRsaTable)
-    report = report.replace("{{DecryptCpabeTable}}", decryptCpabeTable)
-    report = report.replace("{{LatencyPlot}}", "plot.png")
-    report = report.replace("{{ThroughputPlot}}", "throughput.png")
-
-    with open(HTML_FILE, "w", encoding="utf-8") as file:
-        file.write(report)
-
-    print(f"Saved -> {HTML_FILE}")
+    render_report(config.paths.template, config.paths.report, placeholders)
 
 
-def Main() -> None:
+def main() -> None:
+    config = load_config()
+    results = load_results(config.paths.bench_output, SPEC)
 
-    try:
-        results: dict[str, BenchmarkMetrics] = ParseBenchmarkFile(BENCH_FILE)
-    except FileNotFoundError:
-        sys.exit(f"[error] {BENCH_FILE} not found — run the benchmark first")
+    plot_metric(
+        results,
+        config,
+        NS_PER_OP,
+        NS_PER_MICROSECOND,
+        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
+        "Latency (µs) ± 95% CI",
+        config.paths.figure(LATENCY_PLOT),
+        with_zoom=True,
+    )
+    plot_metric(
+        results,
+        config,
+        MB_PER_SECOND,
+        1.0,
+        "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
+        "Throughput (MB/s) ± 95% CI",
+        config.paths.figure(THROUGHPUT_PLOT),
+    )
 
-    PlotLatency(results)
-    PlotThroughput(results)
-    WriteHtmlReport(results)
+    write_html_report(results, config)
 
 
 if __name__ == "__main__":
-    Main()
+    main()
