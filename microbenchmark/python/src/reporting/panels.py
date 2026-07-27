@@ -1,10 +1,10 @@
 from typing import Callable, Iterable
 
-from .benchmark import Series
+from .benchmark import BenchmarkSummaryData
 from .charts import (
     PANEL_FIGURE_SIZE,
     Axes,
-    draw_error_series,
+    draw_summary,
     plt,
     save_figure,
 )
@@ -13,7 +13,7 @@ from .charts import (
 def render_operation_panels(
     operations: list[str],
     names: list[str],
-    collect: Callable[[str, str], Series],
+    collect: Callable[[str, str], BenchmarkSummaryData],
     *,
     title: str,
     x_label: str,
@@ -23,7 +23,9 @@ def render_operation_panels(
     output_path: str,
     label_for: Callable[[str], str] | None = None,
     legend_kwargs: dict | None = None,
-    on_panel: Callable[[Axes, str, list[tuple[str, Series]]], None] | None = None,
+    on_panel: (
+        Callable[[Axes, str, list[tuple[str, BenchmarkSummaryData]]], None] | None
+    ) = None,
 ) -> None:
 
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
@@ -31,12 +33,12 @@ def render_operation_panels(
 
     for axis, operation in zip(axes, operations):
 
-        drawn: list[tuple[str, Series]] = []
+        drawn: list[tuple[str, BenchmarkSummaryData]] = []
 
         for name in names:
             series = collect(operation, name)
             label = label_for(name) if label_for is not None else name
-            draw_error_series(axis, series, label, color_for(name))
+            draw_summary(axis, series, label, color_for(name))
             drawn.append((name, series))
 
         axis.set_title(operation.capitalize(), fontsize=11)
@@ -57,7 +59,7 @@ def render_operation_panels(
     save_figure(figure, output_path)
 
 
-def series_maximum(series_list: Iterable[Series]) -> float:
+def series_maximum(series_list: Iterable[BenchmarkSummaryData]) -> float:
 
     return max(
         (

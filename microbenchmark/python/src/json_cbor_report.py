@@ -6,14 +6,14 @@ from reporting.benchmark import (
     NS_PER_OP,
     RAW_BYTES,
     BenchmarkMetrics,
-    BenchmarkSpec,
-    Series,
-    case_id,
-    collect_means,
-    collect_series,
-    load_results,
-    sum_iterations,
-    total_iterations,
+    BenchmarkParserConfig,
+    BenchmarkSummaryData,
+    generate_case_id,
+    produce_summary_no_ci,
+    produce_summary,
+    parse_benchmark_file,
+    calculate_iterations,
+    calculate_total_iterations,
 )
 from reporting.charts import (
     AMBER,
@@ -22,12 +22,12 @@ from reporting.charts import (
     Axes,
     PANEL_FIGURE_SIZE,
     apply_mesh_grid,
-    draw_line_series,
+    draw_summary_no_ci,
     plt,
     save_figure,
 )
 from reporting.environment import (
-    ScenarioPaths,
+    FilePaths,
     parse_int_env,
     parse_int_list_env,
     resolve_paths,
@@ -58,7 +58,7 @@ FORMAT_LABELS = {"CBORKeyAsInt": "CBOR (int keys)"}
 
 X_LABEL = "Attribute count"
 
-SPEC = BenchmarkSpec(
+SPEC = BenchmarkParserConfig(
     prefix="BenchmarkEnvelope",
     value_suffix="Attrs",
     required_units=(NS_PER_OP, ENVELOPE_BYTES, RAW_BYTES),
@@ -70,7 +70,7 @@ class Config:
     runs: int
     t_critical: float
     attribute_counts: list[int]
-    paths: ScenarioPaths
+    paths: FilePaths
 
 
 def load_config() -> Config:
@@ -94,7 +94,7 @@ def format_label(format_name: str) -> str:
 
 def attribute_cases(config: Config, operation: str, format_name: str):
     return [
-        (count, case_id(operation, format_name, count))
+        (count, generate_case_id(operation, format_name, count))
         for count in config.attribute_counts
     ]
 
@@ -106,8 +106,8 @@ def configure_attribute_axis(config: Config, axis: Axes) -> None:
 
 def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
-    def collect(operation: str, format_name: str) -> Series:
-        return collect_series(
+    def collect(operation: str, format_name: str) -> BenchmarkSummaryData:
+        return produce_summary(
             results,
             attribute_cases(config, operation, format_name),
             NS_PER_OP,
@@ -141,15 +141,15 @@ def plot_size(results: dict[str, BenchmarkMetrics], config: Config) -> None:
     for format_name in FORMATS:
 
         cases = attribute_cases(config, "serialize", format_name)
-        counts, envelope_sizes = collect_means(results, cases, ENVELOPE_BYTES)
-        _, raw_sizes = collect_means(results, cases, RAW_BYTES)
+        counts, envelope_sizes = produce_summary_no_ci(results, cases, ENVELOPE_BYTES)
+        _, raw_sizes = produce_summary_no_ci(results, cases, RAW_BYTES)
 
         format_tax = [
             envelope - raw for envelope, raw in zip(envelope_sizes, raw_sizes)
         ]
 
         for axis, values in ((axes[0], envelope_sizes), (axes[1], format_tax)):
-            draw_line_series(
+            draw_summary_no_ci(
                 axis,
                 counts,
                 values,
@@ -183,7 +183,7 @@ def build_table(
 
     for attribute_count in config.attribute_counts:
 
-        metrics = results.get(case_id(operation, format_name, attribute_count))
+        metrics = results.get(generate_case_id(operation, format_name, attribute_count))
         if metrics is None:
             continue
 
@@ -203,7 +203,7 @@ def build_table(
                 f"{raw_size:,.0f}",
                 f"{envelope_size:,.0f}",
                 f"{overhead_percent:.2f}%",
-                f"{sum_iterations(metrics):,}",
+                f"{calculate_iterations(metrics):,}",
             ]
         )
 
@@ -236,7 +236,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
     placeholders = {
         **common_placeholders(
-            config.runs, config.t_critical, total_iterations(results)
+            config.runs, config.t_critical, calculate_total_iterations(results)
         ),
         **tables,
         "LatencyPlot": LATENCY_PLOT,
@@ -248,7 +248,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = load_results(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, SPEC)
 
     plot_latency(results, config)
     plot_size(results, config)

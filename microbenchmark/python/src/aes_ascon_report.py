@@ -8,22 +8,22 @@ from reporting.benchmark import (
     NS_PER_OP,
     WIRE_OVERHEAD_BYTES,
     BenchmarkMetrics,
-    BenchmarkSpec,
-    Series,
-    case_id,
-    collect_series,
-    load_results,
-    sum_iterations,
-    total_iterations,
+    BenchmarkParserConfig,
+    BenchmarkSummaryData,
+    generate_case_id,
+    produce_summary,
+    parse_benchmark_file,
+    calculate_iterations,
+    calculate_total_iterations,
 )
 from reporting.charts import AMBER, VIOLET, Axes, apply_value_grid
 from reporting.environment import (
-    ScenarioPaths,
+    FilePaths,
     parse_int_env,
     parse_int_list_env,
     resolve_paths,
 )
-from reporting.formatting import format_compact_byte_size, format_mean_with_ci
+from reporting.formatting import format_byte_size_compact, format_mean_with_ci
 from reporting.html import common_placeholders, render_report, render_table
 from reporting.panels import render_operation_panels
 from reporting.statistics import (
@@ -45,7 +45,7 @@ OPERATIONS = ["encrypt", "decrypt"]
 ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
 FALLBACK_COLOR = VIOLET
 
-SPEC = BenchmarkSpec(
+SPEC = BenchmarkParserConfig(
     prefix="BenchmarkAESASCON",
     value_suffix="B",
     required_units=(NS_PER_OP, MB_PER_SECOND, WIRE_OVERHEAD_BYTES),
@@ -57,7 +57,7 @@ class Config:
     runs: int
     t_critical: float
     payload_sizes: list[int]
-    paths: ScenarioPaths
+    paths: FilePaths
 
 
 def load_config() -> Config:
@@ -79,7 +79,7 @@ def configure_payload_axis(config: Config, axis: Axes) -> None:
     axis.set_xticks(config.payload_sizes)
     axis.set_xlim(left=0)
     axis.xaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: format_compact_byte_size(int(value)))
+        FuncFormatter(lambda value, _: format_byte_size_compact(int(value)))
     )
     axis.tick_params(axis="x", rotation=30)
     apply_value_grid(axis)
@@ -95,11 +95,11 @@ def plot_metric(
     output_path: str,
 ) -> None:
 
-    def collect(operation: str, algorithm: str) -> Series:
-        return collect_series(
+    def collect(operation: str, algorithm: str) -> BenchmarkSummaryData:
+        return produce_summary(
             results,
             [
-                (size, case_id(operation, algorithm, size))
+                (size, generate_case_id(operation, algorithm, size))
                 for size in config.payload_sizes
             ],
             unit,
@@ -131,7 +131,7 @@ def build_table(
 
     for payload_size in config.payload_sizes:
 
-        metrics = results.get(case_id(operation, algorithm, payload_size))
+        metrics = results.get(generate_case_id(operation, algorithm, payload_size))
         if metrics is None:
             continue
 
@@ -151,11 +151,11 @@ def build_table(
 
         rows.append(
             [
-                format_compact_byte_size(payload_size),
+                format_byte_size_compact(payload_size),
                 format_mean_with_ci(latency_mean, latency_ci),
                 format_mean_with_ci(throughput, throughput_ci, decimals=1),
                 f"{overhead:.0f}" if overhead != 0.0 else "—",
-                f"{sum_iterations(metrics):,}",
+                f"{calculate_iterations(metrics):,}",
             ]
         )
 
@@ -175,7 +175,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
     placeholders = {
         **common_placeholders(
-            config.runs, config.t_critical, total_iterations(results)
+            config.runs, config.t_critical, calculate_total_iterations(results)
         ),
         "EncryptAesTable": build_table(results, config, "encrypt", "AES-GCM"),
         "EncryptAsconTable": build_table(results, config, "encrypt", "ASCON"),
@@ -190,7 +190,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = load_results(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, SPEC)
 
     plot_metric(
         results,

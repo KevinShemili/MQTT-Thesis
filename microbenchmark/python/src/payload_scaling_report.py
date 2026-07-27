@@ -6,13 +6,13 @@ from reporting.benchmark import (
     NS_PER_OP,
     WIRE_OVERHEAD_BYTES,
     BenchmarkMetrics,
-    BenchmarkSpec,
-    Series,
-    case_id,
-    collect_series,
-    load_results,
-    sum_iterations,
-    total_iterations,
+    BenchmarkParserConfig,
+    BenchmarkSummaryData,
+    generate_case_id,
+    produce_summary,
+    parse_benchmark_file,
+    calculate_iterations,
+    calculate_total_iterations,
 )
 from reporting.charts import (
     CRIMSON,
@@ -20,18 +20,18 @@ from reporting.charts import (
     VIOLET,
     Axes,
     apply_value_grid,
-    draw_error_series,
+    draw_summary,
 )
 from reporting.environment import (
-    ScenarioPaths,
+    FilePaths,
     parse_int_env,
     parse_int_list_env,
     resolve_paths,
 )
 from reporting.formatting import (
-    MEBIBYTE,
+    MEGABYTE,
     format_byte_size,
-    format_compact_byte_size,
+    format_byte_size_compact,
     format_mean_with_ci,
 )
 from reporting.html import common_placeholders, render_report, render_table
@@ -58,14 +58,14 @@ FALLBACK_COLOR = CRIMSON
 X_LABEL = "Payload size"
 LEGEND = {"fontsize": 10, "loc": "upper left"}
 
-AXIS_TICK_STEP = 4 * MEBIBYTE
+AXIS_TICK_STEP = 4 * MEGABYTE
 
 AXIS_HEADROOM = 1.03
 
 ZOOM_BOUNDS = [0.08, 0.08, 0.47, 0.32]
 ZOOM_HEADROOM = 1.10
 
-SPEC = BenchmarkSpec(
+SPEC = BenchmarkParserConfig(
     prefix="BenchmarkPayloadScaling",
     value_suffix="B",
     required_units=(NS_PER_OP, MB_PER_SECOND),
@@ -78,7 +78,7 @@ class Config:
     runs: int
     t_critical: float
     payload_sizes: list[int]
-    paths: ScenarioPaths
+    paths: FilePaths
 
 
 def load_config() -> Config:
@@ -103,7 +103,7 @@ def configure_payload_axis(config: Config, axis: Axes) -> None:
 
     axis.set_xticks(tick_values)
     axis.set_xticklabels(
-        ["0" if tick == 0 else format_compact_byte_size(tick) for tick in tick_values]
+        ["0" if tick == 0 else format_byte_size_compact(tick) for tick in tick_values]
     )
     axis.set_xlim(0, max_payload_size * AXIS_HEADROOM)
 
@@ -119,7 +119,7 @@ def scheme_overhead_bytes(
     overhead_samples = []
 
     for payload_size in config.payload_sizes:
-        metrics = results.get(case_id("encrypt", scheme_name, payload_size))
+        metrics = results.get(generate_case_id("encrypt", scheme_name, payload_size))
         if metrics is None:
             continue
 
@@ -132,17 +132,17 @@ def add_zoom_inset(
     config: Config,
     axis: Axes,
     operation: str,
-    drawn: list[tuple[str, Series]],
+    drawn: list[tuple[str, BenchmarkSummaryData]],
 ) -> None:
 
     if operation != "encrypt":
         return
 
-    zoom_axis = axis.inset_axes(ZOOM_BOUNDS) # type: ignore
+    zoom_axis = axis.inset_axes(ZOOM_BOUNDS)  # type: ignore
     zoomed = [(name, series) for name, series in drawn if name != "CPABE"]
 
     for name, series in zoomed:
-        draw_error_series(
+        draw_summary(
             zoom_axis,
             series,
             name,
@@ -175,11 +175,11 @@ def plot_metric(
     with_zoom: bool = False,
 ) -> None:
 
-    def collect(operation: str, scheme_name: str) -> Series:
-        return collect_series(
+    def collect(operation: str, scheme_name: str) -> BenchmarkSummaryData:
+        return produce_summary(
             results,
             [
-                (size, case_id(operation, scheme_name, size))
+                (size, generate_case_id(operation, scheme_name, size))
                 for size in config.payload_sizes
             ],
             unit,
@@ -223,7 +223,7 @@ def build_table(
 
     for payload_size in config.payload_sizes:
 
-        metrics = results.get(case_id(operation, scheme_name, payload_size))
+        metrics = results.get(generate_case_id(operation, scheme_name, payload_size))
         if metrics is None:
             continue
 
@@ -241,7 +241,7 @@ def build_table(
                 ),
                 format_byte_size(payload_size + overhead_bytes),
                 f"{overhead_percent:.2f}%" if overhead_percent >= 0.01 else "&lt;0.01%",
-                f"{sum_iterations(metrics):,}",
+                f"{calculate_iterations(metrics):,}",
             ]
         )
 
@@ -269,7 +269,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
     placeholders = {
         **common_placeholders(
-            config.runs, config.t_critical, total_iterations(results)
+            config.runs, config.t_critical, calculate_total_iterations(results)
         ),
         **tables,
         "LatencyPlot": LATENCY_PLOT,
@@ -281,7 +281,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = load_results(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, SPEC)
 
     plot_metric(
         results,

@@ -1,53 +1,50 @@
 import matplotlib
 
 matplotlib.use("Agg")
-
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from .benchmark import BenchmarkSummaryData
 
-from .benchmark import Series
-
+# Shared colors used across benchmark reports so the same kinds of series remain visually consistent
 AMBER = "#d97706"
 VIOLET = "#7c3aed"
 TEAL = "#0f766e"
 CRIMSON = "#c2415d"
 BLUE = "#2563eb"
 
-ERROR_SERIES_STYLE = {
-    "marker": "o",
-    "linewidth": 1.8,
-    "markersize": 5,
-    "capsize": 4,
-}
-LINE_SERIES_STYLE = {
-    "marker": "o",
-    "linewidth": 1.8,
-    "markersize": 5,
-}
-
 FIGURE_DPI = 150
 PANEL_FIGURE_SIZE = (13, 5)
 
 
-def draw_error_series(
+# Draws one summary
+def draw_summary(
     axis: Axes,
-    series: Series,
+    summary: BenchmarkSummaryData,
     label: str,
     color: str,
     **overrides,
 ) -> None:
     axis.errorbar(
-        series.x,
-        series.means,
-        yerr=series.ci_halfs,
+        summary.sweep_values,
+        summary.means,
+        yerr=summary.ci_halfs,
         label=label,
         color=color,
-        **(ERROR_SERIES_STYLE | overrides),
+        **(
+            {
+                "marker": "o",
+                "linewidth": 1.8,
+                "markersize": 5,
+                "capsize": 4,
+            }
+            | overrides
+        ),
     )
 
 
-def draw_line_series(
+# Same as draw_summary() but without CIs
+def draw_summary_no_ci(
     axis: Axes,
     x_values: list[float],
     y_values: list[float],
@@ -60,14 +57,24 @@ def draw_line_series(
         y_values,
         label=label,
         color=color,
-        **(LINE_SERIES_STYLE | overrides),
+        **(
+            {
+                "marker": "o",
+                "linewidth": 1.8,
+                "markersize": 5,
+            }
+            | overrides
+        ),
     )
 
 
+# Adds horizontal grid lines to allow better interpretability of the vertical axis
+# linewidth controls how thick those grid lines are.
 def apply_value_grid(axis: Axes, linewidth: float = 0.5) -> None:
     axis.grid(True, axis="y", linestyle="-", linewidth=linewidth, alpha=0.18)
 
 
+# Adds a grid in both directions
 def apply_mesh_grid(axis: Axes) -> None:
     axis.grid(
         True,
@@ -79,7 +86,8 @@ def apply_mesh_grid(axis: Axes) -> None:
     )
 
 
-def annotate_crossover(axis: Axes, x_value: float, y_value: float, label: str) -> None:
+# Marks the crossover point of two lines on a plot with an X marker and a label
+def mark_crossover(axis: Axes, x_value: float, y_value: float, label: str) -> None:
     axis.plot(
         [x_value],
         [y_value],
@@ -99,6 +107,7 @@ def annotate_crossover(axis: Axes, x_value: float, y_value: float, label: str) -
     )
 
 
+# Persists created image
 def save_figure(figure: Figure, output_path: str) -> None:
     figure.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(figure)
