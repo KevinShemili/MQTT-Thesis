@@ -30,6 +30,7 @@ from reporting.charts import (
     draw_summary_no_ci,
     plt,
     save_figure,
+    calculate_y_axis_overhead,
 )
 from reporting.environment import (
     FilePaths,
@@ -41,27 +42,26 @@ from reporting.formatting import (
     format_byte_size,
     format_mean_with_ci,
 )
-from reporting.html import common_placeholders, render_report, render_table
-from reporting.panels import series_maximum
+from reporting.html import build_html_generic_data, build_html_report, build_html_table
 from reporting.statistics import (
     LinearFit,
     fit_linear_regression,
     mean,
     mean_and_confidence_interval,
-    student_t_critical_95,
+    get_student_t_critical_95,
 )
 
-SLUG = "attribute-key-scaling"
+SCENARIO = "attribute-key-scaling"
 RESULT_DIR_VAR = "ATTRIBUTE_KEY_SCALING_RESULT_DIR"
 TEMPLATE_NAME = "attribute_key_scaling_template.html"
 
 CPABE_PLOT = "cpabe_attributes.png"
 RSA_SUBSCRIBERS_PLOT = "rsa_subscribers.png"
 RSA_KEY_BITS_PLOT = "rsa_key_bits.png"
-BANDWIDTH_CROSSOVER_PLOT = "bandwidth_crossover.png"
+CIPHERTEXT_SIZE_CROSSOVER_PLOT = "ciphertext_size_crossover.png"
 ASYMMETRY_PLOT = "encrypt_decrypt_asymmetry.png"
-ENCRYPT_CPU_CROSSOVER_PLOT = "encrypt_cpu_crossover.png"
-DECRYPT_CPU_CROSSOVER_PLOT = "decrypt_cpu_crossover.png"
+ENCRYPT_LATENCY_CROSSOVER_PLOT = "encrypt_latency_crossover.png"
+DECRYPT_LATENCY_CROSSOVER_PLOT = "decrypt_latency_crossover.png"
 
 CPABE_ATTRIBUTES = "CPABEAttributes"
 RSA_SUBSCRIBERS = "RSASubscribers"
@@ -101,13 +101,14 @@ CIPHERTEXT_COLUMN = ("CIPHERTEXT", CIPHERTEXT_BYTES)
 TOTAL_CIPHERTEXT_COLUMN = ("CIPHERTEXT (TOTAL)", TOTAL_CIPHERTEXT_BYTES)
 STORED_KEY_COLUMN = ("STORED KEY", STORED_KEY_BYTES)
 
-SPEC = BenchmarkParserConfig(
+CONFIG = BenchmarkParserConfig(
     prefix="BenchmarkAttributeKeyScaling",
     required_units=(NS_PER_OP,),
     optional_units=(CIPHERTEXT_BYTES, TOTAL_CIPHERTEXT_BYTES, STORED_KEY_BYTES),
 )
 
 
+# Stores all configuration needed to process attribute key scaling benchmark
 @dataclass(frozen=True)
 class Config:
     runs: int
@@ -142,12 +143,12 @@ def load_config() -> Config:
 
     return Config(
         runs=runs,
-        t_critical=student_t_critical_95(runs - 1),
+        t_critical=get_student_t_critical_95(runs - 1),
         attribute_counts=parse_int_list_env("ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT"),
         subscriber_counts=parse_int_list_env("ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT"),
         rsa_key_bits=parse_int_list_env("ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES"),
         fixed_rsa_key_bits=parse_int_env("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_BITS"),
-        paths=resolve_paths(SLUG, RESULT_DIR_VAR, TEMPLATE_NAME),
+        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
     )
 
 
@@ -162,17 +163,8 @@ def format_attribute_label(attribute_count: int) -> str:
     return f"{attribute_count} ATTRIBUTES"
 
 
-def sweep_cases(operation: str, sweep_name: str, sweep_values: list[int]):
-    return [
-        (value, generate_case_id(operation, sweep_name, value))
-        for value in sweep_values
-    ]
-
-
 @dataclass
-class CrossoverSummary:
-    """Where RSA's per-subscriber bytes overtake one CP-ABE ciphertext."""
-
+class CiphertextSizeCrossoverSummary:
     measured_total_bytes: list[float] = field(default_factory=list)
 
     cpabe_bytes_min: float = 0.0
@@ -183,8 +175,7 @@ class CrossoverSummary:
 
 
 @dataclass
-class CpuCrossoverSummary:
-
+class LatencyCrossoverSummary:
     measured_encrypt_micros: list[float] = field(default_factory=list)
 
     rsa_encrypt_slope_micros_per_subscriber: float = 0.0
@@ -205,8 +196,7 @@ class CpuCrossoverSummary:
 
 
 @dataclass(frozen=True)
-class CpabeMarginalSlopes:
-
+class CPABEFittedSlopes:
     encrypt: LinearFit
     decrypt: LinearFit
     key_issuance: LinearFit
@@ -215,19 +205,17 @@ class CpabeMarginalSlopes:
 
 
 @dataclass(frozen=True)
-class RsaSubscriberSlopes:
-
+class RSAFittedSlopes:
     encrypt: LinearFit
-
     total_ciphertext_slope_bytes: float
 
 
-def compute_crossover_summary(
+def calculate_ciphertext_size_crossover(
     results: dict[str, BenchmarkMetrics],
     config: Config,
-) -> CrossoverSummary:
+) -> CiphertextSizeCrossoverSummary:
 
-    summary = CrossoverSummary()
+    summary = CiphertextSizeCrossoverSummary()
 
     for subscriber_count in config.subscriber_counts:
 
@@ -247,15 +235,18 @@ def compute_crossover_summary(
         results,
         generate_case_id("encrypt", RSA_SUBSCRIBERS, config.subscriber_counts[0]),
         CIPHERTEXT_BYTES,
-        config.paths.bench_output,
-        "ciphertext bytes for",
     )
 
-    summary.cpabe_bytes_min = cpabe_ciphertext_bytes(
-        results, config, config.min_attributes
+    summary.cpabe_bytes_min = calculate_mean(
+        results,
+        generate_case_id("encrypt", CPABE_ATTRIBUTES, config.min_attributes),
+        CIPHERTEXT_BYTES,
     )
-    summary.cpabe_bytes_max = cpabe_ciphertext_bytes(
-        results, config, config.max_attributes
+
+    summary.cpabe_bytes_max = calculate_mean(
+        results,
+        generate_case_id("encrypt", CPABE_ATTRIBUTES, config.max_attributes),
+        CIPHERTEXT_BYTES,
     )
 
     summary.bytes_crossover_min = summary.cpabe_bytes_min / rsa_single_bytes
@@ -264,33 +255,18 @@ def compute_crossover_summary(
     return summary
 
 
-def cpabe_ciphertext_bytes(
+def compute_latency_crossover_summary(
     results: dict[str, BenchmarkMetrics],
     config: Config,
-    attribute_count: int,
-) -> float:
-    return calculate_mean(
-        results,
-        generate_case_id("encrypt", CPABE_ATTRIBUTES, attribute_count),
-        CIPHERTEXT_BYTES,
-        config.paths.bench_output,
-        "ciphertext bytes for",
-    )
+) -> LatencyCrossoverSummary:
 
-
-def compute_cpu_crossover_summary(
-    results: dict[str, BenchmarkMetrics],
-    config: Config,
-) -> CpuCrossoverSummary:
-
-    summary = CpuCrossoverSummary()
+    summary = LatencyCrossoverSummary()
 
     subscriber_values = [float(count) for count in config.subscriber_counts]
     summary.measured_encrypt_micros = [
         calculate_mean_micros(
             results,
             generate_case_id("encrypt", RSA_SUBSCRIBERS, count),
-            config.paths.bench_output,
         )
         for count in config.subscriber_counts
     ]
@@ -306,14 +282,12 @@ def compute_cpu_crossover_summary(
     summary.rsa_decrypt_micros = calculate_mean_micros(
         results,
         generate_case_id("decrypt", RSA_KEY_BITS, config.fixed_rsa_key_bits),
-        config.paths.bench_output,
     )
 
     def cpabe_micros(operation: str, attribute_count: int) -> float:
         return calculate_mean_micros(
             results,
             generate_case_id(operation, CPABE_ATTRIBUTES, attribute_count),
-            config.paths.bench_output,
         )
 
     summary.cpabe_encrypt_micros_min = cpabe_micros("encrypt", config.min_attributes)
@@ -339,18 +313,26 @@ def compute_cpu_crossover_summary(
     return summary
 
 
-def compute_cpabe_marginal_slopes(
+def cpabe_fit_slope(
     results: dict[str, BenchmarkMetrics],
     config: Config,
-) -> CpabeMarginalSlopes:
+) -> CPABEFittedSlopes:
 
     def fit(operation: str, unit: str, divisor: float = 1.0) -> LinearFit:
-        cases = sweep_cases(operation, CPABE_ATTRIBUTES, config.attribute_counts)
+        cases: list[tuple[int, str]] = []
+
+        for attribute_count in config.attribute_counts:
+            cases.append(
+                (
+                    attribute_count,
+                    generate_case_id(operation, CPABE_ATTRIBUTES, attribute_count),
+                )
+            )
         return fit_linear_regression(
             *produce_summary_no_ci(results, cases, unit, divisor)
         )
 
-    return CpabeMarginalSlopes(
+    return CPABEFittedSlopes(
         encrypt=fit("encrypt", NS_PER_OP, NS_PER_MICROSECOND),
         decrypt=fit("decrypt", NS_PER_OP, NS_PER_MICROSECOND),
         key_issuance=fit("keygen", NS_PER_OP, NS_PER_MICROSECOND),
@@ -359,14 +341,22 @@ def compute_cpabe_marginal_slopes(
     )
 
 
-def compute_rsa_subscriber_slopes(
+def rsa_fit_slope(
     results: dict[str, BenchmarkMetrics],
     config: Config,
-) -> RsaSubscriberSlopes:
+) -> RSAFittedSlopes:
 
-    cases = sweep_cases("encrypt", RSA_SUBSCRIBERS, config.subscriber_counts)
+    cases: list[tuple[int, str]] = []
 
-    return RsaSubscriberSlopes(
+    for subscriber_count in config.subscriber_counts:
+        cases.append(
+            (
+                subscriber_count,
+                generate_case_id("encrypt", RSA_SUBSCRIBERS, subscriber_count),
+            )
+        )
+
+    return RSAFittedSlopes(
         encrypt=fit_linear_regression(
             *produce_summary_no_ci(results, cases, NS_PER_OP, NS_PER_MICROSECOND)
         ),
@@ -374,8 +364,6 @@ def compute_rsa_subscriber_slopes(
             results,
             generate_case_id("encrypt", RSA_SUBSCRIBERS, config.subscriber_counts[0]),
             CIPHERTEXT_BYTES,
-            config.paths.bench_output,
-            "ciphertext bytes for",
         ),
     )
 
@@ -419,7 +407,15 @@ def plot_sweep(
 
     for operation in sweep_operations:
 
-        cases = sweep_cases(operation, sweep_name, sweep_values)
+        cases: list[tuple[int, str]] = []
+
+        for sweep_value in sweep_values:
+            cases.append(
+                (
+                    sweep_value,
+                    generate_case_id(operation, sweep_name, sweep_value),
+                )
+            )
 
         if operation == "decrypt" and fixed_decrypt_case_id is not None:
             cases = [(value, fixed_decrypt_case_id) for value, _ in cases]
@@ -464,9 +460,17 @@ def plot_sweep(
 
     for operation, unit, label, color, always_draw in SIZE_SERIES:
 
-        x_values, sizes = produce_summary_no_ci(
-            results, sweep_cases(operation, sweep_name, sweep_values), unit
-        )
+        size_cases: list[tuple[int, str]] = []
+
+        for sweep_value in sweep_values:
+            size_cases.append(
+                (
+                    sweep_value,
+                    generate_case_id(operation, sweep_name, sweep_value),
+                )
+            )
+
+        x_values, sizes = produce_summary_no_ci(results, size_cases, unit)
 
         if always_draw or len(x_values) > 0:
             draw_summary_no_ci(size_axis, x_values, sizes, label, color)
@@ -487,8 +491,8 @@ def plot_sweep(
     save_figure(figure, output_path)
 
 
-def plot_bandwidth_crossover(
-    summary: CrossoverSummary,
+def plot_ciphertext_size_crossover(
+    summary: CiphertextSizeCrossoverSummary,
     config: Config,
 ) -> None:
 
@@ -536,11 +540,11 @@ def plot_bandwidth_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(BANDWIDTH_CROSSOVER_PLOT))
+    save_figure(figure, config.paths.figure(CIPHERTEXT_SIZE_CROSSOVER_PLOT))
 
 
-def plot_encrypt_cpu_crossover(
-    summary: CpuCrossoverSummary,
+def plot_encrypt_latency_crossover(
+    summary: LatencyCrossoverSummary,
     config: Config,
 ) -> None:
 
@@ -605,17 +609,25 @@ def plot_encrypt_cpu_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(ENCRYPT_CPU_CROSSOVER_PLOT))
+    save_figure(figure, config.paths.figure(ENCRYPT_LATENCY_CROSSOVER_PLOT))
 
 
-def plot_decrypt_cpu_crossover(
+def plot_decrypt_latency_crossover(
     results: dict[str, BenchmarkMetrics],
     config: Config,
 ) -> None:
 
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
-    cpabe_cases = sweep_cases("decrypt", CPABE_ATTRIBUTES, config.attribute_counts)
+    cpabe_cases: list[tuple[int, str]] = []
+
+    for attribute_count in config.attribute_counts:
+        cpabe_cases.append(
+            (
+                attribute_count,
+                generate_case_id("decrypt", CPABE_ATTRIBUTES, attribute_count),
+            )
+        )
 
     for _, benchmark_case_id in cpabe_cases:
         if benchmark_case_id not in results:
@@ -630,7 +642,7 @@ def plot_decrypt_cpu_crossover(
 
     draw_summary(axis, cpabe_series, "CP-ABE", VIOLET, linewidth=2.0)
 
-    largest_value = series_maximum([cpabe_series])
+    largest_value = calculate_y_axis_overhead([cpabe_series])
 
     for index, rsa_key_bits in enumerate(config.rsa_key_bits):
 
@@ -681,7 +693,7 @@ def plot_decrypt_cpu_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(DECRYPT_CPU_CROSSOVER_PLOT))
+    save_figure(figure, config.paths.figure(DECRYPT_LATENCY_CROSSOVER_PLOT))
 
 
 def plot_encrypt_decrypt_asymmetry(
@@ -693,7 +705,6 @@ def plot_encrypt_decrypt_asymmetry(
         return calculate_mean_micros(
             results,
             generate_case_id(operation, sweep_name, sweep_value),
-            config.paths.bench_output,
         )
 
     scheme_labels = [
@@ -775,7 +786,7 @@ def plot_encrypt_decrypt_asymmetry(
     save_figure(figure, config.paths.figure(ASYMMETRY_PLOT))
 
 
-def build_sweep_table(
+def build_table(
     results: dict[str, BenchmarkMetrics],
     config: Config,
     sweep_name: str,
@@ -823,7 +834,7 @@ def build_sweep_table(
             ]
         )
 
-    return render_table(
+    return build_html_table(
         [
             value_header.upper(),
             "LATENCY (µs/op)",
@@ -834,7 +845,7 @@ def build_sweep_table(
     )
 
 
-def build_fanout_placeholders(
+def build_rsa_circle_visualization(
     results: dict[str, BenchmarkMetrics],
     config: Config,
 ) -> dict[str, str]:
@@ -847,15 +858,11 @@ def build_fanout_placeholders(
         results,
         fanout_case_id,
         CIPHERTEXT_BYTES,
-        config.paths.bench_output,
-        "ciphertext bytes for",
     )
     total_bytes = calculate_mean(
         results,
         fanout_case_id,
         TOTAL_CIPHERTEXT_BYTES,
-        config.paths.bench_output,
-        "total ciphertext bytes for",
     )
 
     single_diameter_px = max(
@@ -878,12 +885,12 @@ def build_fanout_placeholders(
 def write_html_report(
     results: dict[str, BenchmarkMetrics],
     config: Config,
-    crossover_summary: CrossoverSummary,
-    cpu_crossover_summary: CpuCrossoverSummary,
+    crossover_summary: CiphertextSizeCrossoverSummary,
+    cpu_crossover_summary: LatencyCrossoverSummary,
 ) -> None:
 
-    cpabe = compute_cpabe_marginal_slopes(results, config)
-    rsa = compute_rsa_subscriber_slopes(results, config)
+    cpabe = cpabe_fit_slope(results, config)
+    rsa = rsa_fit_slope(results, config)
 
     def micros_slope(fit: LinearFit) -> str:
         return f"+{format_mean_with_ci(fit.slope, fit.slope_ci, decimals=0)} µs"
@@ -894,7 +901,7 @@ def write_html_report(
     def table(
         sweep_name, sweep_values, operation, value_header, *size_columns, fixed=None
     ):
-        return build_sweep_table(
+        return build_table(
             results,
             config,
             sweep_name,
@@ -906,10 +913,10 @@ def write_html_report(
         )
 
     placeholders = {
-        **common_placeholders(
+        **build_html_generic_data(
             config.runs, config.t_critical, calculate_total_iterations(results)
         ),
-        **build_fanout_placeholders(results, config),
+        **build_rsa_circle_visualization(results, config),
         "CpabeEncryptTable": table(
             CPABE_ATTRIBUTES,
             config.attribute_counts,
@@ -972,10 +979,10 @@ def write_html_report(
         "CpabePlot": CPABE_PLOT,
         "RsaSubscribersPlot": RSA_SUBSCRIBERS_PLOT,
         "RsaKeyBitsPlot": RSA_KEY_BITS_PLOT,
-        "BandwidthCrossoverPlot": BANDWIDTH_CROSSOVER_PLOT,
+        "BandwidthCrossoverPlot": CIPHERTEXT_SIZE_CROSSOVER_PLOT,
         "AsymmetryPlot": ASYMMETRY_PLOT,
-        "EncryptCpuCrossoverPlot": ENCRYPT_CPU_CROSSOVER_PLOT,
-        "DecryptCpuCrossoverPlot": DECRYPT_CPU_CROSSOVER_PLOT,
+        "EncryptCpuCrossoverPlot": ENCRYPT_LATENCY_CROSSOVER_PLOT,
+        "DecryptCpuCrossoverPlot": DECRYPT_LATENCY_CROSSOVER_PLOT,
         "CpabeEncryptSlope": micros_slope(cpabe.encrypt),
         "CpabeDecryptSlope": micros_slope(cpabe.decrypt),
         "CpabeKeyIssuanceSlope": micros_slope(cpabe.key_issuance),
@@ -1005,12 +1012,12 @@ def write_html_report(
         "DecryptPenaltyMax": f"{cpu_crossover_summary.decrypt_penalty_max:,.1f}",
     }
 
-    render_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.paths.template, config.paths.report, placeholders)
 
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
 
     plot_sweep(
         results,
@@ -1047,13 +1054,13 @@ def main() -> None:
         split_keygen_latency=True,
     )
 
-    crossover_summary = compute_crossover_summary(results, config)
+    crossover_summary = calculate_ciphertext_size_crossover(results, config)
 
-    cpu_crossover_summary = compute_cpu_crossover_summary(results, config)
+    cpu_crossover_summary = compute_latency_crossover_summary(results, config)
 
-    plot_bandwidth_crossover(crossover_summary, config)
-    plot_encrypt_cpu_crossover(cpu_crossover_summary, config)
-    plot_decrypt_cpu_crossover(results, config)
+    plot_ciphertext_size_crossover(crossover_summary, config)
+    plot_encrypt_latency_crossover(cpu_crossover_summary, config)
+    plot_decrypt_latency_crossover(results, config)
     plot_encrypt_decrypt_asymmetry(results, config)
 
     write_html_report(results, config, crossover_summary, cpu_crossover_summary)

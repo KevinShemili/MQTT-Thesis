@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from matplotlib.ticker import FuncFormatter
-
 from reporting.benchmark import (
     MB_PER_SECOND,
     NS_PER_MICROSECOND,
@@ -16,23 +14,32 @@ from reporting.benchmark import (
     calculate_iterations,
     calculate_total_iterations,
 )
-from reporting.charts import AMBER, VIOLET, Axes, apply_value_grid
+from reporting.charts import (
+    AMBER,
+    VIOLET,
+    Axes,
+    apply_value_grid,
+    draw_two_panel_figure,
+)
 from reporting.environment import (
     FilePaths,
     parse_int_env,
     parse_int_list_env,
     resolve_paths,
 )
-from reporting.formatting import format_byte_size_compact, format_mean_with_ci
-from reporting.html import common_placeholders, render_report, render_table
-from reporting.panels import render_operation_panels
+from reporting.formatting import (
+    KILOBYTE,
+    format_byte_size_compact,
+    format_mean_with_ci,
+)
+from reporting.html import build_html_generic_data, build_html_report, build_html_table
 from reporting.statistics import (
     mean,
     mean_and_confidence_interval,
-    student_t_critical_95,
+    get_student_t_critical_95,
 )
 
-SLUG = "aes-ascon"
+SCENARIO = "aes-ascon"
 RESULT_DIR_VAR = "AES_ASCON_RESULT_DIR"
 TEMPLATE_NAME = "aes_ascon_template.html"
 
@@ -45,13 +52,17 @@ OPERATIONS = ["encrypt", "decrypt"]
 ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
 FALLBACK_COLOR = VIOLET
 
-SPEC = BenchmarkParserConfig(
+AXIS_TICK_STEP = 16 * KILOBYTE
+AXIS_HEADROOM = 1.03
+
+CONFIG = BenchmarkParserConfig(
     prefix="BenchmarkAESASCON",
     value_suffix="B",
     required_units=(NS_PER_OP, MB_PER_SECOND, WIRE_OVERHEAD_BYTES),
 )
 
 
+# Stores all configuration needed to process AES vs. ASCON benchmark
 @dataclass(frozen=True)
 class Config:
     runs: int
@@ -65,9 +76,9 @@ def load_config() -> Config:
 
     return Config(
         runs=runs,
-        t_critical=student_t_critical_95(runs - 1),
+        t_critical=get_student_t_critical_95(runs - 1),
         payload_sizes=parse_int_list_env("AES_ASCON_PAYLOAD_SIZES"),
-        paths=resolve_paths(SLUG, RESULT_DIR_VAR, TEMPLATE_NAME),
+        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
     )
 
 
@@ -76,12 +87,16 @@ def algorithm_color(algorithm: str) -> str:
 
 
 def configure_payload_axis(config: Config, axis: Axes) -> None:
-    axis.set_xticks(config.payload_sizes)
-    axis.set_xlim(left=0)
-    axis.xaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: format_byte_size_compact(int(value)))
+
+    max_payload_size = config.payload_sizes[-1]
+    tick_values = list(range(0, max_payload_size + AXIS_TICK_STEP, AXIS_TICK_STEP))
+
+    axis.set_xticks(tick_values)
+    axis.set_xticklabels(
+        ["0" if tick == 0 else format_byte_size_compact(tick) for tick in tick_values]
     )
-    axis.tick_params(axis="x", rotation=30)
+    axis.set_xlim(0, max_payload_size * AXIS_HEADROOM)
+
     apply_value_grid(axis)
 
 
@@ -107,7 +122,7 @@ def plot_metric(
             divisor,
         )
 
-    render_operation_panels(
+    draw_two_panel_figure(
         OPERATIONS,
         ALGORITHMS,
         collect,
@@ -159,7 +174,7 @@ def build_table(
             ]
         )
 
-    return render_table(
+    return build_html_table(
         [
             "Payload",
             "Latency (ns/op)",
@@ -174,7 +189,7 @@ def build_table(
 def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
     placeholders = {
-        **common_placeholders(
+        **build_html_generic_data(
             config.runs, config.t_critical, calculate_total_iterations(results)
         ),
         "EncryptAesTable": build_table(results, config, "encrypt", "AES-GCM"),
@@ -185,12 +200,12 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
         "ThroughputPlot": THROUGHPUT_PLOT,
     }
 
-    render_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.paths.template, config.paths.report, placeholders)
 
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
 
     plot_metric(
         results,

@@ -25,6 +25,7 @@ from reporting.charts import (
     draw_summary_no_ci,
     plt,
     save_figure,
+    draw_two_panel_figure,
 )
 from reporting.environment import (
     FilePaths,
@@ -33,12 +34,11 @@ from reporting.environment import (
     resolve_paths,
 )
 from reporting.formatting import format_mean_with_ci
-from reporting.html import common_placeholders, render_report, render_table
-from reporting.panels import render_operation_panels
+from reporting.html import build_html_generic_data, build_html_report, build_html_table
 from reporting.statistics import (
     mean,
     mean_and_confidence_interval,
-    student_t_critical_95,
+    get_student_t_critical_95,
 )
 
 SCENARIO = "json-cbor"
@@ -58,7 +58,7 @@ FORMAT_LABELS = {"CBORKeyAsInt": "CBOR (int keys)"}
 
 X_LABEL = "Attribute count"
 
-SPEC = BenchmarkParserConfig(
+CONFIG = BenchmarkParserConfig(
     prefix="BenchmarkEnvelope",
     value_suffix="Attrs",
     required_units=(NS_PER_OP, ENVELOPE_BYTES, RAW_BYTES),
@@ -78,7 +78,7 @@ def load_config() -> Config:
 
     return Config(
         runs=runs,
-        t_critical=student_t_critical_95(runs - 1),
+        t_critical=get_student_t_critical_95(runs - 1),
         attribute_counts=parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS"),
         paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
     )
@@ -115,7 +115,7 @@ def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
             NS_PER_MICROSECOND,
         )
 
-    render_operation_panels(
+    draw_two_panel_figure(
         OPERATIONS,
         FORMATS,
         collect,
@@ -207,7 +207,7 @@ def build_table(
             ]
         )
 
-    return render_table(
+    return build_html_table(
         [
             "Attributes",
             "Latency (ns/op)",
@@ -235,7 +235,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
     }
 
     placeholders = {
-        **common_placeholders(
+        **build_html_generic_data(
             config.runs, config.t_critical, calculate_total_iterations(results)
         ),
         **tables,
@@ -243,12 +243,12 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
         "SizePlot": SIZE_PLOT,
     }
 
-    render_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.paths.template, config.paths.report, placeholders)
 
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
 
     plot_latency(results, config)
     plot_size(results, config)

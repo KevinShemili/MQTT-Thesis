@@ -1,4 +1,6 @@
 import matplotlib
+from typing import Callable, Iterable
+from .benchmark import BenchmarkSummaryData
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -104,6 +106,72 @@ def mark_crossover(axis: Axes, x_value: float, y_value: float, label: str) -> No
         xytext=(6, 8),
         fontsize=9,
         fontweight="bold",
+    )
+
+
+# Helper that creates a two-panel figure, where each panel represents one operation
+# ex. "serialize" and "deserialize", and each panel draws the same set of named series
+# ex. JSON, CBOR, and CBOR (int keys)
+def draw_two_panel_figure(
+    operations: list[str],
+    names: list[str],
+    collect: Callable[[str, str], BenchmarkSummaryData],
+    *,
+    title: str,
+    x_label: str,
+    y_label: str,
+    color_for: Callable[[str], str],
+    configure_axis: Callable[[Axes], None],
+    output_path: str,
+    label_for: Callable[[str], str] | None = None,
+    legend_kwargs: dict | None = None,
+    on_panel: (
+        Callable[[Axes, str, list[tuple[str, BenchmarkSummaryData]]], None] | None
+    ) = None,
+) -> None:
+
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+
+    for axis, operation in zip(axes, operations):
+
+        drawn: list[tuple[str, BenchmarkSummaryData]] = []
+
+        for name in names:
+            series = collect(operation, name)
+            label = label_for(name) if label_for is not None else name
+            draw_summary(axis, series, label, color_for(name))
+            drawn.append((name, series))
+
+        axis.set_title(operation.capitalize(), fontsize=11)
+        axis.set_xlabel(x_label)
+        axis.set_ylabel(y_label)
+
+        axis.set_ylim(bottom=0)
+
+        configure_axis(axis)
+        axis.legend(
+            **(legend_kwargs if legend_kwargs is not None else {"fontsize": 10})
+        )
+
+        if on_panel is not None:
+            on_panel(axis, operation, drawn)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+# Finds the highest visible value across the series, including the top of each confidence interval.
+# Used to choose a Y-axis limit that does not cut off any error bars
+def calculate_y_axis_overhead(series_list: Iterable[BenchmarkSummaryData]) -> float:
+
+    return max(
+        (
+            mean_value + ci_half
+            for series in series_list
+            for mean_value, ci_half in zip(series.means, series.ci_halfs)
+        ),
+        default=0.0,
     )
 
 

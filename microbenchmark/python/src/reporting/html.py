@@ -3,7 +3,8 @@ from typing import Iterable, Sequence
 CONFIDENCE_LEVEL = "95%"
 
 
-def render_table(headers: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
+# Builds HTML table, given header names and row values
+def build_html_table(headers: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
 
     lines = ["<table>", "<thead>", "<tr>"]
     lines += [f"<th>{header}</th>" for header in headers]
@@ -19,7 +20,11 @@ def render_table(headers: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
     return "\n".join(lines)
 
 
-def common_placeholders(
+# Report values shared by all scenarios:
+# 1. runs
+# 2. t_critical
+# 3. iteration_total
+def build_html_generic_data(
     runs: int,
     t_critical: float,
     iteration_total: int,
@@ -33,7 +38,8 @@ def common_placeholders(
     }
 
 
-def render_report(
+# Builds final HTML report by replacing template placeholders with actual values
+def build_html_report(
     template_path: str,
     output_path: str,
     placeholders: dict[str, str],

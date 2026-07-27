@@ -21,6 +21,8 @@ from reporting.charts import (
     Axes,
     apply_value_grid,
     draw_summary,
+    draw_two_panel_figure,
+    calculate_y_axis_overhead,
 )
 from reporting.environment import (
     FilePaths,
@@ -34,15 +36,14 @@ from reporting.formatting import (
     format_byte_size_compact,
     format_mean_with_ci,
 )
-from reporting.html import common_placeholders, render_report, render_table
-from reporting.panels import render_operation_panels, series_maximum
+from reporting.html import build_html_generic_data, build_html_report, build_html_table
 from reporting.statistics import (
     mean,
     mean_and_confidence_interval,
-    student_t_critical_95,
+    get_student_t_critical_95,
 )
 
-SLUG = "payload-scaling"
+SCENARIO = "payload-scaling"
 RESULT_DIR_VAR = "PAYLOAD_SCALING_RESULT_DIR"
 TEMPLATE_NAME = "payload_scaling_template.html"
 
@@ -65,7 +66,7 @@ AXIS_HEADROOM = 1.03
 ZOOM_BOUNDS = [0.08, 0.08, 0.47, 0.32]
 ZOOM_HEADROOM = 1.10
 
-SPEC = BenchmarkParserConfig(
+CONFIG = BenchmarkParserConfig(
     prefix="BenchmarkPayloadScaling",
     value_suffix="B",
     required_units=(NS_PER_OP, MB_PER_SECOND),
@@ -86,9 +87,9 @@ def load_config() -> Config:
 
     return Config(
         runs=runs,
-        t_critical=student_t_critical_95(runs - 1),
+        t_critical=get_student_t_critical_95(runs - 1),
         payload_sizes=parse_int_list_env("PAYLOAD_SCALING_PAYLOAD_SIZES"),
-        paths=resolve_paths(SLUG, RESULT_DIR_VAR, TEMPLATE_NAME),
+        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
     )
 
 
@@ -153,7 +154,7 @@ def add_zoom_inset(
         )
 
     zoom_axis.set_ylim(
-        0.0, series_maximum(series for _, series in zoomed) * ZOOM_HEADROOM
+        0.0, calculate_y_axis_overhead(series for _, series in zoomed) * ZOOM_HEADROOM
     )
     zoom_axis.set_xlim(0, config.payload_sizes[-1] * AXIS_HEADROOM)
     zoom_axis.set_xticks([])
@@ -187,7 +188,7 @@ def plot_metric(
             divisor,
         )
 
-    render_operation_panels(
+    draw_two_panel_figure(
         OPERATIONS,
         SCHEMES,
         collect,
@@ -245,7 +246,7 @@ def build_table(
             ]
         )
 
-    return render_table(
+    return build_html_table(
         [
             "Raw Size",
             "Latency (µs/op)",
@@ -268,7 +269,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
     }
 
     placeholders = {
-        **common_placeholders(
+        **build_html_generic_data(
             config.runs, config.t_critical, calculate_total_iterations(results)
         ),
         **tables,
@@ -276,12 +277,12 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
         "ThroughputPlot": THROUGHPUT_PLOT,
     }
 
-    render_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.paths.template, config.paths.report, placeholders)
 
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, SPEC)
+    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
 
     plot_metric(
         results,

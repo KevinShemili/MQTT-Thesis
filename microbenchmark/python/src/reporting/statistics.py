@@ -20,6 +20,10 @@ STUDENT_T_CRITICAL_95: dict[int, float] = {
 }
 
 
+# Result of fitting a straight line to measured benchmark data
+# 1. slope describes how much the measured value changes for every one-unit increase in x
+# 2. r_squared indicates how closely the measured points follow the fitted linear relationship
+# 3. slope_ci is the 95% confidence-interval half-width for the calculated slope
 @dataclass(frozen=True)
 class LinearFit:
     slope: float
@@ -27,7 +31,7 @@ class LinearFit:
     slope_ci: float
 
 
-def student_t_critical_95(degrees_of_freedom: int) -> float:
+def get_student_t_critical_95(degrees_of_freedom: int) -> float:
     if degrees_of_freedom not in STUDENT_T_CRITICAL_95:
         raise ValueError(f"Unsupported degrees of freedom: {degrees_of_freedom}")
 
@@ -44,23 +48,21 @@ def mean_and_confidence_interval(
 ) -> tuple[float, float]:
 
     value_count = len(values)
-
-    # Mean gives the central estimate across repeated runs.
     mean_value = mean(values)
 
-    # Sum squared deviations to measure run-to-run spread.
+    # Σ(xᵢ - x̄)²
     squared_deviation_sum = sum((value - mean_value) ** 2 for value in values)
 
-    # Sample variance uses n - 1 because runs are samples, not the full population.
+    # s² = Σ(xᵢ - x̄)² / (n - 1)
     variance = squared_deviation_sum / (value_count - 1)
 
-    # Standard deviation describes spread between independent runs.
+    # s = √s²
     standard_deviation = math.sqrt(variance)
 
-    # Standard error describes uncertainty around the mean.
+    # SE = s / √n
     standard_error = standard_deviation / math.sqrt(value_count)
 
-    # CI half-width scales standard error by the chosen Student t value.
+    # CI (95%) = x̄ ± t(0.975, n-1) × (s / √n)
     ci_half = t_critical * standard_error
 
     return mean_value, ci_half
@@ -70,38 +72,43 @@ def fit_linear_regression(x_values: list[float], y_values: list[float]) -> Linea
 
     x_mean = mean(x_values)
     y_mean = mean(y_values)
+    point_count = len(x_values)
 
-    # Ordinary least squares: slope = covariance(x, y) / variance(x).
+    # Σ(xᵢ - x̄)(yᵢ - ȳ)
     numerator = sum(
         (x - x_mean) * (y - y_mean) for x, y in zip(x_values, y_values, strict=True)
     )
+
+    # Σ(xᵢ - x̄)²
     denominator = sum((x - x_mean) ** 2 for x in x_values)
 
+    # m = Σ(xᵢ - x̄)(yᵢ - ȳ) / Σ(xᵢ - x̄)²
     slope = numerator / denominator
+
+    # b = ȳ - mx̄
     intercept = y_mean - slope * x_mean
 
-    # R-squared: how much of the spread in y is explained by the fitted line.
+    # SSE = Σ[yᵢ - (mxᵢ + b)]²
     sum_squared_residuals = sum(
         (y - (slope * x + intercept)) ** 2
         for x, y in zip(x_values, y_values, strict=True)
     )
+
+    # SST = Σ(yᵢ - ȳ)²
     sum_squared_total = sum((y - y_mean) ** 2 for y in y_values)
 
+    # R² = 1 - (SSE / SST)
     r_squared = 1.0 - (sum_squared_residuals / sum_squared_total)
 
-    # Residual variance uses n - 2 degrees of freedom: two parameters (slope, intercept) are fit.
-    point_count = len(x_values)
+    # s² = SSE / (n - 2)
     residual_variance = sum_squared_residuals / (point_count - 2)
 
-    # Standard error of the slope, from the standard OLS formula.
+    # SE = √[s² / Σ(xᵢ - x̄)²]
     slope_standard_error = math.sqrt(residual_variance / denominator)
 
     return LinearFit(
         slope=slope,
         r_squared=r_squared,
-        slope_ci=slope_confidence_interval(slope_standard_error, point_count),
+        # CI (95%) = m ± t(0.975, n-2) × SE
+        slope_ci=(get_student_t_critical_95(point_count - 2) * slope_standard_error),
     )
-
-
-def slope_confidence_interval(slope_standard_error: float, point_count: int) -> float:
-    return student_t_critical_95(point_count - 2) * slope_standard_error

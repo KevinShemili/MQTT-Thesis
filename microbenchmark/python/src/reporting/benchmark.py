@@ -150,16 +150,12 @@ def calculate_mean(
     results: dict[str, BenchmarkMetrics],
     benchmark_case_id: str,
     unit: str,
-    bench_file: str,
-    missing_label: str = "benchmark case",
 ) -> float:
 
     metrics = results.get(benchmark_case_id)
 
     if metrics is None or len(metrics.samples(unit)) == 0:
-        sys.exit(
-            f"[error] missing {missing_label} '{benchmark_case_id}' in {bench_file}"
-        )
+        sys.exit()
 
     return mean(metrics.samples(unit))
 
@@ -168,11 +164,12 @@ def calculate_mean(
 def calculate_mean_micros(
     results: dict[str, BenchmarkMetrics],
     benchmark_case_id: str,
-    bench_file: str,
 ) -> float:
-    return calculate_mean(results, benchmark_case_id, NS_PER_OP, bench_file) / (
-        NS_PER_MICROSECOND
-    )
+    return calculate_mean(
+        results,
+        benchmark_case_id,
+        NS_PER_OP,
+    ) / (NS_PER_MICROSECOND)
 
 
 # Collect multiple BenchmarkMetrics into a single final summary, indicating mean and confidence interval
