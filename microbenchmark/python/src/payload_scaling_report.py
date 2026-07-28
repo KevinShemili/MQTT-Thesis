@@ -232,14 +232,18 @@ def build_table(
             metrics.ns_per_op, config.t_critical
         )
 
-        overhead_percent = overhead_bytes / payload_size * 100.0
+        throughput_mean, throughput_ci = mean_and_confidence_interval(
+            metrics.samples(MB_PER_SECOND), config.t_critical
+        )
 
+        overhead_percent = overhead_bytes / payload_size * 100.0
         rows.append(
             [
                 format_byte_size(payload_size),
                 format_mean_with_ci(
                     latency_mean / NS_PER_MICROSECOND, latency_ci / NS_PER_MICROSECOND
                 ),
+                format_mean_with_ci(throughput_mean, throughput_ci, decimals=1),
                 format_byte_size(payload_size + overhead_bytes),
                 f"{overhead_percent:.2f}%" if overhead_percent >= 0.01 else "&lt;0.01%",
                 f"{calculate_iterations(metrics):,}",
@@ -250,6 +254,7 @@ def build_table(
         [
             "Raw Size",
             "Latency (µs/op)",
+            "Throughput (MB/s)",
             "Wire Size",
             "Overhead (%)",
             f"Iters (Σ{config.runs} runs)",
