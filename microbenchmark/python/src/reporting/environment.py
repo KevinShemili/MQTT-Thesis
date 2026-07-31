@@ -2,8 +2,7 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_RESULT_ROOT = "/results"
-DEFAULT_TEMPLATE_DIR = "/app/template"
-TEMPLATE_DIR_VAR = "TEMPLATE_DIR"
+TEMPLATE_DIR = "/app/template"
 BENCH_OUTPUT_NAME = "bench_output.txt"
 REPORT_NAME = "report.html"
 
@@ -30,14 +29,25 @@ class FilePaths:
         return os.path.join(self.result_dir, filename)
 
 
-# Resolves all standard file paths required by one benchmark scenario
-def resolve_paths(scenario: str, result_dir_var: str, template_name: str) -> FilePaths:
-    result_dir = os.environ.get(result_dir_var, f"{DEFAULT_RESULT_ROOT}/{scenario}")
-    template_dir = os.environ.get(TEMPLATE_DIR_VAR, DEFAULT_TEMPLATE_DIR)
+# Resolves all standard file paths required by one benchmark scenario.
+# Scenarios run in several variants ex. AES vs. ASCON pass result_dir_var to
+# redirect their output, everything else writes under the scenario name
+def resolve_paths(
+    scenario: str,
+    template_name: str,
+    result_dir_var: str | None = None,
+) -> FilePaths:
+
+    default_result_dir = f"{DEFAULT_RESULT_ROOT}/{scenario}"
+    result_dir = (
+        default_result_dir
+        if result_dir_var is None
+        else os.environ.get(result_dir_var, default_result_dir)
+    )
 
     return FilePaths(
         result_dir=result_dir,
         bench_output=os.path.join(result_dir, BENCH_OUTPUT_NAME),
         report=os.path.join(result_dir, REPORT_NAME),
-        template=os.path.join(template_dir, template_name),
+        template=os.path.join(TEMPLATE_DIR, template_name),
     )

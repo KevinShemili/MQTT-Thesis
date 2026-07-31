@@ -1,4 +1,3 @@
-import sys
 from dataclasses import dataclass, field
 from .statistics import mean, mean_and_confidence_interval
 
@@ -16,7 +15,8 @@ NS_PER_MICROSECOND = 1000.0
 # Represents data ready to be plotted
 # 1. sweep_values ex. 16, 32, 64, 128
 # 2. means are the mean results for each sweep value
-# 3. ci_halfs are the confidence-interval half-widths for each sweep value
+# 3. ci_halfs are the confidence-interval half-widths for each sweep value,
+#    left empty when the series is produced without a t multiplier
 @dataclass
 class BenchmarkSummaryData:
     sweep_values: list[float] = field(default_factory=list)
@@ -39,42 +39,43 @@ class BenchmarkMetrics:
     def ns_per_op(self) -> list[float]:
         return self.samples(NS_PER_OP)
 
+    # Measurements of one unit across the repeated runs. Units a benchmark case does not
+    # report at all ex. ciphertext size on a decrypt case simply yield no samples
     def samples(self, unit: str) -> list[float]:
-
-        values: list[float] = []
-
-        for run in self.runs:
-            if unit in run.measurements_by_unit:
-                values.append(run.measurements_by_unit[unit])
-
-        return values
-
-
-# How each row of benchmark's output is interpreted:
-# 1. Prefix identifies relevant benchmark lines
-# 2. Value suffix is stripped from the sweep value ex. "B" from "16B"
-# 3. Required units must be present in the benchmark output
-# 4. Optional units may be present in the benchmark output
-@dataclass(frozen=True)
-class BenchmarkParserConfig:
-    prefix: str
-    value_suffix: str = ""
-    required_units: tuple[str, ...] = (NS_PER_OP,)
-    optional_units: tuple[str, ...] = ()
+        return [
+            run.measurements_by_unit[unit]
+            for run in self.runs
+            if unit in run.measurements_by_unit
+        ]
 
 
 # Builds ID for identifying one benchmark case
 # Example: operation="encrypt", group="PSK", sweep_value=16 -> "encrypt/PSK/16".
-def generate_case_id(operation: str, group: str, sweep_value: int | str) -> str:
+def generate_case_id(operation: str, group: str, sweep_value: int) -> str:
     return f"{operation}/{group}/{sweep_value}"
+
+
+# Pairs every sweep value with its benchmark case ID, the form expected by produce_summary()
+def build_cases(
+    operation: str,
+    group: str,
+    sweep_values: list[int],
+) -> list[tuple[int, str]]:
+    return [
+        (sweep_value, generate_case_id(operation, group, sweep_value))
+        for sweep_value in sweep_values
+    ]
 
 
 # Reads benchmark's output file & converts its rows into structured BenchmarkMetrics objects, grouped by benchmark case IDs, so (case_id | BenchmarkMetrics).
 # A dictionary groups repeated benchmark runs by identifiers such as
 # "encrypt/PSK/16", with each entry containing iterations & measured values among repeated runs
+# 1. prefix identifies the relevant benchmark lines
+# 2. value_suffix is stripped from the sweep value ex. "B" from "16B"
 def parse_benchmark_file(
     filepath: str,
-    spec: BenchmarkParserConfig,
+    prefix: str,
+    value_suffix: str = "",
 ) -> dict[str, BenchmarkMetrics]:
 
     results: dict[str, BenchmarkMetrics] = {}
@@ -85,15 +86,15 @@ def parse_benchmark_file(
             fields = line.split()
 
             # Skip the goos/goarch/cpu
-            if len(fields) == 0 or not fields[0].startswith(spec.prefix):
+            if len(fields) == 0 or not fields[0].startswith(prefix):
                 continue
 
             # "BenchmarkPayloadScalingEncrypt/PSK/16B-4"
             # becomes operation="Encrypt", group="PSK", sweep_text="16B-4".
-            operation, group, sweep_text = fields[0][len(spec.prefix) :].split("/")[:3]
+            operation, group, sweep_text = fields[0][len(prefix) :].split("/")[:3]
 
             # Remove the Go CPU suffix such as "-4"
-            sweep_value = int(sweep_text.split("-")[0].removesuffix(spec.value_suffix))
+            sweep_value = int(sweep_text.split("-")[0].removesuffix(value_suffix))
 
             # Find the stored metrics for this benchmark case.
             # If this is its first occurrence, create an empty BenchmarkMetrics object.
@@ -103,27 +104,16 @@ def parse_benchmark_file(
             )
 
             # Convert the benchmark row's "<value> <unit>" pairs into measurements by unit.
-            line_samples: dict[str, float] = {}
+            measurements_by_unit: dict[str, float] = {}
 
             for index in range(2, len(fields) - 1, 2):
-                unit: str = fields[index + 1]
-                line_samples[unit] = float(fields[index])
-
-            # Keep only measurements configured for this benchmark scenario.
-            run_measurements: dict[str, float] = {}
-
-            for unit in spec.required_units:
-                run_measurements[unit] = line_samples[unit]
-
-            for unit in spec.optional_units:
-                if unit in line_samples:
-                    run_measurements[unit] = line_samples[unit]
+                measurements_by_unit[fields[index + 1]] = float(fields[index])
 
             # Store this benchmark output row as one complete repeated run.
             metrics.runs.append(
                 BenchmarkMetrics.SingleRun(
                     iteration_count=int(fields[1]),
-                    measurements_by_unit=run_measurements,
+                    measurements_by_unit=measurements_by_unit,
                 )
             )
 
@@ -132,12 +122,7 @@ def parse_benchmark_file(
 
 # Total iterations considering also total number of runs
 def calculate_iterations(metrics: BenchmarkMetrics) -> int:
-    iteration_total: int = 0
-
-    for run in metrics.runs:
-        iteration_total += run.iteration_count
-
-    return iteration_total
+    return sum(run.iteration_count for run in metrics.runs)
 
 
 # Total iterations across all runs, across all benchmark cases
@@ -151,13 +136,7 @@ def calculate_mean(
     benchmark_case_id: str,
     unit: str,
 ) -> float:
-
-    metrics = results.get(benchmark_case_id)
-
-    if metrics is None or len(metrics.samples(unit)) == 0:
-        sys.exit()
-
-    return mean(metrics.samples(unit))
+    return mean(results[benchmark_case_id].samples(unit))
 
 
 # Same but returns µs/op instead of ns/op
@@ -165,19 +144,16 @@ def calculate_mean_micros(
     results: dict[str, BenchmarkMetrics],
     benchmark_case_id: str,
 ) -> float:
-    return calculate_mean(
-        results,
-        benchmark_case_id,
-        NS_PER_OP,
-    ) / (NS_PER_MICROSECOND)
+    return calculate_mean(results, benchmark_case_id, NS_PER_OP) / NS_PER_MICROSECOND
 
 
-# Collect multiple BenchmarkMetrics into a single final summary, indicating mean and confidence interval
+# Collect multiple BenchmarkMetrics into a single final summary.
+# Passing a t multiplier additionally fills in the confidence-interval half-widths
 def produce_summary(
     results: dict[str, BenchmarkMetrics],
     cases: list[tuple[int, str]],
     unit: str,
-    t_critical: float,
+    t_critical: float | None = None,
     divisor: float = 1.0,
 ) -> BenchmarkSummaryData:
 
@@ -185,38 +161,16 @@ def produce_summary(
 
     for sweep_value, benchmark_case_id in cases:
 
-        metrics = results.get(benchmark_case_id)
-        if metrics is None:
-            continue
-
-        samples: list[float] = metrics.samples(unit)
-        mean_value, ci_half = mean_and_confidence_interval(samples, t_critical)
+        samples = results[benchmark_case_id].samples(unit)
 
         summary.sweep_values.append(sweep_value)
+
+        if t_critical is None:
+            summary.means.append(mean(samples) / divisor)
+            continue
+
+        mean_value, ci_half = mean_and_confidence_interval(samples, t_critical)
         summary.means.append(mean_value / divisor)
         summary.ci_halfs.append(ci_half / divisor)
 
     return summary
-
-
-# Like produce_summary() but returns just means without CIs
-def produce_summary_no_ci(
-    results: dict[str, BenchmarkMetrics],
-    cases: list[tuple[int, str]],
-    unit: str,
-    divisor: float = 1.0,
-) -> tuple[list[float], list[float]]:
-
-    x_values: list[float] = []
-    mean_values: list[float] = []
-
-    for sweep_value, benchmark_case_id in cases:
-
-        metrics = results.get(benchmark_case_id)
-        if metrics is None or len(metrics.samples(unit)) == 0:
-            continue
-
-        x_values.append(sweep_value)
-        mean_values.append(mean(metrics.samples(unit)) / divisor)
-
-    return x_values, mean_values

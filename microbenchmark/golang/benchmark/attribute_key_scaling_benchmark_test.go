@@ -54,10 +54,11 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 2: RSA scaling subscriber count
-	for _, subscriberCount := range config.SubscriberCountList {
+	// Size of a single wrapped key, directly comparable to CP-ABE's single ciphertext.
+	// Fixed by the key size, so measured once outside the sweep
+	singleCiphertextSize := len(rsaSubscribers[0].Encrypt(aesKey))
 
-		// Size of a single wrapped key, directly comparable to CP-ABE's single ciphertext
-		singleCiphertextSize := len(rsaSubscribers[0].Encrypt(aesKey))
+	for _, subscriberCount := range config.SubscriberCountList {
 
 		// However, in RSA each one gets its own key
 		totalCiphertextSize := subscriberCount * singleCiphertextSize
@@ -114,17 +115,21 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 2: RSA scaling subscriber count
-	// In RSA scaling subscribers have no effect on decryption cost, so we just benchmark a single subscriber
-	rsa := cryptography.NewRSA(config.FixedRSAKeyBits)
-	rsaCiphertext := rsa.Encrypt(aesKey)
-	benchmark.Run(
-		fmt.Sprintf("RSASubscriberFixedKey/%d", config.FixedRSAKeyBits),
-		func(b *testing.B) {
+	// A subscriber only ever decrypts own session key, so cost is expected to stay flat.
+	// Each sweep point provisions its own subscriber and decrypts its own wrapped key, so a flat
+	// result reflects measured behaviour rather than a repetition of byte-identical work
+	for _, subscriberCount := range config.SubscriberCountList {
+
+		subscriber := cryptography.NewRSA(config.FixedRSAKeyBits)
+		subscriberCiphertext := subscriber.Encrypt(aesKey)
+
+		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
+
 			for b.Loop() {
-				rsa.Decrypt(rsaCiphertext)
+				subscriber.Decrypt(subscriberCiphertext)
 			}
-		},
-	)
+		})
+	}
 
 	// Scenario 3: RSA scaling key size
 	for _, rsaKeyBits := range config.RSAKeySizeList {

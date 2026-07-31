@@ -6,8 +6,8 @@ from reporting.benchmark import (
     NS_PER_OP,
     WIRE_OVERHEAD_BYTES,
     BenchmarkMetrics,
-    BenchmarkParserConfig,
     BenchmarkSummaryData,
+    build_cases,
     generate_case_id,
     produce_summary,
     parse_benchmark_file,
@@ -18,7 +18,7 @@ from reporting.charts import (
     AMBER,
     VIOLET,
     Axes,
-    apply_value_grid,
+    configure_byte_axis,
     draw_two_panel_figure,
 )
 from reporting.environment import (
@@ -29,7 +29,7 @@ from reporting.environment import (
 )
 from reporting.formatting import (
     KILOBYTE,
-    format_byte_size_compact,
+    format_byte_size,
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
@@ -50,16 +50,9 @@ ALGORITHMS = ["AES-GCM", "ASCON"]
 OPERATIONS = ["encrypt", "decrypt"]
 
 ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
-FALLBACK_COLOR = VIOLET
 
+BENCHMARK_PREFIX = "BenchmarkAESASCON"
 AXIS_TICK_STEP = 16 * KILOBYTE
-AXIS_HEADROOM = 1.03
-
-CONFIG = BenchmarkParserConfig(
-    prefix="BenchmarkAESASCON",
-    value_suffix="B",
-    required_units=(NS_PER_OP, MB_PER_SECOND, WIRE_OVERHEAD_BYTES),
-)
 
 
 # Stores all configuration needed to process AES vs. ASCON benchmark
@@ -78,26 +71,12 @@ def load_config() -> Config:
         runs=runs,
         t_critical=get_student_t_critical_95(runs - 1),
         payload_sizes=parse_int_list_env("AES_ASCON_PAYLOAD_SIZES"),
-        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
+        paths=resolve_paths(SCENARIO, TEMPLATE_NAME, RESULT_DIR_VAR),
     )
-
-
-def algorithm_color(algorithm: str) -> str:
-    return ALGORITHM_COLORS.get(algorithm, FALLBACK_COLOR)
 
 
 def configure_payload_axis(config: Config, axis: Axes) -> None:
-
-    max_payload_size = config.payload_sizes[-1]
-    tick_values = list(range(0, max_payload_size + AXIS_TICK_STEP, AXIS_TICK_STEP))
-
-    axis.set_xticks(tick_values)
-    axis.set_xticklabels(
-        ["0" if tick == 0 else format_byte_size_compact(tick) for tick in tick_values]
-    )
-    axis.set_xlim(0, max_payload_size * AXIS_HEADROOM)
-
-    apply_value_grid(axis)
+    configure_byte_axis(axis, config.payload_sizes[-1], AXIS_TICK_STEP)
 
 
 def plot_metric(
@@ -113,10 +92,7 @@ def plot_metric(
     def collect(operation: str, algorithm: str) -> BenchmarkSummaryData:
         return produce_summary(
             results,
-            [
-                (size, generate_case_id(operation, algorithm, size))
-                for size in config.payload_sizes
-            ],
+            build_cases(operation, algorithm, config.payload_sizes),
             unit,
             config.t_critical,
             divisor,
@@ -129,7 +105,7 @@ def plot_metric(
         title=title,
         x_label="Payload size",
         y_label=y_label,
-        color_for=algorithm_color,
+        colors=ALGORITHM_COLORS,
         configure_axis=lambda axis: configure_payload_axis(config, axis),
         output_path=output_path,
     )
@@ -146,30 +122,22 @@ def build_table(
 
     for payload_size in config.payload_sizes:
 
-        metrics = results.get(generate_case_id(operation, algorithm, payload_size))
-        if metrics is None:
-            continue
+        metrics = results[generate_case_id(operation, algorithm, payload_size)]
 
         latency_mean, latency_ci = mean_and_confidence_interval(
             metrics.ns_per_op, config.t_critical
         )
 
-        throughput, throughput_ci = 0.0, 0.0
-        if len(metrics.samples(MB_PER_SECOND)) > 0:
-            throughput, throughput_ci = mean_and_confidence_interval(
-                metrics.samples(MB_PER_SECOND), config.t_critical
-            )
-
-        overhead = 0.0
-        if len(metrics.samples(WIRE_OVERHEAD_BYTES)) > 0:
-            overhead = mean(metrics.samples(WIRE_OVERHEAD_BYTES))
+        throughput, throughput_ci = mean_and_confidence_interval(
+            metrics.samples(MB_PER_SECOND), config.t_critical
+        )
 
         rows.append(
             [
-                format_byte_size_compact(payload_size),
+                format_byte_size(payload_size, compact=True),
                 format_mean_with_ci(latency_mean, latency_ci),
                 format_mean_with_ci(throughput, throughput_ci, decimals=1),
-                f"{overhead:.0f}" if overhead != 0.0 else "—",
+                f"{mean(metrics.samples(WIRE_OVERHEAD_BYTES)):.0f}",
                 f"{calculate_iterations(metrics):,}",
             ]
         )
@@ -205,7 +173,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
+    results = parse_benchmark_file(config.paths.bench_output, BENCHMARK_PREFIX, "B")
 
     plot_metric(
         results,

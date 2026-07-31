@@ -6,10 +6,9 @@ from reporting.benchmark import (
     NS_PER_OP,
     RAW_BYTES,
     BenchmarkMetrics,
-    BenchmarkParserConfig,
     BenchmarkSummaryData,
+    build_cases,
     generate_case_id,
-    produce_summary_no_ci,
     produce_summary,
     parse_benchmark_file,
     calculate_iterations,
@@ -22,7 +21,7 @@ from reporting.charts import (
     Axes,
     PANEL_FIGURE_SIZE,
     apply_mesh_grid,
-    draw_summary_no_ci,
+    draw_summary,
     plt,
     save_figure,
     draw_two_panel_figure,
@@ -42,7 +41,6 @@ from reporting.statistics import (
 )
 
 SCENARIO = "json-cbor"
-RESULT_DIR_VAR = "JSON_CBOR_RESULT_DIR"
 TEMPLATE_NAME = "json_cbor_template.html"
 
 LATENCY_PLOT = "plot.png"
@@ -52,17 +50,11 @@ FORMATS = ["JSON", "CBOR", "CBORKeyAsInt"]
 OPERATIONS = ["serialize", "deserialize"]
 
 FORMAT_COLORS = {"JSON": AMBER, "CBOR": VIOLET, "CBORKeyAsInt": TEAL}
-FALLBACK_COLOR = TEAL
-
 FORMAT_LABELS = {"CBORKeyAsInt": "CBOR (int keys)"}
 
 X_LABEL = "Attribute count"
 
-CONFIG = BenchmarkParserConfig(
-    prefix="BenchmarkEnvelope",
-    value_suffix="Attrs",
-    required_units=(NS_PER_OP, ENVELOPE_BYTES, RAW_BYTES),
-)
+BENCHMARK_PREFIX = "BenchmarkEnvelope"
 
 
 @dataclass(frozen=True)
@@ -80,23 +72,8 @@ def load_config() -> Config:
         runs=runs,
         t_critical=get_student_t_critical_95(runs - 1),
         attribute_counts=parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS"),
-        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
+        paths=resolve_paths(SCENARIO, TEMPLATE_NAME),
     )
-
-
-def format_color(format_name: str) -> str:
-    return FORMAT_COLORS.get(format_name, FALLBACK_COLOR)
-
-
-def format_label(format_name: str) -> str:
-    return FORMAT_LABELS.get(format_name, format_name)
-
-
-def attribute_cases(config: Config, operation: str, format_name: str):
-    return [
-        (count, generate_case_id(operation, format_name, count))
-        for count in config.attribute_counts
-    ]
 
 
 def configure_attribute_axis(config: Config, axis: Axes) -> None:
@@ -109,7 +86,7 @@ def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
     def collect(operation: str, format_name: str) -> BenchmarkSummaryData:
         return produce_summary(
             results,
-            attribute_cases(config, operation, format_name),
+            build_cases(operation, format_name, config.attribute_counts),
             NS_PER_OP,
             config.t_critical,
             NS_PER_MICROSECOND,
@@ -122,8 +99,8 @@ def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
         title="JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
         x_label=X_LABEL,
         y_label="Latency (µs) ± 95% CI",
-        color_for=format_color,
-        label_for=format_label,
+        colors=FORMAT_COLORS,
+        labels=FORMAT_LABELS,
         configure_axis=lambda axis: configure_attribute_axis(config, axis),
         output_path=config.paths.figure(LATENCY_PLOT),
     )
@@ -140,21 +117,24 @@ def plot_size(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
     for format_name in FORMATS:
 
-        cases = attribute_cases(config, "serialize", format_name)
-        counts, envelope_sizes = produce_summary_no_ci(results, cases, ENVELOPE_BYTES)
-        _, raw_sizes = produce_summary_no_ci(results, cases, RAW_BYTES)
+        cases = build_cases("serialize", format_name, config.attribute_counts)
+        envelope_sizes = produce_summary(results, cases, ENVELOPE_BYTES)
+        raw_sizes = produce_summary(results, cases, RAW_BYTES)
 
-        format_tax = [
-            envelope - raw for envelope, raw in zip(envelope_sizes, raw_sizes)
-        ]
+        format_tax = BenchmarkSummaryData(
+            sweep_values=envelope_sizes.sweep_values,
+            means=[
+                envelope - raw
+                for envelope, raw in zip(envelope_sizes.means, raw_sizes.means)
+            ],
+        )
 
-        for axis, values in ((axes[0], envelope_sizes), (axes[1], format_tax)):
-            draw_summary_no_ci(
+        for axis, series in ((axes[0], envelope_sizes), (axes[1], format_tax)):
+            draw_summary(
                 axis,
-                counts,
-                values,
-                format_label(format_name),
-                format_color(format_name),
+                series,
+                FORMAT_LABELS.get(format_name, format_name),
+                FORMAT_COLORS[format_name],
             )
 
     for axis, title, y_label in (
@@ -183,9 +163,7 @@ def build_table(
 
     for attribute_count in config.attribute_counts:
 
-        metrics = results.get(generate_case_id(operation, format_name, attribute_count))
-        if metrics is None:
-            continue
+        metrics = results[generate_case_id(operation, format_name, attribute_count)]
 
         latency_mean, latency_ci = mean_and_confidence_interval(
             metrics.ns_per_op, config.t_critical
@@ -248,7 +226,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
+    results = parse_benchmark_file(config.paths.bench_output, BENCHMARK_PREFIX, "Attrs")
 
     plot_latency(results, config)
     plot_size(results, config)

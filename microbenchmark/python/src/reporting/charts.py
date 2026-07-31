@@ -1,12 +1,12 @@
 import matplotlib
 from typing import Callable, Iterable
-from .benchmark import BenchmarkSummaryData
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from .benchmark import BenchmarkSummaryData
+from .formatting import format_byte_size
 
 # Shared colors used across benchmark reports so the same kinds of series remain visually consistent
 AMBER = "#d97706"
@@ -18,8 +18,11 @@ BLUE = "#2563eb"
 FIGURE_DPI = 150
 PANEL_FIGURE_SIZE = (13, 5)
 
+# Leaves a little space between the last data point and the right edge of an axis
+AXIS_HEADROOM = 1.03
 
-# Draws one summary
+
+# Draws one summary, with error bars when the summary carries confidence intervals
 def draw_summary(
     axis: Axes,
     summary: BenchmarkSummaryData,
@@ -30,7 +33,7 @@ def draw_summary(
     axis.errorbar(
         summary.sweep_values,
         summary.means,
-        yerr=summary.ci_halfs,
+        yerr=summary.ci_halfs or None,
         label=label,
         color=color,
         **(
@@ -45,35 +48,28 @@ def draw_summary(
     )
 
 
-# Same as draw_summary() but without CIs
-def draw_summary_no_ci(
-    axis: Axes,
-    x_values: list[float],
-    y_values: list[float],
-    label: str,
-    color: str,
-    **overrides,
-) -> None:
-    axis.plot(
-        x_values,
-        y_values,
-        label=label,
-        color=color,
-        **(
-            {
-                "marker": "o",
-                "linewidth": 1.8,
-                "markersize": 5,
-            }
-            | overrides
-        ),
-    )
-
-
 # Adds horizontal grid lines to allow better interpretability of the vertical axis
 # linewidth controls how thick those grid lines are.
 def apply_value_grid(axis: Axes, linewidth: float = 0.5) -> None:
     axis.grid(True, axis="y", linestyle="-", linewidth=linewidth, alpha=0.18)
+
+
+# Configures a horizontal axis that measures payload sizes, labelling the ticks
+# in compact byte units ex. "16KB" rather than raw byte counts
+def configure_byte_axis(axis: Axes, max_byte_size: int, tick_step: int) -> None:
+
+    tick_values = list(range(0, max_byte_size + tick_step, tick_step))
+
+    axis.set_xticks(tick_values)
+    axis.set_xticklabels(
+        [
+            "0" if tick == 0 else format_byte_size(tick, compact=True)
+            for tick in tick_values
+        ]
+    )
+    axis.set_xlim(0, max_byte_size * AXIS_HEADROOM)
+
+    apply_value_grid(axis)
 
 
 # Adds a grid in both directions
@@ -112,6 +108,9 @@ def mark_crossover(axis: Axes, x_value: float, y_value: float, label: str) -> No
 # Helper that creates a two-panel figure, where each panel represents one operation
 # ex. "serialize" and "deserialize", and each panel draws the same set of named series
 # ex. JSON, CBOR, and CBOR (int keys)
+# 1. colors maps every series name to its line color
+# 2. labels renames series whose internal name does not read well in a legend
+# 3. on_panel receives each finished panel with the series drawn on it, for extra decoration
 def draw_two_panel_figure(
     operations: list[str],
     names: list[str],
@@ -120,10 +119,10 @@ def draw_two_panel_figure(
     title: str,
     x_label: str,
     y_label: str,
-    color_for: Callable[[str], str],
+    colors: dict[str, str],
     configure_axis: Callable[[Axes], None],
     output_path: str,
-    label_for: Callable[[str], str] | None = None,
+    labels: dict[str, str] | None = None,
     legend_kwargs: dict | None = None,
     on_panel: (
         Callable[[Axes, str, list[tuple[str, BenchmarkSummaryData]]], None] | None
@@ -139,8 +138,8 @@ def draw_two_panel_figure(
 
         for name in names:
             series = collect(operation, name)
-            label = label_for(name) if label_for is not None else name
-            draw_summary(axis, series, label, color_for(name))
+            label = name if labels is None else labels.get(name, name)
+            draw_summary(axis, series, label, colors[name])
             drawn.append((name, series))
 
         axis.set_title(operation.capitalize(), fontsize=11)
@@ -150,9 +149,7 @@ def draw_two_panel_figure(
         axis.set_ylim(bottom=0)
 
         configure_axis(axis)
-        axis.legend(
-            **(legend_kwargs if legend_kwargs is not None else {"fontsize": 10})
-        )
+        axis.legend(**(legend_kwargs or {"fontsize": 10}))
 
         if on_panel is not None:
             on_panel(axis, operation, drawn)
@@ -163,7 +160,7 @@ def draw_two_panel_figure(
 
 # Finds the highest visible value across the series, including the top of each confidence interval.
 # Used to choose a Y-axis limit that does not cut off any error bars
-def calculate_y_axis_overhead(series_list: Iterable[BenchmarkSummaryData]) -> float:
+def calculate_axis_top(series_list: Iterable[BenchmarkSummaryData]) -> float:
 
     return max(
         (

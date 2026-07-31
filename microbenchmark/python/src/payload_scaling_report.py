@@ -6,8 +6,8 @@ from reporting.benchmark import (
     NS_PER_OP,
     WIRE_OVERHEAD_BYTES,
     BenchmarkMetrics,
-    BenchmarkParserConfig,
     BenchmarkSummaryData,
+    build_cases,
     generate_case_id,
     produce_summary,
     parse_benchmark_file,
@@ -15,14 +15,16 @@ from reporting.benchmark import (
     calculate_total_iterations,
 )
 from reporting.charts import (
+    AXIS_HEADROOM,
     CRIMSON,
     TEAL,
     VIOLET,
     Axes,
     apply_value_grid,
+    configure_byte_axis,
     draw_summary,
     draw_two_panel_figure,
-    calculate_y_axis_overhead,
+    calculate_axis_top,
 )
 from reporting.environment import (
     FilePaths,
@@ -33,7 +35,6 @@ from reporting.environment import (
 from reporting.formatting import (
     MEGABYTE,
     format_byte_size,
-    format_byte_size_compact,
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
@@ -44,7 +45,6 @@ from reporting.statistics import (
 )
 
 SCENARIO = "payload-scaling"
-RESULT_DIR_VAR = "PAYLOAD_SCALING_RESULT_DIR"
 TEMPLATE_NAME = "payload_scaling_template.html"
 
 LATENCY_PLOT = "plot.png"
@@ -54,24 +54,15 @@ SCHEMES = ["PSK", "RSA", "CPABE"]
 OPERATIONS = ["encrypt", "decrypt"]
 
 SCHEME_COLORS = {"PSK": TEAL, "RSA": VIOLET, "CPABE": CRIMSON}
-FALLBACK_COLOR = CRIMSON
 
 X_LABEL = "Payload size"
 LEGEND = {"fontsize": 10, "loc": "upper left"}
 
+BENCHMARK_PREFIX = "BenchmarkPayloadScaling"
 AXIS_TICK_STEP = 4 * MEGABYTE
-
-AXIS_HEADROOM = 1.03
 
 ZOOM_BOUNDS = [0.08, 0.08, 0.47, 0.32]
 ZOOM_HEADROOM = 1.10
-
-CONFIG = BenchmarkParserConfig(
-    prefix="BenchmarkPayloadScaling",
-    value_suffix="B",
-    required_units=(NS_PER_OP, MB_PER_SECOND),
-    optional_units=(WIRE_OVERHEAD_BYTES,),
-)
 
 
 @dataclass(frozen=True)
@@ -89,28 +80,16 @@ def load_config() -> Config:
         runs=runs,
         t_critical=get_student_t_critical_95(runs - 1),
         payload_sizes=parse_int_list_env("PAYLOAD_SCALING_PAYLOAD_SIZES"),
-        paths=resolve_paths(SCENARIO, RESULT_DIR_VAR, TEMPLATE_NAME),
+        paths=resolve_paths(SCENARIO, TEMPLATE_NAME),
     )
-
-
-def scheme_color(scheme_name: str) -> str:
-    return SCHEME_COLORS.get(scheme_name, FALLBACK_COLOR)
 
 
 def configure_payload_axis(config: Config, axis: Axes) -> None:
-
-    max_payload_size = config.payload_sizes[-1]
-    tick_values = list(range(0, max_payload_size + AXIS_TICK_STEP, AXIS_TICK_STEP))
-
-    axis.set_xticks(tick_values)
-    axis.set_xticklabels(
-        ["0" if tick == 0 else format_byte_size_compact(tick) for tick in tick_values]
-    )
-    axis.set_xlim(0, max_payload_size * AXIS_HEADROOM)
-
-    apply_value_grid(axis)
+    configure_byte_axis(axis, config.payload_sizes[-1], AXIS_TICK_STEP)
 
 
+# A scheme's wire overhead does not depend on payload size, so it is averaged
+# over every payload size measured for that scheme
 def scheme_overhead_bytes(
     results: dict[str, BenchmarkMetrics],
     config: Config,
@@ -120,11 +99,11 @@ def scheme_overhead_bytes(
     overhead_samples = []
 
     for payload_size in config.payload_sizes:
-        metrics = results.get(generate_case_id("encrypt", scheme_name, payload_size))
-        if metrics is None:
-            continue
-
-        overhead_samples.extend(metrics.samples(WIRE_OVERHEAD_BYTES))
+        overhead_samples.extend(
+            results[
+                generate_case_id("encrypt", scheme_name, payload_size)
+            ].samples(WIRE_OVERHEAD_BYTES)
+        )
 
     return mean(overhead_samples)
 
@@ -147,14 +126,14 @@ def add_zoom_inset(
             zoom_axis,
             series,
             name,
-            scheme_color(name),
+            SCHEME_COLORS[name],
             linewidth=1.6,
             markersize=4,
             capsize=3,
         )
 
     zoom_axis.set_ylim(
-        0.0, calculate_y_axis_overhead(series for _, series in zoomed) * ZOOM_HEADROOM
+        0.0, calculate_axis_top(series for _, series in zoomed) * ZOOM_HEADROOM
     )
     zoom_axis.set_xlim(0, config.payload_sizes[-1] * AXIS_HEADROOM)
     zoom_axis.set_xticks([])
@@ -173,16 +152,13 @@ def plot_metric(
     title: str,
     y_label: str,
     output_path: str,
-    with_zoom: bool = False,
+    on_panel=None,
 ) -> None:
 
     def collect(operation: str, scheme_name: str) -> BenchmarkSummaryData:
         return produce_summary(
             results,
-            [
-                (size, generate_case_id(operation, scheme_name, size))
-                for size in config.payload_sizes
-            ],
+            build_cases(operation, scheme_name, config.payload_sizes),
             unit,
             config.t_critical,
             divisor,
@@ -195,19 +171,11 @@ def plot_metric(
         title=title,
         x_label=X_LABEL,
         y_label=y_label,
-        color_for=scheme_color,
+        colors=SCHEME_COLORS,
         configure_axis=lambda axis: configure_payload_axis(config, axis),
         output_path=output_path,
         legend_kwargs=LEGEND,
-        on_panel=(
-            (
-                lambda axis, operation, drawn: add_zoom_inset(
-                    config, axis, operation, drawn
-                )
-            )
-            if with_zoom
-            else None
-        ),
+        on_panel=on_panel,
     )
 
 
@@ -224,9 +192,7 @@ def build_table(
 
     for payload_size in config.payload_sizes:
 
-        metrics = results.get(generate_case_id(operation, scheme_name, payload_size))
-        if metrics is None:
-            continue
+        metrics = results[generate_case_id(operation, scheme_name, payload_size)]
 
         latency_mean, latency_ci = mean_and_confidence_interval(
             metrics.ns_per_op, config.t_critical
@@ -287,7 +253,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, CONFIG)
+    results = parse_benchmark_file(config.paths.bench_output, BENCHMARK_PREFIX, "B")
 
     plot_metric(
         results,
@@ -297,7 +263,9 @@ def main() -> None:
         "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
         "Latency (µs) ± 95% CI",
         config.paths.figure(LATENCY_PLOT),
-        with_zoom=True,
+        on_panel=lambda axis, operation, drawn: add_zoom_inset(
+            config, axis, operation, drawn
+        ),
     )
     plot_metric(
         results,

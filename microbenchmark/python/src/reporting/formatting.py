@@ -25,12 +25,6 @@ def format_byte_size(byte_count: int, compact: bool = False) -> str:
     return f"{byte_count} B"
 
 
-# Convert raw byte count into its compact form ex. 4194304 -> "4MB",
-# intented for use in axis tick labels where space is limited
-def format_byte_size_compact(byte_count: int) -> str:
-    return format_byte_size(byte_count, compact=True)
-
-
 # From something like: mean=125272.17, ci=320.5 to: "125,272.17 ± 320.50"
 def format_mean_with_ci(
     mean_value: float,

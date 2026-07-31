@@ -1,4 +1,5 @@
 #!/bin/sh
+set -eu
 
 mkdir -p /results/attribute-key-scaling
 
@@ -8,12 +9,13 @@ AttributeCountCount=$(echo "${ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT}" | tr ',' '
 RecipientCountCount=$(echo "${ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT}" | tr ',' '\n' | wc -l)
 RSAKeyBitsCount=$(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' '\n' | wc -l)
 EncryptCases=$((AttributeCountCount + RecipientCountCount + RSAKeyBitsCount))
-DecryptCases=$((AttributeCountCount + 1 + RSAKeyBitsCount))
+DecryptCases=$((AttributeCountCount + RecipientCountCount + RSAKeyBitsCount))
 EncryptDecryptCases=$((EncryptCases + DecryptCases))
 KeyGenCases=$((AttributeCountCount + RSAKeyBitsCount))
 EncryptDecryptLines=$((EncryptDecryptCases * ATTRIBUTE_KEY_SCALING_RUNS))
 KeyGenLines=$((KeyGenCases * ATTRIBUTE_KEY_SCALING_RUNS))
-FixedOverheadLines=12
+# 4 header lines (goos/goarch/pkg/cpu) + 1 PASS, per binary invocation
+FixedOverheadLines=10
 TotalLines=$((EncryptDecryptLines + KeyGenLines + FixedOverheadLines))
 
 {
