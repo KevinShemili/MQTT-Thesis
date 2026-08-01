@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Validate Docker Compose
+        working-directory: microbenchmark
+        run: docker compose config --quiet
+
+      - name: Validate Image Build
+        run: docker build --tag mqtt-thesis-ci ./microbenchmark
+
+      - name: Validate Compilation
+        run: |
+          docker run --rm mqtt-thesis-ci sh -ec '
+            go vet ./...
+            python3 -m compileall -q src
+          '
+
+      - name: Validate Tests
+        run: docker run --rm mqtt-thesis-ci go test ./...

@@ -100,9 +100,9 @@ def scheme_overhead_bytes(
 
     for payload_size in config.payload_sizes:
         overhead_samples.extend(
-            results[
-                generate_case_id("encrypt", scheme_name, payload_size)
-            ].samples(WIRE_OVERHEAD_BYTES)
+            results[generate_case_id("encrypt", scheme_name, payload_size)].samples(
+                WIRE_OVERHEAD_BYTES
+            )
         )
 
     return mean(overhead_samples)
