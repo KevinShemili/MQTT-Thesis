@@ -29,9 +29,7 @@ class FilePaths:
         return os.path.join(self.result_dir, filename)
 
 
-# Resolves all standard file paths required by one benchmark scenario.
-# Scenarios run in several variants ex. AES vs. ASCON pass result_dir_var to
-# redirect their output, everything else writes under the scenario name
+# Resolves all standard file paths required by one benchmark scenario
 def resolve_paths(
     scenario: str,
     template_name: str,

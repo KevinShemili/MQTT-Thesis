@@ -5,14 +5,9 @@ from reporting.benchmark import (
     NS_PER_MICROSECOND,
     NS_PER_OP,
     RAW_BYTES,
-    BenchmarkMetrics,
-    BenchmarkSummaryData,
-    build_cases,
-    generate_case_id,
-    produce_summary,
-    parse_benchmark_file,
-    calculate_iterations,
-    calculate_total_iterations,
+    BenchmarkSummary,
+    FeatureSweep,
+    load_results,
 )
 from reporting.charts import (
     AMBER,
@@ -34,11 +29,7 @@ from reporting.environment import (
 )
 from reporting.formatting import format_mean_with_ci
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import (
-    mean,
-    mean_and_confidence_interval,
-    get_student_t_critical_95,
-)
+from reporting.statistics import get_student_t_critical_95
 
 SCENARIO = "json-cbor"
 TEMPLATE_NAME = "json_cbor_template.html"
@@ -81,15 +72,16 @@ def configure_attribute_axis(config: Config, axis: Axes) -> None:
     apply_mesh_grid(axis)
 
 
-def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+def plot_latency(results: BenchmarkSummary, config: Config) -> None:
 
-    def collect(operation: str, format_name: str) -> BenchmarkSummaryData:
-        return produce_summary(
-            results,
-            build_cases(operation, format_name, config.attribute_counts),
+    def collect(operation: str, format_name: str) -> FeatureSweep:
+        return results.sweep_features(
+            operation,
+            format_name,
+            config.attribute_counts,
             NS_PER_OP,
-            config.t_critical,
             NS_PER_MICROSECOND,
+            with_ci=True,
         )
 
     draw_two_panel_figure(
@@ -106,7 +98,7 @@ def plot_latency(results: dict[str, BenchmarkMetrics], config: Config) -> None:
     )
 
 
-def plot_size(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+def plot_size(results: BenchmarkSummary, config: Config) -> None:
 
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
 
@@ -117,11 +109,14 @@ def plot_size(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
     for format_name in FORMATS:
 
-        cases = build_cases("serialize", format_name, config.attribute_counts)
-        envelope_sizes = produce_summary(results, cases, ENVELOPE_BYTES)
-        raw_sizes = produce_summary(results, cases, RAW_BYTES)
+        envelope_sizes = results.sweep_features(
+            "serialize", format_name, config.attribute_counts, ENVELOPE_BYTES
+        )
+        raw_sizes = results.sweep_features(
+            "serialize", format_name, config.attribute_counts, RAW_BYTES
+        )
 
-        format_tax = BenchmarkSummaryData(
+        format_tax = FeatureSweep(
             sweep_values=envelope_sizes.sweep_values,
             means=[
                 envelope - raw
@@ -153,7 +148,7 @@ def plot_size(results: dict[str, BenchmarkMetrics], config: Config) -> None:
 
 
 def build_table(
-    results: dict[str, BenchmarkMetrics],
+    results: BenchmarkSummary,
     config: Config,
     operation: str,
     format_name: str,
@@ -163,25 +158,23 @@ def build_table(
 
     for attribute_count in config.attribute_counts:
 
-        metrics = results[generate_case_id(operation, format_name, attribute_count)]
+        case = results.get_case_summary(operation, format_name, attribute_count)
 
-        latency_mean, latency_ci = mean_and_confidence_interval(
-            metrics.ns_per_op, config.t_critical
-        )
+        latency = case.get_feature(NS_PER_OP)
 
-        envelope_size = mean(metrics.samples(ENVELOPE_BYTES))
-        raw_size = mean(metrics.samples(RAW_BYTES))
+        envelope_size = case.get_feature(ENVELOPE_BYTES).mean
+        raw_size = case.get_feature(RAW_BYTES).mean
 
         overhead_percent = (envelope_size - raw_size) / raw_size * 100.0
 
         rows.append(
             [
                 str(attribute_count),
-                format_mean_with_ci(latency_mean, latency_ci),
+                format_mean_with_ci(latency.mean, latency.ci),
                 f"{raw_size:,.0f}",
                 f"{envelope_size:,.0f}",
                 f"{overhead_percent:.2f}%",
-                f"{calculate_iterations(metrics):,}",
+                f"{case.iterations:,}",
             ]
         )
 
@@ -198,7 +191,7 @@ def build_table(
     )
 
 
-def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
     tables = {
         f"{operation.capitalize()}{key}Table": build_table(
@@ -214,7 +207,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, calculate_total_iterations(results)
+            config.runs, config.t_critical, results.get_total_iterations
         ),
         **tables,
         "LatencyPlot": LATENCY_PLOT,
@@ -226,7 +219,9 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, BENCHMARK_PREFIX, "Attrs")
+    results = load_results(
+        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical, "Attrs"
+    )
 
     plot_latency(results, config)
     plot_size(results, config)

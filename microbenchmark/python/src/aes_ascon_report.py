@@ -5,14 +5,9 @@ from reporting.benchmark import (
     NS_PER_MICROSECOND,
     NS_PER_OP,
     WIRE_OVERHEAD_BYTES,
-    BenchmarkMetrics,
-    BenchmarkSummaryData,
-    build_cases,
-    generate_case_id,
-    produce_summary,
-    parse_benchmark_file,
-    calculate_iterations,
-    calculate_total_iterations,
+    BenchmarkSummary,
+    FeatureSweep,
+    load_results,
 )
 from reporting.charts import (
     AMBER,
@@ -33,11 +28,7 @@ from reporting.formatting import (
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import (
-    mean,
-    mean_and_confidence_interval,
-    get_student_t_critical_95,
-)
+from reporting.statistics import get_student_t_critical_95
 
 SCENARIO = "aes-ascon"
 RESULT_DIR_VAR = "AES_ASCON_RESULT_DIR"
@@ -64,6 +55,7 @@ class Config:
     paths: FilePaths
 
 
+# Fill the config
 def load_config() -> Config:
     runs = parse_int_env("AES_ASCON_RUNS")
 
@@ -80,22 +72,23 @@ def configure_payload_axis(config: Config, axis: Axes) -> None:
 
 
 def plot_metric(
-    results: dict[str, BenchmarkMetrics],
+    summary: BenchmarkSummary,
     config: Config,
-    unit: str,
+    feature_name: str,
     divisor: float,
     title: str,
     y_label: str,
     output_path: str,
 ) -> None:
 
-    def collect(operation: str, algorithm: str) -> BenchmarkSummaryData:
-        return produce_summary(
-            results,
-            build_cases(operation, algorithm, config.payload_sizes),
-            unit,
-            config.t_critical,
+    def collect(operation: str, algorithm: str) -> FeatureSweep:
+        return summary.sweep_features(
+            operation,
+            algorithm,
+            config.payload_sizes,
+            feature_name,
             divisor,
+            with_ci=True,
         )
 
     draw_two_panel_figure(
@@ -112,7 +105,7 @@ def plot_metric(
 
 
 def build_table(
-    results: dict[str, BenchmarkMetrics],
+    summary: BenchmarkSummary,
     config: Config,
     operation: str,
     algorithm: str,
@@ -122,23 +115,18 @@ def build_table(
 
     for payload_size in config.payload_sizes:
 
-        metrics = results[generate_case_id(operation, algorithm, payload_size)]
+        case = summary.get_case_summary(operation, algorithm, payload_size)
 
-        latency_mean, latency_ci = mean_and_confidence_interval(
-            metrics.ns_per_op, config.t_critical
-        )
-
-        throughput, throughput_ci = mean_and_confidence_interval(
-            metrics.samples(MB_PER_SECOND), config.t_critical
-        )
+        latency = case.get_feature(NS_PER_OP)
+        throughput = case.get_feature(MB_PER_SECOND)
 
         rows.append(
             [
                 format_byte_size(payload_size, compact=True),
-                format_mean_with_ci(latency_mean, latency_ci),
-                format_mean_with_ci(throughput, throughput_ci, decimals=1),
-                f"{mean(metrics.samples(WIRE_OVERHEAD_BYTES)):.0f}",
-                f"{calculate_iterations(metrics):,}",
+                format_mean_with_ci(latency.mean, latency.ci),
+                format_mean_with_ci(throughput.mean, throughput.ci, decimals=1),
+                f"{case.get_feature(WIRE_OVERHEAD_BYTES).mean:.0f}",
+                f"{case.iterations:,}",
             ]
         )
 
@@ -154,11 +142,11 @@ def build_table(
     )
 
 
-def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, calculate_total_iterations(results)
+            config.runs, config.t_critical, results.get_total_iterations
         ),
         "EncryptAesTable": build_table(results, config, "encrypt", "AES-GCM"),
         "EncryptAsconTable": build_table(results, config, "encrypt", "ASCON"),
@@ -173,7 +161,10 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, BENCHMARK_PREFIX, "B")
+
+    results = load_results(
+        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical, "B"
+    )
 
     plot_metric(
         results,
@@ -184,6 +175,7 @@ def main() -> None:
         "Latency (µs) ± 95% CI",
         config.paths.figure(LATENCY_PLOT),
     )
+
     plot_metric(
         results,
         config,

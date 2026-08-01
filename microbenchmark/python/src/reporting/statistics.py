@@ -20,11 +20,11 @@ STUDENT_T_CRITICAL_95: dict[int, float] = {
 }
 
 
-# Result of fitting a straight line to measured benchmark data
-# 1. slope describes how much the measured value changes for every one-unit increase in x
-# 2. intercept is the fitted value at x = 0
-# 3. r_squared indicates how closely the measured points follow the fitted linear relationship
-# 4. slope_ci is the 95% confidence-interval half-width for the calculated slope
+# Result of fitting straight line to measured benchmark data
+# 1. slope gives line's slope
+# 2. intercept is value of fit at x = 0
+# 3. r_squared indicates how closely the measured points follow the fit
+# 4. slope_ci is CI half of calculated slope
 @dataclass(frozen=True)
 class LinearFit:
     slope: float
@@ -32,8 +32,9 @@ class LinearFit:
     r_squared: float
     slope_ci: float
 
-    # Value predicted by the fitted line at the given x
-    def predict(self, x_value: float) -> float:
+    # Calculate y based on a given x value,
+    # using the linear fit equation y = mx + b
+    def calculate_y_based_on_x(self, x_value: float) -> float:
         return self.intercept + self.slope * x_value
 
 

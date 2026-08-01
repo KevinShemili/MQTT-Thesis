@@ -5,14 +5,9 @@ from reporting.benchmark import (
     NS_PER_MICROSECOND,
     NS_PER_OP,
     WIRE_OVERHEAD_BYTES,
-    BenchmarkMetrics,
-    BenchmarkSummaryData,
-    build_cases,
-    generate_case_id,
-    produce_summary,
-    parse_benchmark_file,
-    calculate_iterations,
-    calculate_total_iterations,
+    BenchmarkSummary,
+    FeatureSweep,
+    load_results,
 )
 from reporting.charts import (
     AXIS_HEADROOM,
@@ -38,11 +33,7 @@ from reporting.formatting import (
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import (
-    mean,
-    mean_and_confidence_interval,
-    get_student_t_critical_95,
-)
+from reporting.statistics import mean, get_student_t_critical_95
 
 SCENARIO = "payload-scaling"
 TEMPLATE_NAME = "payload_scaling_template.html"
@@ -91,28 +82,26 @@ def configure_payload_axis(config: Config, axis: Axes) -> None:
 # A scheme's wire overhead does not depend on payload size, so it is averaged
 # over every payload size measured for that scheme
 def scheme_overhead_bytes(
-    results: dict[str, BenchmarkMetrics],
+    results: BenchmarkSummary,
     config: Config,
     scheme_name: str,
 ) -> float:
 
-    overhead_samples = []
-
-    for payload_size in config.payload_sizes:
-        overhead_samples.extend(
-            results[generate_case_id("encrypt", scheme_name, payload_size)].samples(
-                WIRE_OVERHEAD_BYTES
-            )
-        )
-
-    return mean(overhead_samples)
+    return mean(
+        [
+            results.get_case_summary("encrypt", scheme_name, payload_size)
+            .get_feature(WIRE_OVERHEAD_BYTES)
+            .mean
+            for payload_size in config.payload_sizes
+        ]
+    )
 
 
 def add_zoom_inset(
     config: Config,
     axis: Axes,
     operation: str,
-    drawn: list[tuple[str, BenchmarkSummaryData]],
+    drawn: list[tuple[str, FeatureSweep]],
 ) -> None:
 
     if operation != "encrypt":
@@ -145,7 +134,7 @@ def add_zoom_inset(
 
 
 def plot_metric(
-    results: dict[str, BenchmarkMetrics],
+    results: BenchmarkSummary,
     config: Config,
     unit: str,
     divisor: float,
@@ -155,13 +144,14 @@ def plot_metric(
     on_panel=None,
 ) -> None:
 
-    def collect(operation: str, scheme_name: str) -> BenchmarkSummaryData:
-        return produce_summary(
-            results,
-            build_cases(operation, scheme_name, config.payload_sizes),
+    def collect(operation: str, scheme_name: str) -> FeatureSweep:
+        return results.sweep_features(
+            operation,
+            scheme_name,
+            config.payload_sizes,
             unit,
-            config.t_critical,
             divisor,
+            with_ci=True,
         )
 
     draw_two_panel_figure(
@@ -180,7 +170,7 @@ def plot_metric(
 
 
 def build_table(
-    results: dict[str, BenchmarkMetrics],
+    results: BenchmarkSummary,
     config: Config,
     operation: str,
     scheme_name: str,
@@ -192,27 +182,20 @@ def build_table(
 
     for payload_size in config.payload_sizes:
 
-        metrics = results[generate_case_id(operation, scheme_name, payload_size)]
+        case = results.get_case_summary(operation, scheme_name, payload_size)
 
-        latency_mean, latency_ci = mean_and_confidence_interval(
-            metrics.ns_per_op, config.t_critical
-        )
-
-        throughput_mean, throughput_ci = mean_and_confidence_interval(
-            metrics.samples(MB_PER_SECOND), config.t_critical
-        )
+        latency = case.get_latency_in_micros
+        throughput = case.get_feature(MB_PER_SECOND)
 
         overhead_percent = overhead_bytes / payload_size * 100.0
         rows.append(
             [
                 format_byte_size(payload_size),
-                format_mean_with_ci(
-                    latency_mean / NS_PER_MICROSECOND, latency_ci / NS_PER_MICROSECOND
-                ),
-                format_mean_with_ci(throughput_mean, throughput_ci, decimals=1),
+                format_mean_with_ci(latency.mean, latency.ci),
+                format_mean_with_ci(throughput.mean, throughput.ci, decimals=1),
                 format_byte_size(payload_size + overhead_bytes),
                 f"{overhead_percent:.2f}%" if overhead_percent >= 0.01 else "&lt;0.01%",
-                f"{calculate_iterations(metrics):,}",
+                f"{case.iterations:,}",
             ]
         )
 
@@ -229,7 +212,7 @@ def build_table(
     )
 
 
-def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> None:
+def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
     tables = {
         f"{operation.capitalize()}{scheme_name.capitalize()}Table": build_table(
@@ -241,7 +224,7 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, calculate_total_iterations(results)
+            config.runs, config.t_critical, results.get_total_iterations
         ),
         **tables,
         "LatencyPlot": LATENCY_PLOT,
@@ -253,7 +236,9 @@ def write_html_report(results: dict[str, BenchmarkMetrics], config: Config) -> N
 
 def main() -> None:
     config = load_config()
-    results = parse_benchmark_file(config.paths.bench_output, BENCHMARK_PREFIX, "B")
+    results = load_results(
+        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical, "B"
+    )
 
     plot_metric(
         results,

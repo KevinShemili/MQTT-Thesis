@@ -1,6 +1,10 @@
+from __future__ import annotations
+from collections import defaultdict
 from dataclasses import dataclass, field
-from .statistics import mean, mean_and_confidence_interval
+from .statistics import mean_and_confidence_interval
 
+# Features we have collected across all benchmarks are listed here as constants,
+# so that they can be referenced in a single place
 NS_PER_OP = "ns/op"
 MB_PER_SECOND = "MB/s"
 WIRE_OVERHEAD_BYTES = "wire_overhead_bytes/op"
@@ -9,76 +13,161 @@ RAW_BYTES = "raw_bytes/op"
 CIPHERTEXT_BYTES = "ciphertext_bytes"
 TOTAL_CIPHERTEXT_BYTES = "total_ciphertext_bytes"
 STORED_KEY_BYTES = "stored_key_bytes"
+
+# The following constant is used to convert ns to µs
 NS_PER_MICROSECOND = 1000.0
 
 
-# Represents data ready to be plotted
-# 1. sweep_values ex. 16, 32, 64, 128
-# 2. means are the mean results for each sweep value
-# 3. ci_halfs are the confidence-interval half-widths for each sweep value,
-#    left empty when the series is produced without a t multiplier
+# Mean & CI of one feature across all runs of one case
+@dataclass(frozen=True)
+class FeatureMeasurement:
+    mean: float
+    ci: float
+
+    # Same measurement expressed in another unit, ex. ns -> µs
+    def scale_unit(self, divisor: float) -> FeatureMeasurement:
+        return FeatureMeasurement(self.mean / divisor, self.ci / divisor)
+
+    # Create instance of FeatureMeasurement from a list of values
+    @staticmethod
+    def create(values: list[float], t_critical: float) -> FeatureMeasurement:
+        mean, ci = mean_and_confidence_interval(values, t_critical)
+        return FeatureMeasurement(mean, ci)
+
+
+# Collects all the data of a sweep of just one feature, ready for plotting
 @dataclass
-class BenchmarkSummaryData:
+class FeatureSweep:
     sweep_values: list[float] = field(default_factory=list)
     means: list[float] = field(default_factory=list)
-    ci_halfs: list[float] = field(default_factory=list)
+    ci: list[float] = field(default_factory=list)
 
 
-# Store all gathered data from repeated measurements under a single benchmark case ex. "encrypt/PSK/16".
-@dataclass
-class BenchmarkMetrics:
+# One benchmark case with iterations & feature summary
+@dataclass(frozen=True)
+class CaseSummary:
+    iterations: int
+    features: dict[str, FeatureMeasurement]
 
-    @dataclass
-    class SingleRun:
-        iteration_count: int
-        measurements_by_unit: dict[str, float]
-
-    runs: list[SingleRun] = field(default_factory=list)
+    def get_feature(self, feature_name: str) -> FeatureMeasurement:
+        return self.features[feature_name]
 
     @property
-    def ns_per_op(self) -> list[float]:
-        return self.samples(NS_PER_OP)
-
-    # Measurements of one unit across the repeated runs. Units a benchmark case does not
-    # report at all ex. ciphertext size on a decrypt case simply yield no samples
-    def samples(self, unit: str) -> list[float]:
-        return [
-            run.measurements_by_unit[unit]
-            for run in self.runs
-            if unit in run.measurements_by_unit
-        ]
+    def get_latency_in_micros(self) -> FeatureMeasurement:
+        return self.features[NS_PER_OP].scale_unit(NS_PER_MICROSECOND)
 
 
-# Builds ID for identifying one benchmark case
-# Example: operation="encrypt", group="PSK", sweep_value=16 -> "encrypt/PSK/16".
-def generate_case_id(operation: str, group: str, sweep_value: int) -> str:
+# Full statistical summary of the benchmark including all of the inner cases
+@dataclass(frozen=True)
+class BenchmarkSummary:
+    cases: dict[str, CaseSummary]
+
+    # Based on operation (ex. encrypt) & group (ex. PSK) & sweep_value (ex. 16), return the corresponding case summary
+    def get_case_summary(
+        self, operation: str, group: str, sweep_value: int
+    ) -> CaseSummary:
+        return self.cases[_generate_case_id(operation, group, sweep_value)]
+
+    # Collects all data of a sweep of just one feature
+    def sweep_features(
+        self,
+        operation: str,
+        group: str,
+        sweep_values: list[int],
+        feature_name: str,
+        divisor: float = 1.0,  # to convert to another measurement unit if desired
+        with_ci: bool = False,
+    ) -> FeatureSweep:
+
+        series = FeatureSweep()
+
+        for sweep_value in sweep_values:
+
+            measurement = (
+                self.get_case_summary(operation, group, sweep_value)
+                .get_feature(feature_name)
+                .scale_unit(divisor)
+            )
+
+            series.sweep_values.append(sweep_value)
+            series.means.append(measurement.mean)
+
+            if with_ci:
+                series.ci.append(measurement.ci)
+
+        return series
+
+    # Total iterations of all cases across all runs
+    @property
+    def get_total_iterations(self) -> int:
+        return sum(case.iterations for case in self.cases.values())
+
+
+# 1. Reads benchmark's output file through _read_rows() -> Groups repeated runs of each case together -> Stores them in _CaseRuns
+# 2. After grouping calculate mean & CI of each feature of each case -> Stores them in CaseSummary
+# 3. Returns a BenchmarkSummary containing all cases with their statistics
+def load_results(
+    filepath: str,
+    prefix: str,
+    t_critical: float,
+    value_suffix: str = "",
+) -> BenchmarkSummary:
+
+    # In case_runs now we have all the repeated runs of each case grouped together, ex. for "encrypt/PSK/16" we have 3 runs with their feature values
+    case_runs = _read_rows(
+        filepath,
+        prefix,
+        value_suffix,
+    )
+
+    summarized_cases: dict[str, CaseSummary] = {}
+
+    for case_id, runs in case_runs.items():
+
+        summarized_features: dict[str, FeatureMeasurement] = {}
+
+        for feature_name, values in runs.feature_values.items():
+
+            # Reduce all repeated values of one feature to mean and CI.
+            measurement = FeatureMeasurement.create(
+                values,
+                t_critical,
+            )
+
+            summarized_features[feature_name] = measurement
+
+        summarized_cases[case_id] = CaseSummary(
+            iterations=runs.iterations,
+            features=summarized_features,
+        )
+
+    return BenchmarkSummary(cases=summarized_cases)
+
+
+# Builds a sort of ID for identifying one benchmark case,
+# for example if operation="encrypt" & group="PSK" & sweep_value=16 then -> "encrypt/PSK/16".
+def _generate_case_id(operation: str, group: str, sweep_value: int) -> str:
     return f"{operation}/{group}/{sweep_value}"
 
 
-# Pairs every sweep value with its benchmark case ID, the form expected by produce_summary()
-def build_cases(
-    operation: str,
-    group: str,
-    sweep_values: list[int],
-) -> list[tuple[int, str]]:
-    return [
-        (sweep_value, generate_case_id(operation, group, sweep_value))
-        for sweep_value in sweep_values
-    ]
+# The repeated runs of one case, as they are read from the file,
+# before they are reduced to statistics
+@dataclass
+class _CaseRuns:
+    iterations: int = 0  # total iterations across the repeated runs
+    feature_values: dict[str, list[float]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
 
 
-# Reads benchmark's output file & converts its rows into structured BenchmarkMetrics objects, grouped by benchmark case IDs, so (case_id | BenchmarkMetrics).
-# A dictionary groups repeated benchmark runs by identifiers such as
-# "encrypt/PSK/16", with each entry containing iterations & measured values among repeated runs
-# 1. prefix identifies the relevant benchmark lines
-# 2. value_suffix is stripped from the sweep value ex. "B" from "16B"
-def parse_benchmark_file(
+# Reads benchmark's output file & groups its rows by the case ID they belong to
+def _read_rows(
     filepath: str,
-    prefix: str,
-    value_suffix: str = "",
-) -> dict[str, BenchmarkMetrics]:
+    prefix: str,  # something like "BenchmarkPayloadScaling"
+    value_suffix: str,  # something like "B" for bytes, which comes after the sweep value in the benchmark's output
+) -> dict[str, _CaseRuns]:
 
-    results: dict[str, BenchmarkMetrics] = {}
+    rows: dict[str, _CaseRuns] = {}
 
     with open(filepath, "r", encoding="utf-8") as file:
 
@@ -89,88 +178,25 @@ def parse_benchmark_file(
             if len(fields) == 0 or not fields[0].startswith(prefix):
                 continue
 
-            # "BenchmarkPayloadScalingEncrypt/PSK/16B-4"
-            # becomes operation="Encrypt", group="PSK", sweep_text="16B-4".
+            # After skip we encounter rows that start like "BenchmarkPayloadScalingEncrypt/PSK/16B-4",
+            # which we split into operation="Encrypt", group="PSK", sweep value=16B-4
             operation, group, sweep_text = fields[0][len(prefix) :].split("/")[:3]
 
-            # Remove the Go CPU suffix such as "-4"
+            # Remove suffix from 16B-4 to get the sweep value as an integer, ex. 16
             sweep_value = int(sweep_text.split("-")[0].removesuffix(value_suffix))
 
-            # Find the stored metrics for this benchmark case.
-            # If this is its first occurrence, create an empty BenchmarkMetrics object.
-            metrics = results.setdefault(
-                generate_case_id(operation.lower(), group, sweep_value),
-                BenchmarkMetrics(),
+            # Check if data already exists for this case,
+            # otherwise create a fresh _CaseRuns object
+            runs = rows.setdefault(
+                _generate_case_id(operation.lower(), group, sweep_value),
+                _CaseRuns(),
             )
 
-            # Convert the benchmark row's "<value> <unit>" pairs into measurements by unit.
-            measurements_by_unit: dict[str, float] = {}
+            runs.iterations += int(fields[1])
 
+            # Each feature of each row follows a "<feature value> <feature unit>" pattern, for example "123456 ns/op" or "123.45 MB/s",
+            # so we iterate over the fields in pairs, starting from index 2, collecting one sample per feature
             for index in range(2, len(fields) - 1, 2):
-                measurements_by_unit[fields[index + 1]] = float(fields[index])
+                runs.feature_values[fields[index + 1]].append(float(fields[index]))
 
-            # Store this benchmark output row as one complete repeated run.
-            metrics.runs.append(
-                BenchmarkMetrics.SingleRun(
-                    iteration_count=int(fields[1]),
-                    measurements_by_unit=measurements_by_unit,
-                )
-            )
-
-    return results
-
-
-# Total iterations considering also total number of runs
-def calculate_iterations(metrics: BenchmarkMetrics) -> int:
-    return sum(run.iteration_count for run in metrics.runs)
-
-
-# Total iterations across all runs, across all benchmark cases
-def calculate_total_iterations(results: dict[str, BenchmarkMetrics]) -> int:
-    return sum(calculate_iterations(metrics) for metrics in results.values())
-
-
-# Take mean of measurements resulting from repeated runs of a benchmark case
-def calculate_mean(
-    results: dict[str, BenchmarkMetrics],
-    benchmark_case_id: str,
-    unit: str,
-) -> float:
-    return mean(results[benchmark_case_id].samples(unit))
-
-
-# Same but returns µs/op instead of ns/op
-def calculate_mean_micros(
-    results: dict[str, BenchmarkMetrics],
-    benchmark_case_id: str,
-) -> float:
-    return calculate_mean(results, benchmark_case_id, NS_PER_OP) / NS_PER_MICROSECOND
-
-
-# Collect multiple BenchmarkMetrics into a single final summary.
-# Passing a t multiplier additionally fills in the confidence-interval half-widths
-def produce_summary(
-    results: dict[str, BenchmarkMetrics],
-    cases: list[tuple[int, str]],
-    unit: str,
-    t_critical: float | None = None,
-    divisor: float = 1.0,
-) -> BenchmarkSummaryData:
-
-    summary = BenchmarkSummaryData()
-
-    for sweep_value, benchmark_case_id in cases:
-
-        samples = results[benchmark_case_id].samples(unit)
-
-        summary.sweep_values.append(sweep_value)
-
-        if t_critical is None:
-            summary.means.append(mean(samples) / divisor)
-            continue
-
-        mean_value, ci_half = mean_and_confidence_interval(samples, t_critical)
-        summary.means.append(mean_value / divisor)
-        summary.ci_halfs.append(ci_half / divisor)
-
-    return summary
+    return rows
