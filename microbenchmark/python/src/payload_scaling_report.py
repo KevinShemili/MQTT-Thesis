@@ -6,6 +6,7 @@ from reporting.benchmark import (
     BenchmarkSummary,
     FeatureSweep,
     load_results,
+    throttle_flags,
 )
 from reporting.charts import (
     AXIS_HEADROOM,
@@ -153,10 +154,12 @@ def build_table(
     overhead_bytes = int(round(scheme_overhead_bytes(results, config, scheme_name)))
 
     rows = []
+    cases = []
 
     for payload_size in config.integers("PAYLOAD_SIZES"):
 
         case = results.get_case_summary(operation, scheme_name, payload_size)
+        cases.append(case)
 
         latency = case.latency()
         throughput = case.get_feature(MB_PER_SECOND)
@@ -183,6 +186,7 @@ def build_table(
             f"Iters (Σ{config.runs} runs)",
         ],
         rows,
+        throttle_flags(cases),
     )
 
 

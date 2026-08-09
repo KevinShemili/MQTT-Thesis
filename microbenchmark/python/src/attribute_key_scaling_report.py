@@ -8,6 +8,7 @@ from reporting.benchmark import (
     BenchmarkSummary,
     FeatureSweep,
     load_results,
+    throttle_flags,
 )
 from reporting.charts import (
     AMBER,
@@ -579,10 +580,12 @@ def build_latency_table(
 ) -> str:
 
     rows = []
+    cases = []
 
     for sweep_value in sweep_values:
 
         case = results.get_case_summary(operation, sweep_name, sweep_value)
+        cases.append(case)
 
         latency = case.latency()
 
@@ -606,6 +609,8 @@ def build_latency_table(
             f"ITERS (Σ{config.runs} RUNS)",
         ],
         rows,
+        throttle_flags(cases),
+        thermal_header="THERMAL",
     )
 
 
@@ -616,10 +621,12 @@ def build_latency_table(
 def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
 
     rows = []
+    cases = []
 
     for rsa_key_bits in config.integers("RSA_KEY_SIZES"):
 
         case = results.get_case_summary("keygen", RSA_KEY_BITS, rsa_key_bits)
+        cases.append(case)
 
         latency = case.latency(NS_PER_MILLISECOND)
 
@@ -646,6 +653,8 @@ def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
             "n",
         ],
         rows,
+        throttle_flags(cases),
+        thermal_header="THERMAL",
     )
 
 

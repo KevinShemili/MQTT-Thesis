@@ -17,6 +17,7 @@ RAW_BYTES = "raw_bytes/op"
 CIPHERTEXT_BYTES = "ciphertext_bytes"
 TOTAL_CIPHERTEXT_BYTES = "total_ciphertext_bytes"
 STORED_KEY_BYTES = "stored_key_bytes"
+THROTTLED = "throttled"
 
 # The following constants are used to convert ns to µs and to ms
 NS_PER_MICROSECOND = 1000.0
@@ -126,6 +127,13 @@ class CaseSummary:
     def get_feature(self, feature_name: str) -> Measurement:
         return self.features[feature_name]
 
+    # Whether any repetition of this case ran while the Raspberry Pi firmware was
+    # throttling the clock. One throttled repetition is enough, the case then carries
+    # a pessimistic bound and is reported as such
+    @property
+    def throttled(self) -> bool:
+        return THROTTLED in self.features and self.features[THROTTLED].maximum > 0
+
     # Case latency, by default in µs. Slower operations ex. key generation pass
     # NS_PER_MILLISECOND instead
     def latency(self, divisor: float = NS_PER_MICROSECOND) -> Measurement:
@@ -193,6 +201,18 @@ def load_results(
         case.summarize()
 
     return BenchmarkSummary(cases=cases)
+
+
+# Throttle flag of each given case, in the order the rows of a table are built. Returns
+# None where the benchmark carries no throttle readings at all, ex. output produced on a
+# machine without vcgencmd, so that a report claims measurements were thermally clean
+# only where it actually knows that they were
+def throttle_flags(cases: list[CaseSummary]) -> list[bool] | None:
+
+    if not any(THROTTLED in case.features for case in cases):
+        return None
+
+    return [case.throttled for case in cases]
 
 
 # Builds a sort of ID for identifying one benchmark case,

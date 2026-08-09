@@ -58,17 +58,24 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			// Size after JSON overhead
 			jsonEnvelopeSize := len(envelope.SerializeJSON(env))
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				envelope.SerializeJSON(env)
 			}
 
 			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 
 		benchmark.Run(fmt.Sprintf("CBOR/%dAttrs", attributeCount), func(b *testing.B) {
 
 			cborEnvelopeSize := len(envelope.SerializeCBOR(env))
+
+			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				envelope.SerializeCBOR(env)
@@ -76,11 +83,16 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 
 		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dAttrs", attributeCount), func(b *testing.B) {
 
 			cborKeyAsIntEnvelopeSize := len(envelope.SerializeCBORKeyAsInt(envKeyAsInt))
+
+			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				envelope.SerializeCBORKeyAsInt(envKeyAsInt)
@@ -88,6 +100,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(cborKeyAsIntEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 }
@@ -138,15 +153,22 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("JSON/%dAttrs", attributeCount), func(b *testing.B) {
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				envelope.DeserializeJSON(jsonSerializedEnvelope)
 			}
 
 			b.ReportMetric(float64(len(jsonSerializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 
 		benchmark.Run(fmt.Sprintf("CBOR/%dAttrs", attributeCount), func(b *testing.B) {
+
+			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				envelope.DeserializeCBOR(cborSerializedEnvelope)
@@ -154,9 +176,14 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(len(cborSerializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 
 		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dAttrs", attributeCount), func(b *testing.B) {
+
+			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				envelope.DeserializeCBORKeyAsInt(cborKeyAsIntSerializedEnvelope)
@@ -164,6 +191,9 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			b.ReportMetric(float64(len(cborKeyAsIntSerializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 }

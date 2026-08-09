@@ -53,11 +53,16 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				cpAbe.Encrypt(abePolicy, aesKey)
 			}
 
 			b.ReportMetric(float64(abeCiphertextSize), "ciphertext_bytes")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 
@@ -75,6 +80,8 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				for index := range subscriberCount {
 					rsaSubscribers[index].Encrypt(aesKey)
@@ -83,6 +90,9 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(float64(singleCiphertextSize), "ciphertext_bytes")
 			b.ReportMetric(float64(totalCiphertextSize), "total_ciphertext_bytes")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 
@@ -97,11 +107,16 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				rsaScheme.Encrypt(aesKey)
 			}
 
 			b.ReportMetric(float64(rsaCiphertextSize), "ciphertext_bytes")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 }
@@ -126,11 +141,16 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				subscriberKey.Decrypt(abeCiphertext)
 			}
 
 			b.ReportMetric(float64(abeStoredKeySize), "stored_key_bytes")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 
@@ -147,8 +167,14 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				subscriber.Decrypt(subscriberCiphertext)
+			}
+
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
 			}
 		})
 	}
@@ -163,8 +189,14 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				rsa.Decrypt(rsaCiphertext)
+			}
+
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
 			}
 		})
 	}
@@ -190,6 +222,8 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 			waitForCooldown()
 			b.ResetTimer()
 
+			throttle := utils.WatchThrottling()
+
 			var scheme cryptography.RSA
 
 			for b.Loop() {
@@ -197,6 +231,9 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(scheme.StoredKeySize()), "stored_key_bytes")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 }

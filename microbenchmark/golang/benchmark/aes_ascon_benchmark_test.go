@@ -39,17 +39,24 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				aesGcm.Seal(aesGcmCiphertext[:0], aesGcmNonce, plaintext, nil)
 			}
 
 			// Wire overhead = authentication tag size + nonce size
 			b.ReportMetric(float64(aesGcm.Overhead()+aesGcm.NonceSize()), "wire_overhead_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
+
+			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				ascon.Seal(asconCiphertext[:0], asconNonce, plaintext, nil)
@@ -57,6 +64,9 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
 			// Wire overhead = authentication tag size + nonce size
 			b.ReportMetric(float64(ascon.Overhead()+ascon.NonceSize()), "wire_overhead_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 }
@@ -89,17 +99,24 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
 
+			throttle := utils.WatchThrottling()
+
 			for b.Loop() {
 				aesGcm.Open(aesGcmPlaintext[:0], aesGcmNonce, aesGcmCiphertext, nil)
 			}
 
 			// Wire overhead = authentication tag size + nonce size
 			b.ReportMetric(float64(aesGcm.Overhead()+aesGcm.NonceSize()), "wire_overhead_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 			// Records the number of bytes processed in a single operation
 			b.SetBytes(int64(payloadSize))
+
+			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				ascon.Open(asconPlaintext[:0], asconNonce, asconCiphertext, nil)
@@ -107,6 +124,9 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
 			// Wire overhead = authentication tag size + nonce size
 			b.ReportMetric(float64(ascon.Overhead()+ascon.NonceSize()), "wire_overhead_bytes/op")
+			if throttled, available := throttle.Throttled(); available {
+				b.ReportMetric(throttled, "throttled")
+			}
 		})
 	}
 }

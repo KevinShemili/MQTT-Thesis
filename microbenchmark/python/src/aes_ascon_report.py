@@ -6,6 +6,7 @@ from reporting.benchmark import (
     BenchmarkSummary,
     FeatureSweep,
     load_results,
+    throttle_flags,
 )
 from reporting.charts import (
     AMBER,
@@ -82,10 +83,12 @@ def build_table(
 ) -> str:
 
     rows = []
+    cases = []
 
     for payload_size in config.integers("PAYLOAD_SIZES"):
 
         case = summary.get_case_summary(operation, algorithm, payload_size)
+        cases.append(case)
 
         latency = case.get_feature(NS_PER_OP)
         throughput = case.get_feature(MB_PER_SECOND)
@@ -109,6 +112,7 @@ def build_table(
             f"Iters (Σ{config.runs} runs)",
         ],
         rows,
+        throttle_flags(cases),
     )
 
 
