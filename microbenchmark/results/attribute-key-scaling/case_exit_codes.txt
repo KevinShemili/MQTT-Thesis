@@ -1,0 +1,22 @@
+# case exit_code (0 = ok, 2 = panic, 137 = OOM-killed)
+CPABEAttributes/1                        0
+CPABEAttributes/2                        0
+CPABEAttributes/4                        0
+CPABEAttributes/8                        0
+CPABEAttributes/16                       0
+CPABEAttributes/32                       0
+RSASubscribers/1                         0
+RSASubscribers/2                         0
+RSASubscribers/4                         0
+RSASubscribers/8                         0
+RSASubscribers/16                        0
+RSASubscribers/32                        0
+RSASubscribers/64                        0
+RSAKeyBits/2048                          0
+RSAKeyBits/3072                          0
+RSAKeyBits/4096                          0
+RSAKeyBits/7680                          0
+KeyGen/RSAKeyBits/2048                   0
+KeyGen/RSAKeyBits/3072                   0
+KeyGen/RSAKeyBits/4096                   0
+KeyGen/RSAKeyBits/7680                   0

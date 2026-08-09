@@ -1,43 +1,96 @@
 #!/bin/sh
 set -eu
 
-mkdir -p /results/attribute-key-scaling
+ResultDirectory=/results/attribute-key-scaling
+OutputFile="${ResultDirectory}/bench_output.txt"
+ExitCodeFile="${ResultDirectory}/case_exit_codes.txt"
 
-echo 'Running Attribute & Key Scaling benchmark...'
+mkdir -p "${ResultDirectory}"
+: > "${OutputFile}"
+printf '# case exit_code (0 = ok, 2 = panic, 137 = OOM-killed)\n' > "${ExitCodeFile}"
+rm -rf key-cache # ensure old keys are not used in PI
 
-AttributeCountCount=$(echo "${ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT}" | tr ',' '\n' | wc -l)
-RecipientCountCount=$(echo "${ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT}" | tr ',' '\n' | wc -l)
-RSAKeyBitsCount=$(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' '\n' | wc -l)
-EncryptCases=$((AttributeCountCount + RecipientCountCount + RSAKeyBitsCount))
-DecryptCases=$((AttributeCountCount + RecipientCountCount + RSAKeyBitsCount))
-EncryptDecryptCases=$((EncryptCases + DecryptCases))
-KeyGenCases=$((AttributeCountCount + RSAKeyBitsCount))
-EncryptDecryptLines=$((EncryptDecryptCases * ATTRIBUTE_KEY_SCALING_RUNS))
-KeyGenLines=$((KeyGenCases * ATTRIBUTE_KEY_SCALING_RUNS))
-# 4 header lines (goos/goarch/pkg/cpu) + 1 PASS, per binary invocation
-FixedOverheadLines=10
-TotalLines=$((EncryptDecryptLines + KeyGenLines + FixedOverheadLines))
+echo 'Phase 1 of 3 - CP-ABE attribute scaling'
 
-{
+for AttributeCount in $(echo "${ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT}" | tr ',' ' '); do
+  Label="CPABEAttributes/${AttributeCount}"
+
+  echo "  ${Label}"
+
+  set +e
   ./benchmark-binary \
-    -test.run=^$ \
-    -test.bench='^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)$' \
-    -test.benchtime=5s \
-    -test.count=${ATTRIBUTE_KEY_SCALING_RUNS}
+    -test.run='^$' \
+    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^CPABEAttributes\$/^${AttributeCount}\$" \
+    -test.benchtime='5s' \
+    -test.count="${ATTRIBUTE_KEY_SCALING_RUNS}" \
+    -test.timeout=0 \
+    >> "${OutputFile}"
+  ExitCode=$?
+  set -e
 
+    printf '%-40s %d\n' "${Label}" "${ExitCode}" >> "${ExitCodeFile}"
+done
+
+echo 'Phase 2 of 3 - RSA subscriber and key-size scaling'
+
+for SubscriberCount in $(echo "${ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT}" | tr ',' ' '); do
+  Label="RSASubscribers/${SubscriberCount}"
+
+  echo "  ${Label}"
+
+  set +e
   ./benchmark-binary \
-    -test.run=^$ \
-    -test.bench=^BenchmarkAttributeKeyScalingKeyGen$ \
-    -test.benchtime=20x \
-    -test.count=${ATTRIBUTE_KEY_SCALING_RUNS}
-} | pv \
-    --force \
-    --wait \
-    --line-mode \
-    --size "${TotalLines}" \
-    --interval 5 \
-    --format "Attribute & Key Scaling: %p %t" \
-    > /results/attribute-key-scaling/bench_output.txt
+    -test.run='^$' \
+    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^RSASubscribers\$/^${SubscriberCount}\$" \
+    -test.benchtime='5s' \
+    -test.count="${ATTRIBUTE_KEY_SCALING_RUNS}" \
+    -test.timeout=0 \
+    >> "${OutputFile}"
+  ExitCode=$?
+  set -e
+
+    printf '%-40s %d\n' "${Label}" "${ExitCode}" >> "${ExitCodeFile}"
+done
+
+for RSAKeyBits in $(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' ' '); do
+  Label="RSAKeyBits/${RSAKeyBits}"
+
+  echo "  ${Label}"
+
+  set +e
+  ./benchmark-binary \
+    -test.run='^$' \
+    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^RSAKeyBits\$/^${RSAKeyBits}\$" \
+    -test.benchtime='5s' \
+    -test.count="${ATTRIBUTE_KEY_SCALING_RUNS}" \
+    -test.timeout=0 \
+    >> "${OutputFile}"
+  ExitCode=$?
+  set -e
+
+    printf '%-40s %d\n' "${Label}" "${ExitCode}" >> "${ExitCodeFile}"
+done
+
+echo 'Phase 3 of 3 - RSA key generation'
+
+for RSAKeyBits in $(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' ' '); do
+  Label="KeyGen/RSAKeyBits/${RSAKeyBits}"
+
+  echo "  ${Label}"
+
+  set +e
+  ./benchmark-binary \
+    -test.run='^$' \
+    -test.bench="^BenchmarkAttributeKeyScalingKeyGen\$/^RSAKeyBits\$/^${RSAKeyBits}\$" \
+    -test.benchtime='1x' \
+    -test.count="${ATTRIBUTE_KEY_SCALING_KEYGEN_RUNS}" \
+    -test.timeout=0 \
+    >> "${OutputFile}"
+  ExitCode=$?
+  set -e
+
+    printf '%-40s %d\n' "${Label}" "${ExitCode}" >> "${ExitCodeFile}"
+done
 
 echo 'Generating Attribute & Key Scaling HTML report...'
 

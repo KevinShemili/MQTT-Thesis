@@ -448,6 +448,10 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .table-row.table-row-one {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         details.result-group {
             border: 1px solid var(--border);
             border-radius: 18px;
@@ -510,8 +514,10 @@
 
         .table-block p {
             margin: 0;
+            padding: 0 14px 14px 14px;
             color: var(--muted);
             font-size: 12.5px;
+            line-height: 1.55;
         }
 
         .table-wrapper {
@@ -656,7 +662,7 @@
         <section class="metadata" aria-label="Benchmark metadata">
             <div class="metric">
                 <div class="metric-label">Independent runs</div>
-                <div class="metric-value">8</div>
+                <div class="metric-value">5</div>
             </div>
 
             <div class="metric">
@@ -666,12 +672,12 @@
 
             <div class="metric">
                 <div class="metric-label">Student t</div>
-                <div class="metric-value">2.365</div>
+                <div class="metric-value">2.776</div>
             </div>
 
             <div class="metric">
                 <div class="metric-label">Crypto operations</div>
-                <div class="metric-value">2,922,122</div>
+                <div class="metric-value">1,519,818</div>
             </div>
         </section>
 
@@ -689,12 +695,10 @@
                         <img src="cpabe_attributes.png">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>+6,480 ± 113 µs</strong> ENCRYPT TIME / ATTRIBUTE <span
-                                class="stat-chip-r2">R²=0.999843</span></span>
-                        <span class="stat-chip"><strong>+335 ± 16 µs</strong> DECRYPT TIME / ATTRIBUTE <span
-                                class="stat-chip-r2">R²=0.998879</span></span>
-                        <span class="stat-chip"><strong>+12,007 ± 50 µs</strong> KEY ISSUANCE TIME / ATTRIBUTE
-                            <span class="stat-chip-r2">R²=0.999991</span></span>
+                        <span class="stat-chip"><strong>+6,944 ± 88 µs</strong> ENCRYPT TIME / ATTRIBUTE <span
+                                class="stat-chip-r2">R²=0.999916</span></span>
+                        <span class="stat-chip"><strong>+406 ± 5 µs</strong> DECRYPT TIME / ATTRIBUTE <span
+                                class="stat-chip-r2">R²=0.999916</span></span>
                         <span class="stat-chip"><strong>+354 ± 1 B</strong> CIPHERTEXT / ATTRIBUTE <span
                                 class="stat-chip-r2">R²=0.999999</span></span>
                         <span class="stat-chip"><strong>+438 ± 1 B</strong> PRIVATE KEY / ATTRIBUTE <span
@@ -710,8 +714,8 @@
                         <img src="rsa_subscribers.png">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>+170.14 ± 4.14 µs</strong> ENCRYPT TIME /
-                            SUBSCRIBER <span class="stat-chip-r2">R²=0.999552</span></span>
+                        <span class="stat-chip"><strong>+194.38 ± 1.05 µs</strong> ENCRYPT TIME /
+                            SUBSCRIBER <span class="stat-chip-r2">R²=0.999978</span></span>
                         <span class="stat-chip"><strong>+384 B</strong> CIPHERTEXT
                             (Total) /
                             SUBSCRIBER</span>
@@ -789,12 +793,12 @@
 
                     <aside class="comparison-explanation">
                         <div class="comparison-label">Measured Encrypt Cost Comparison</div>
-                        <div class="comparison-value">≈155 - 1,335
+                        <div class="comparison-value">≈156 - 1,261
                             Subscribers</div>
                         <p><strong>AT 1 ATTRIBUTE:</strong> RSA costs the publisher less CPU. Equality with
-                            CP-ABE is reached when RSA reaches ~154 subscribers</p>
+                            CP-ABE is reached when RSA reaches ~156 subscribers</p>
                         <p><strong>AT 32 ATTRIBUTES:</strong> The equivalent RSA would need
-                            ~1,335 subscribers</p>
+                            ~1,261 subscribers</p>
                     </aside>
                 </div>
 
@@ -811,12 +815,12 @@
                     <aside class="comparison-explanation">
                         <div class="comparison-label">RSA-3072 Decrypt Ratio</div>
                         <div class="comparison-value">
-                            4.4× - 8.5× RSA
+                            3.7× - 7.4× RSA
                         </div>
                         <p><strong>AT 1 ATTRIBUTE:</strong> CP-ABE requires
-                            4.4× the measured RSA-3072 decrypt latency.</p>
+                            3.7× the measured RSA-3072 decrypt latency.</p>
                         <p><strong>AT 32 ATTRIBUTES:</strong> CP-ABE requires
-                            8.5× the measured RSA-3072 decrypt latency.</p>
+                            7.4× the measured RSA-3072 decrypt latency.</p>
                     </aside>
                 </div>
 
@@ -848,45 +852,45 @@
 <th>ATTRIBUTES</th>
 <th>LATENCY (µs/op)</th>
 <th>CIPHERTEXT</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>ITERS (Σ5 RUNS)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1</td>
-<td>26,255.08 ± 156.37</td>
+<td>30,409.65 ± 681.75</td>
 <td>2.32 KB</td>
-<td>1,816</td>
+<td>982</td>
 </tr>
 <tr>
 <td>2</td>
-<td>32,333.22 ± 258.80</td>
+<td>37,223.70 ± 365.81</td>
 <td>2.67 KB</td>
-<td>1,470</td>
+<td>797</td>
 </tr>
 <tr>
 <td>4</td>
-<td>44,294.20 ± 613.83</td>
+<td>50,617.58 ± 443.17</td>
 <td>3.35 KB</td>
-<td>1,073</td>
+<td>500</td>
 </tr>
 <tr>
 <td>8</td>
-<td>71,476.20 ± 539.10</td>
+<td>77,157.79 ± 624.05</td>
 <td>4.73 KB</td>
-<td>681</td>
+<td>381</td>
 </tr>
 <tr>
 <td>16</td>
-<td>121,093.72 ± 1,112.46</td>
+<td>134,841.71 ± 3,325.01</td>
 <td>7.5 KB</td>
-<td>394</td>
+<td>226</td>
 </tr>
 <tr>
 <td>32</td>
-<td>227,142.05 ± 4,749.11</td>
+<td>245,161.49 ± 4,919.79</td>
 <td>13.05 KB</td>
-<td>208</td>
+<td>120</td>
 </tr>
 </tbody>
 </table>
@@ -903,58 +907,58 @@
 <th>LATENCY (µs/op)</th>
 <th>CIPHERTEXT</th>
 <th>CIPHERTEXT (TOTAL)</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>ITERS (Σ5 RUNS)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1</td>
-<td>159.91 ± 0.55</td>
+<td>189.45 ± 3.66</td>
 <td>384 B</td>
 <td>384 B</td>
-<td>300,467</td>
+<td>157,317</td>
 </tr>
 <tr>
 <td>2</td>
-<td>320.18 ± 3.08</td>
+<td>381.70 ± 5.58</td>
 <td>384 B</td>
 <td>768 B</td>
-<td>149,657</td>
+<td>77,921</td>
 </tr>
 <tr>
 <td>4</td>
-<td>658.33 ± 26.11</td>
+<td>769.12 ± 11.39</td>
 <td>384 B</td>
 <td>1.5 KB</td>
-<td>74,574</td>
+<td>38,279</td>
 </tr>
 <tr>
 <td>8</td>
-<td>1,285.99 ± 11.88</td>
+<td>1,555.16 ± 34.54</td>
 <td>384 B</td>
 <td>3 KB</td>
-<td>37,090</td>
+<td>18,732</td>
 </tr>
 <tr>
 <td>16</td>
-<td>2,554.30 ± 8.74</td>
+<td>3,086.10 ± 27.70</td>
 <td>384 B</td>
 <td>6 KB</td>
-<td>18,561</td>
+<td>9,750</td>
 </tr>
 <tr>
 <td>32</td>
-<td>5,548.19 ± 147.97</td>
+<td>6,260.01 ± 69.00</td>
 <td>384 B</td>
 <td>12 KB</td>
-<td>8,767</td>
+<td>4,783</td>
 </tr>
 <tr>
 <td>64</td>
-<td>10,815.41 ± 309.48</td>
+<td>12,419.93 ± 97.62</td>
 <td>384 B</td>
 <td>24 KB</td>
-<td>4,395</td>
+<td>2,432</td>
 </tr>
 </tbody>
 </table>
@@ -970,33 +974,33 @@
 <th>KEY BITS</th>
 <th>LATENCY (µs/op)</th>
 <th>CIPHERTEXT</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>ITERS (Σ5 RUNS)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>2048</td>
-<td>30.48 ± 0.18</td>
+<td>35.66 ± 0.33</td>
 <td>256 B</td>
-<td>1,580,530</td>
+<td>825,957</td>
 </tr>
 <tr>
 <td>3072</td>
-<td>160.78 ± 1.22</td>
+<td>196.18 ± 1.29</td>
 <td>384 B</td>
-<td>298,487</td>
+<td>151,559</td>
 </tr>
 <tr>
 <td>4096</td>
-<td>282.48 ± 1.67</td>
+<td>341.79 ± 3.85</td>
 <td>512 B</td>
-<td>169,135</td>
+<td>87,295</td>
 </tr>
 <tr>
 <td>7680</td>
-<td>931.60 ± 8.09</td>
+<td>1,125.62 ± 9.64</td>
 <td>960 B</td>
-<td>51,675</td>
+<td>26,276</td>
 </tr>
 </tbody>
 </table>
@@ -1016,39 +1020,46 @@
 <tr>
 <th>ATTRIBUTES</th>
 <th>LATENCY (µs/op)</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>STORED KEY</th>
+<th>ITERS (Σ5 RUNS)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1</td>
-<td>11,085.81 ± 104.28</td>
-<td>4,347</td>
+<td>12,216.69 ± 128.81</td>
+<td>2.3 KB</td>
+<td>2,468</td>
 </tr>
 <tr>
 <td>2</td>
-<td>11,644.05 ± 125.13</td>
-<td>4,112</td>
+<td>12,557.63 ± 140.01</td>
+<td>2.72 KB</td>
+<td>2,396</td>
 </tr>
 <tr>
 <td>4</td>
-<td>12,032.19 ± 108.15</td>
-<td>3,981</td>
+<td>13,451.43 ± 155.57</td>
+<td>3.58 KB</td>
+<td>2,273</td>
 </tr>
 <tr>
 <td>8</td>
-<td>13,318.21 ± 80.15</td>
-<td>3,624</td>
+<td>14,986.20 ± 190.12</td>
+<td>5.29 KB</td>
+<td>2,009</td>
 </tr>
 <tr>
 <td>16</td>
-<td>15,983.89 ± 50.57</td>
-<td>3,001</td>
+<td>18,344.75 ± 301.68</td>
+<td>8.71 KB</td>
+<td>1,635</td>
 </tr>
 <tr>
 <td>32</td>
-<td>21,551.30 ± 140.45</td>
-<td>2,216</td>
+<td>24,778.27 ± 245.21</td>
+<td>15.57 KB</td>
+<td>1,200</td>
 </tr>
 </tbody>
 </table>
@@ -1063,44 +1074,44 @@
 <tr>
 <th>SUBSCRIBERS</th>
 <th>LATENCY (µs/op)</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>ITERS (Σ5 RUNS)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>1</td>
-<td>2,735.82 ± 6.71</td>
-<td>17,821</td>
+<td>3,229.23 ± 89.88</td>
+<td>9,348</td>
 </tr>
 <tr>
 <td>2</td>
-<td>2,761.27 ± 14.71</td>
-<td>17,257</td>
+<td>3,199.73 ± 26.49</td>
+<td>9,462</td>
 </tr>
 <tr>
 <td>4</td>
-<td>2,787.99 ± 34.67</td>
-<td>17,187</td>
+<td>3,215.31 ± 42.55</td>
+<td>9,411</td>
 </tr>
 <tr>
 <td>8</td>
-<td>2,791.77 ± 18.11</td>
-<td>17,412</td>
+<td>3,276.03 ± 9.72</td>
+<td>9,030</td>
 </tr>
 <tr>
 <td>16</td>
-<td>2,760.05 ± 25.77</td>
-<td>17,411</td>
+<td>3,400.14 ± 91.97</td>
+<td>9,047</td>
 </tr>
 <tr>
 <td>32</td>
-<td>2,736.87 ± 9.35</td>
-<td>17,633</td>
+<td>3,279.84 ± 47.64</td>
+<td>9,131</td>
 </tr>
 <tr>
 <td>64</td>
-<td>2,721.96 ± 14.44</td>
-<td>17,743</td>
+<td>3,282.82 ± 31.41</td>
+<td>9,201</td>
 </tr>
 </tbody>
 </table>
@@ -1115,29 +1126,29 @@
 <tr>
 <th>KEY BITS</th>
 <th>LATENCY (µs/op)</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>ITERS (Σ5 RUNS)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>2048</td>
-<td>985.42 ± 7.47</td>
-<td>48,994</td>
+<td>1,205.97 ± 2.10</td>
+<td>25,886</td>
 </tr>
 <tr>
 <td>3072</td>
-<td>2,543.29 ± 167.35</td>
-<td>19,020</td>
+<td>3,333.41 ± 50.97</td>
+<td>9,216</td>
 </tr>
 <tr>
 <td>4096</td>
-<td>5,279.67 ± 192.91</td>
-<td>9,256</td>
+<td>6,789.57 ± 66.33</td>
+<td>4,501</td>
 </tr>
 <tr>
 <td>7680</td>
-<td>88,393.31 ± 463.19</td>
-<td>527</td>
+<td>109,500.09 ± 1,924.53</td>
+<td>257</td>
 </tr>
 </tbody>
 </table>
@@ -1148,61 +1159,7 @@
 
             <div class="operation-group">
                 <h3 class="operation-heading">Key Generation</h3>
-                <div class="table-row table-row-two">
-                    <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">
-                            <table>
-<thead>
-<tr>
-<th>ATTRIBUTES</th>
-<th>LATENCY (µs/op)</th>
-<th>STORED KEY</th>
-<th>ITERS (Σ8 RUNS)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>34,186.13 ± 337.04</td>
-<td>2.3 KB</td>
-<td>160</td>
-</tr>
-<tr>
-<td>2</td>
-<td>46,897.66 ± 961.83</td>
-<td>2.72 KB</td>
-<td>160</td>
-</tr>
-<tr>
-<td>4</td>
-<td>70,395.45 ± 706.08</td>
-<td>3.58 KB</td>
-<td>160</td>
-</tr>
-<tr>
-<td>8</td>
-<td>118,015.79 ± 406.01</td>
-<td>5.29 KB</td>
-<td>160</td>
-</tr>
-<tr>
-<td>16</td>
-<td>215,162.42 ± 1,593.89</td>
-<td>8.71 KB</td>
-<td>160</td>
-</tr>
-<tr>
-<td>32</td>
-<td>406,480.95 ± 4,357.14</td>
-<td>15.57 KB</td>
-<td>160</td>
-</tr>
-</tbody>
-</table>
-                        </div>
-                    </div>
-
+                <div class="table-row table-row-one">
                     <div class="table-block">
                         <h3>RSA: Key Size Scaling</h3>
                         <div class="table-wrapper">
@@ -1210,35 +1167,50 @@
 <thead>
 <tr>
 <th>KEY BITS</th>
-<th>LATENCY (µs/op)</th>
+<th>MEDIAN (ms)</th>
+<th>MIN (ms)</th>
+<th>MAX (ms)</th>
+<th>IQR (ms)</th>
 <th>STORED KEY</th>
-<th>ITERS (Σ8 RUNS)</th>
+<th>n</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>2048</td>
-<td>60,509.49 ± 4,531.78</td>
+<td>47.26</td>
+<td>23.67</td>
+<td>177.60</td>
+<td>28.12</td>
 <td>1.16 KB</td>
-<td>160</td>
+<td>10</td>
 </tr>
 <tr>
 <td>3072</td>
-<td>221,730.08 ± 28,618.01</td>
-<td>1.73 KB</td>
-<td>160</td>
+<td>217.02</td>
+<td>111.84</td>
+<td>1,233.76</td>
+<td>102.66</td>
+<td>1.72 KB</td>
+<td>10</td>
 </tr>
 <tr>
 <td>4096</td>
-<td>622,236.56 ± 53,247.51</td>
+<td>617.95</td>
+<td>181.63</td>
+<td>1,665.41</td>
+<td>390.97</td>
 <td>2.29 KB</td>
-<td>160</td>
+<td>10</td>
 </tr>
 <tr>
 <td>7680</td>
-<td>18,014,543.31 ± 2,399,579.81</td>
+<td>31,988.00</td>
+<td>2,142.09</td>
+<td>69,882.77</td>
+<td>30,651.74</td>
 <td>4.26 KB</td>
-<td>160</td>
+<td>10</td>
 </tr>
 </tbody>
 </table>

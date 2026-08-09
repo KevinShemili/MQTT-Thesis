@@ -2,10 +2,18 @@ package benchmark
 
 import (
 	"fmt"
+	"path/filepath"
 	"project/cryptography"
 	"project/utils"
+	"slices"
 	"testing"
+	"time"
 )
+
+const cooldownTimeout = 5 * time.Minute
+const keyCacheDirectory = "key-cache"
+
+var rsaKeyCache = map[int][]cryptography.RSA{}
 
 type AttributeKeyScalingConfig struct {
 	AttributeCountList  []int
@@ -25,11 +33,8 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 	cpAbe := cryptography.NewCPABEAuthority()
 
 	// Get highest subscriber count to provision the recipient pool once
-	maxSubscriberCount := config.SubscriberCountList[len(config.SubscriberCountList)-1]
-	rsaSubscribers := make([]cryptography.RSA, maxSubscriberCount)
-	for index := range maxSubscriberCount {
-		rsaSubscribers[index] = cryptography.NewRSA(config.FixedRSAKeyBits)
-	}
+	maxSubscriberCount := slices.Max(config.SubscriberCountList)
+	rsaSubscribers := rsaKeyPool(config.FixedRSAKeyBits, maxSubscriberCount)
 
 	// True cryptographic realism is not necessary here either,
 	// rather isolation of asymmetric cost is the goal
@@ -45,6 +50,9 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 		abeCiphertextSize := len(cpAbe.Encrypt(abePolicy, aesKey))
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
+
 			for b.Loop() {
 				cpAbe.Encrypt(abePolicy, aesKey)
 			}
@@ -64,6 +72,9 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 		totalCiphertextSize := subscriberCount * singleCiphertextSize
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
+
 			for b.Loop() {
 				for index := range subscriberCount {
 					rsaSubscribers[index].Encrypt(aesKey)
@@ -78,11 +89,13 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 	// Scenario 3: RSA scaling key size
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
-		rsaScheme := cryptography.NewRSA(rsaKeyBits)
+		rsaScheme := rsaKeyPool(rsaKeyBits, 1)[0]
 
 		rsaCiphertextSize := len(rsaScheme.Encrypt(aesKey))
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
 
 			for b.Loop() {
 				rsaScheme.Encrypt(aesKey)
@@ -97,6 +110,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 	config := loadAttributeKeyScalingConfig()
 	aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+	subscriberKeys := rsaKeyPool(config.FixedRSAKeyBits, len(config.SubscriberCountList))
 
 	// Scenario 1: CP-ABE scaling attribute count
 	cpAbe := cryptography.NewCPABEAuthority()
@@ -106,11 +120,17 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 		subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
 		abeCiphertext := cpAbe.Encrypt(abePolicy, aesKey)
+		abeStoredKeySize := subscriberKey.StoredKeySize()
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
+
 			for b.Loop() {
 				subscriberKey.Decrypt(abeCiphertext)
 			}
+
+			b.ReportMetric(float64(abeStoredKeySize), "stored_key_bytes")
 		})
 	}
 
@@ -118,12 +138,14 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 	// A subscriber only ever decrypts own session key, so cost is expected to stay flat.
 	// Each sweep point provisions its own subscriber and decrypts its own wrapped key, so a flat
 	// result reflects measured behaviour rather than a repetition of byte-identical work
-	for _, subscriberCount := range config.SubscriberCountList {
+	for index, subscriberCount := range config.SubscriberCountList {
 
-		subscriber := cryptography.NewRSA(config.FixedRSAKeyBits)
+		subscriber := subscriberKeys[index]
 		subscriberCiphertext := subscriber.Encrypt(aesKey)
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
 
 			for b.Loop() {
 				subscriber.Decrypt(subscriberCiphertext)
@@ -134,10 +156,12 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 	// Scenario 3: RSA scaling key size
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
-		rsa := cryptography.NewRSA(rsaKeyBits)
+		rsa := rsaKeyPool(rsaKeyBits, 1)[0]
 		rsaCiphertext := rsa.Encrypt(aesKey)
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
 
 			for b.Loop() {
 				rsa.Decrypt(rsaCiphertext)
@@ -150,39 +174,29 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 
 	config := loadAttributeKeyScalingConfig()
 
-	// Scenario 1: CP-ABE's
-	// 1. Subscriber key issuance cost
-	// 2. Stored key size vs attribute count
-	cpAbe := cryptography.NewCPABEAuthority()
-	for _, attributeCount := range config.AttributeCountList {
+	// CP-ABE key issuance is deliberately not measured. It is executed by the attribute
+	// authority, which holds the master secret and is by definition a trusted,
+	// unconstrained entity, so it is never a cost the constrained device pays.
+	// CP-ABE's stored key size is reported by the decrypt benchmark instead
 
-		_, abeAttributes := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
-
-		abeStoredKeySize := cpAbe.IssueSubscriberKey(abeAttributes).StoredKeySize()
-
-		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
-			for b.Loop() {
-				cpAbe.IssueSubscriberKey(abeAttributes)
-			}
-
-			b.ReportMetric(float64(abeStoredKeySize), "stored_key_bytes")
-		})
-	}
-
-	// Scenario 2: RSA's
-	// 1. Key generation cost
-	// 2. Stored key size vs modulus size
+	// Key generation is a probabilistic prime search, so its cost is a random variable
+	// with a long right tail and a single averaged figure is not representative.
+	// Run with -benchtime=1x so each run performs exactly one generation and its ns/op
+	// is one sample, and -count=N to collect N of them. The distribution is reduced to
+	// median, IQR, min and max at reporting time
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
-		rsaStoredKeySize := cryptography.NewRSA(rsaKeyBits).StoredKeySize()
-
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+			waitForCooldown()
+			b.ResetTimer()
+
+			var scheme cryptography.RSA
 
 			for b.Loop() {
-				cryptography.NewRSA(rsaKeyBits)
+				scheme = cryptography.NewRSA(rsaKeyBits)
 			}
 
-			b.ReportMetric(float64(rsaStoredKeySize), "stored_key_bytes")
+			b.ReportMetric(float64(scheme.StoredKeySize()), "stored_key_bytes")
 		})
 	}
 }
@@ -206,4 +220,32 @@ func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 			"ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE",
 		),
 	}
+}
+
+func rsaKeyPool(rsaKeyBits int, requiredCount int) []cryptography.RSA {
+
+	directory := filepath.Join(keyCacheDirectory, fmt.Sprintf("rsa-%d", rsaKeyBits))
+
+	pool, loaded := rsaKeyCache[rsaKeyBits]
+	if !loaded {
+		pool = cryptography.LoadRSAKeys(directory)
+	}
+
+	// Only generation extends the pool, so the same key can never be added twice
+	for len(pool) < requiredCount {
+		key := cryptography.NewRSA(rsaKeyBits)
+		cryptography.StoreRSAKey(key, directory, len(pool))
+		pool = append(pool, key)
+	}
+
+	rsaKeyCache[rsaKeyBits] = pool
+
+	return pool[:requiredCount]
+}
+
+func waitForCooldown() {
+	utils.WaitForCooldown(
+		utils.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
+		cooldownTimeout,
+	)
 }

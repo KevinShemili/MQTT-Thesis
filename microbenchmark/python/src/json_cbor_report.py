@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from reporting.benchmark import (
     ENVELOPE_BYTES,
     NS_PER_MICROSECOND,
@@ -21,17 +19,12 @@ from reporting.charts import (
     save_figure,
     draw_two_panel_figure,
 )
-from reporting.environment import (
-    FilePaths,
-    parse_int_env,
-    parse_int_list_env,
-    resolve_paths,
-)
+from reporting.environment import Config
 from reporting.formatting import format_mean_with_ci
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import get_student_t_critical_95
 
 SCENARIO = "json-cbor"
+ENV_PREFIX = "JSON_CBOR"
 TEMPLATE_NAME = "json_cbor_template.html"
 
 LATENCY_PLOT = "plot.png"
@@ -48,27 +41,8 @@ X_LABEL = "Attribute count"
 BENCHMARK_PREFIX = "BenchmarkEnvelope"
 
 
-@dataclass(frozen=True)
-class Config:
-    runs: int
-    t_critical: float
-    attribute_counts: list[int]
-    paths: FilePaths
-
-
-def load_config() -> Config:
-    runs = parse_int_env("JSON_CBOR_RUNS")
-
-    return Config(
-        runs=runs,
-        t_critical=get_student_t_critical_95(runs - 1),
-        attribute_counts=parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS"),
-        paths=resolve_paths(SCENARIO, TEMPLATE_NAME),
-    )
-
-
 def configure_attribute_axis(config: Config, axis: Axes) -> None:
-    axis.set_xticks(config.attribute_counts)
+    axis.set_xticks(config.integers("ATTRIBUTE_COUNTS"))
     apply_mesh_grid(axis)
 
 
@@ -78,10 +52,9 @@ def plot_latency(results: BenchmarkSummary, config: Config) -> None:
         return results.sweep_features(
             operation,
             format_name,
-            config.attribute_counts,
+            config.integers("ATTRIBUTE_COUNTS"),
             NS_PER_OP,
             NS_PER_MICROSECOND,
-            with_ci=True,
         )
 
     draw_two_panel_figure(
@@ -94,7 +67,7 @@ def plot_latency(results: BenchmarkSummary, config: Config) -> None:
         colors=FORMAT_COLORS,
         labels=FORMAT_LABELS,
         configure_axis=lambda axis: configure_attribute_axis(config, axis),
-        output_path=config.paths.figure(LATENCY_PLOT),
+        output_path=config.figure(LATENCY_PLOT),
     )
 
 
@@ -109,28 +82,34 @@ def plot_size(results: BenchmarkSummary, config: Config) -> None:
 
     for format_name in FORMATS:
 
+        label = FORMAT_LABELS.get(format_name, format_name)
+        color = FORMAT_COLORS[format_name]
+
+        attribute_counts = config.integers("ATTRIBUTE_COUNTS")
+
         envelope_sizes = results.sweep_features(
-            "serialize", format_name, config.attribute_counts, ENVELOPE_BYTES
+            "serialize", format_name, attribute_counts, ENVELOPE_BYTES
         )
         raw_sizes = results.sweep_features(
-            "serialize", format_name, config.attribute_counts, RAW_BYTES
+            "serialize", format_name, attribute_counts, RAW_BYTES
         )
 
-        format_tax = FeatureSweep(
-            sweep_values=envelope_sizes.sweep_values,
-            means=[
+        draw_summary(axes[0], envelope_sizes, label, color)
+
+        # The format tax is the difference between two measured sizes rather than a
+        # measurement in its own right, so it is drawn as the plain line it is
+        axes[1].plot(
+            envelope_sizes.sweep_values,
+            [
                 envelope - raw
                 for envelope, raw in zip(envelope_sizes.means, raw_sizes.means)
             ],
+            label=label,
+            color=color,
+            marker="o",
+            linewidth=1.8,
+            markersize=5,
         )
-
-        for axis, series in ((axes[0], envelope_sizes), (axes[1], format_tax)):
-            draw_summary(
-                axis,
-                series,
-                FORMAT_LABELS.get(format_name, format_name),
-                FORMAT_COLORS[format_name],
-            )
 
     for axis, title, y_label in (
         (axes[0], "Absolute Size", "Envelope size (bytes)"),
@@ -144,7 +123,7 @@ def plot_size(results: BenchmarkSummary, config: Config) -> None:
         axis.legend(fontsize=10)
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(SIZE_PLOT))
+    save_figure(figure, config.figure(SIZE_PLOT))
 
 
 def build_table(
@@ -156,7 +135,7 @@ def build_table(
 
     rows = []
 
-    for attribute_count in config.attribute_counts:
+    for attribute_count in config.integers("ATTRIBUTE_COUNTS"):
 
         case = results.get_case_summary(operation, format_name, attribute_count)
 
@@ -207,21 +186,19 @@ def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, results.get_total_iterations
+            config.runs, config.t_critical, results.total_iterations
         ),
         **tables,
         "LatencyPlot": LATENCY_PLOT,
         "SizePlot": SIZE_PLOT,
     }
 
-    build_html_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.template, config.report, placeholders)
 
 
 def main() -> None:
-    config = load_config()
-    results = load_results(
-        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical, "Attrs"
-    )
+    config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
+    results = load_results(config.bench_output, BENCHMARK_PREFIX, "Attrs")
 
     plot_latency(results, config)
     plot_size(results, config)

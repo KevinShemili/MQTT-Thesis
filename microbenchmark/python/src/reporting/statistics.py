@@ -1,5 +1,4 @@
 import math
-from dataclasses import dataclass
 
 STUDENT_T_CRITICAL_95: dict[int, float] = {
     1: 12.71,
@@ -25,17 +24,28 @@ STUDENT_T_CRITICAL_95: dict[int, float] = {
 # 2. intercept is value of fit at x = 0
 # 3. r_squared indicates how closely the measured points follow the fit
 # 4. slope_ci is CI half of calculated slope
-@dataclass(frozen=True)
 class LinearFit:
-    slope: float
-    intercept: float
-    r_squared: float
-    slope_ci: float
+    def __init__(
+        self,
+        slope: float,
+        intercept: float,
+        r_squared: float,
+        slope_ci: float,
+    ) -> None:
+        self.slope = slope
+        self.intercept = intercept
+        self.r_squared = r_squared
+        self.slope_ci = slope_ci
 
     # Calculate y based on a given x value,
     # using the linear fit equation y = mx + b
     def calculate_y_based_on_x(self, x_value: float) -> float:
         return self.intercept + self.slope * x_value
+
+    # Inverse of the above, x = (y - b) / m. Answers at which x the fitted line
+    # reaches a given y, which is how a crossover against a flat cost is located
+    def solve_x_for_y(self, y_value: float) -> float:
+        return (y_value - self.intercept) / self.slope
 
 
 def get_student_t_critical_95(degrees_of_freedom: int) -> float:
@@ -47,6 +57,33 @@ def get_student_t_critical_95(degrees_of_freedom: int) -> float:
 
 def mean(values: list[float] | list[int]) -> float:
     return sum(values) / len(values)
+
+
+# Value below which the given fraction of the samples fall, ex. fraction=0.25
+# gives the first quartile. The requested rank rarely lands exactly on a sample,
+# so the two samples surrounding it are interpolated linearly
+def percentile(values: list[float], fraction: float) -> float:
+
+    ordered = sorted(values)
+
+    # rank = (n - 1) × fraction, position of the wanted value in the ordered samples
+    rank = (len(ordered) - 1) * fraction
+
+    lower_index = math.floor(rank)
+    upper_index = math.ceil(rank)
+
+    if lower_index == upper_index:
+        return ordered[lower_index]
+
+    # Weight of the upper sample, which is how far the rank sits past the lower one
+    weight = rank - lower_index
+
+    # x = x_lower + weight × (x_upper - x_lower)
+    return ordered[lower_index] + weight * (ordered[upper_index] - ordered[lower_index])
+
+
+def median(values: list[float]) -> float:
+    return percentile(values, 0.5)
 
 
 def mean_and_confidence_interval(

@@ -448,6 +448,10 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .table-row.table-row-one {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         details.result-group {
             border: 1px solid var(--border);
             border-radius: 18px;
@@ -510,8 +514,10 @@
 
         .table-block p {
             margin: 0;
+            padding: 0 14px 14px 14px;
             color: var(--muted);
             font-size: 12.5px;
+            line-height: 1.55;
         }
 
         .table-wrapper {
@@ -693,8 +699,6 @@
                                 class="stat-chip-r2">R²={{CpabeEncryptRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeDecryptSlope}}</strong> DECRYPT TIME / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeDecryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{CpabeKeyIssuanceSlope}}</strong> KEY ISSUANCE TIME / ATTRIBUTE
-                            <span class="stat-chip-r2">R²={{CpabeKeyIssuanceRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE <span
                                 class="stat-chip-r2">R²={{CpabeCiphertextRSquared}}</span></span>
                         <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> PRIVATE KEY / ATTRIBUTE <span
@@ -890,14 +894,7 @@
 
             <div class="operation-group">
                 <h3 class="operation-heading">Key Generation</h3>
-                <div class="table-row table-row-two">
-                    <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">
-                            {{CpabeKeygenTable}}
-                        </div>
-                    </div>
-
+                <div class="table-row table-row-one">
                     <div class="table-block">
                         <h3>RSA: Key Size Scaling</h3>
                         <div class="table-wrapper">

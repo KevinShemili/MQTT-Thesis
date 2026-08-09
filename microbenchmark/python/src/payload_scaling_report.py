@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from reporting.benchmark import (
     MB_PER_SECOND,
     NS_PER_MICROSECOND,
@@ -21,21 +19,17 @@ from reporting.charts import (
     draw_two_panel_figure,
     calculate_axis_top,
 )
-from reporting.environment import (
-    FilePaths,
-    parse_int_env,
-    parse_int_list_env,
-    resolve_paths,
-)
+from reporting.environment import Config
 from reporting.formatting import (
     MEGABYTE,
     format_byte_size,
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import mean, get_student_t_critical_95
+from reporting.statistics import mean
 
 SCENARIO = "payload-scaling"
+ENV_PREFIX = "PAYLOAD_SCALING"
 TEMPLATE_NAME = "payload_scaling_template.html"
 
 LATENCY_PLOT = "plot.png"
@@ -56,27 +50,8 @@ ZOOM_BOUNDS = [0.08, 0.08, 0.47, 0.32]
 ZOOM_HEADROOM = 1.10
 
 
-@dataclass(frozen=True)
-class Config:
-    runs: int
-    t_critical: float
-    payload_sizes: list[int]
-    paths: FilePaths
-
-
-def load_config() -> Config:
-    runs = parse_int_env("PAYLOAD_SCALING_RUNS")
-
-    return Config(
-        runs=runs,
-        t_critical=get_student_t_critical_95(runs - 1),
-        payload_sizes=parse_int_list_env("PAYLOAD_SCALING_PAYLOAD_SIZES"),
-        paths=resolve_paths(SCENARIO, TEMPLATE_NAME),
-    )
-
-
 def configure_payload_axis(config: Config, axis: Axes) -> None:
-    configure_byte_axis(axis, config.payload_sizes[-1], AXIS_TICK_STEP)
+    configure_byte_axis(axis, config.integers("PAYLOAD_SIZES")[-1], AXIS_TICK_STEP)
 
 
 # A scheme's wire overhead does not depend on payload size, so it is averaged
@@ -92,7 +67,7 @@ def scheme_overhead_bytes(
             results.get_case_summary("encrypt", scheme_name, payload_size)
             .get_feature(WIRE_OVERHEAD_BYTES)
             .mean
-            for payload_size in config.payload_sizes
+            for payload_size in config.integers("PAYLOAD_SIZES")
         ]
     )
 
@@ -124,7 +99,7 @@ def add_zoom_inset(
     zoom_axis.set_ylim(
         0.0, calculate_axis_top(series for _, series in zoomed) * ZOOM_HEADROOM
     )
-    zoom_axis.set_xlim(0, config.payload_sizes[-1] * AXIS_HEADROOM)
+    zoom_axis.set_xlim(0, config.integers("PAYLOAD_SIZES")[-1] * AXIS_HEADROOM)
     zoom_axis.set_xticks([])
     zoom_axis.set_title("PSK + RSA Zoom", fontsize=9)
     zoom_axis.set_ylabel("µs", fontsize=8)
@@ -148,10 +123,9 @@ def plot_metric(
         return results.sweep_features(
             operation,
             scheme_name,
-            config.payload_sizes,
+            config.integers("PAYLOAD_SIZES"),
             unit,
             divisor,
-            with_ci=True,
         )
 
     draw_two_panel_figure(
@@ -180,11 +154,11 @@ def build_table(
 
     rows = []
 
-    for payload_size in config.payload_sizes:
+    for payload_size in config.integers("PAYLOAD_SIZES"):
 
         case = results.get_case_summary(operation, scheme_name, payload_size)
 
-        latency = case.get_latency_in_micros
+        latency = case.latency()
         throughput = case.get_feature(MB_PER_SECOND)
 
         overhead_percent = overhead_bytes / payload_size * 100.0
@@ -224,21 +198,19 @@ def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, results.get_total_iterations
+            config.runs, config.t_critical, results.total_iterations
         ),
         **tables,
         "LatencyPlot": LATENCY_PLOT,
         "ThroughputPlot": THROUGHPUT_PLOT,
     }
 
-    build_html_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.template, config.report, placeholders)
 
 
 def main() -> None:
-    config = load_config()
-    results = load_results(
-        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical, "B"
-    )
+    config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
+    results = load_results(config.bench_output, BENCHMARK_PREFIX, "B")
 
     plot_metric(
         results,
@@ -247,7 +219,7 @@ def main() -> None:
         NS_PER_MICROSECOND,
         "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
         "Latency (µs) ± 95% CI",
-        config.paths.figure(LATENCY_PLOT),
+        config.figure(LATENCY_PLOT),
         on_panel=lambda axis, operation, drawn: add_zoom_inset(
             config, axis, operation, drawn
         ),
@@ -259,7 +231,7 @@ def main() -> None:
         1.0,
         "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
         "Throughput (MB/s) ± 95% CI",
-        config.paths.figure(THROUGHPUT_PLOT),
+        config.figure(THROUGHPUT_PLOT),
     )
 
     write_html_report(results, config)
