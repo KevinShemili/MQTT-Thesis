@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from reporting.benchmark import (
     MB_PER_SECOND,
     NS_PER_MICROSECOND,
@@ -16,22 +14,16 @@ from reporting.charts import (
     configure_byte_axis,
     draw_two_panel_figure,
 )
-from reporting.environment import (
-    FilePaths,
-    parse_int_env,
-    parse_int_list_env,
-    resolve_paths,
-)
+from reporting.environment import Config
 from reporting.formatting import (
     KILOBYTE,
     format_byte_size,
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import get_student_t_critical_95
 
 SCENARIO = "aes-ascon"
-RESULT_DIR_VAR = "AES_ASCON_RESULT_DIR"
+ENV_PREFIX = "AES_ASCON"
 TEMPLATE_NAME = "aes_ascon_template.html"
 
 LATENCY_PLOT = "plot.png"
@@ -46,29 +38,8 @@ BENCHMARK_PREFIX = "BenchmarkAESASCON"
 AXIS_TICK_STEP = 16 * KILOBYTE
 
 
-# Stores all configuration needed to process AES vs. ASCON benchmark
-@dataclass(frozen=True)
-class Config:
-    runs: int
-    t_critical: float
-    payload_sizes: list[int]
-    paths: FilePaths
-
-
-# Fill the config
-def load_config() -> Config:
-    runs = parse_int_env("AES_ASCON_RUNS")
-
-    return Config(
-        runs=runs,
-        t_critical=get_student_t_critical_95(runs - 1),
-        payload_sizes=parse_int_list_env("AES_ASCON_PAYLOAD_SIZES"),
-        paths=resolve_paths(SCENARIO, TEMPLATE_NAME, RESULT_DIR_VAR),
-    )
-
-
 def configure_payload_axis(config: Config, axis: Axes) -> None:
-    configure_byte_axis(axis, config.payload_sizes[-1], AXIS_TICK_STEP)
+    configure_byte_axis(axis, config.integers("PAYLOAD_SIZES")[-1], AXIS_TICK_STEP)
 
 
 def plot_metric(
@@ -85,10 +56,9 @@ def plot_metric(
         return summary.sweep_features(
             operation,
             algorithm,
-            config.payload_sizes,
+            config.integers("PAYLOAD_SIZES"),
             feature_name,
             divisor,
-            with_ci=True,
         )
 
     draw_two_panel_figure(
@@ -113,7 +83,7 @@ def build_table(
 
     rows = []
 
-    for payload_size in config.payload_sizes:
+    for payload_size in config.integers("PAYLOAD_SIZES"):
 
         case = summary.get_case_summary(operation, algorithm, payload_size)
 
@@ -146,7 +116,7 @@ def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, results.get_total_iterations
+            config.runs, config.t_critical, results.total_iterations
         ),
         "EncryptAesTable": build_table(results, config, "encrypt", "AES-GCM"),
         "EncryptAsconTable": build_table(results, config, "encrypt", "ASCON"),
@@ -156,15 +126,13 @@ def write_html_report(results: BenchmarkSummary, config: Config) -> None:
         "ThroughputPlot": THROUGHPUT_PLOT,
     }
 
-    build_html_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.template, config.report, placeholders)
 
 
 def main() -> None:
-    config = load_config()
+    config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
 
-    results = load_results(
-        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical, "B"
-    )
+    results = load_results(config.bench_output, BENCHMARK_PREFIX, "B")
 
     plot_metric(
         results,
@@ -173,7 +141,7 @@ def main() -> None:
         NS_PER_MICROSECOND,
         "AES-GCM vs. ASCON: Latency vs. Payload Size",
         "Latency (µs) ± 95% CI",
-        config.paths.figure(LATENCY_PLOT),
+        config.figure(LATENCY_PLOT),
     )
 
     plot_metric(
@@ -183,7 +151,7 @@ def main() -> None:
         1.0,
         "AES-GCM vs. ASCON: Throughput vs. Payload Size",
         "Throughput (MB/s) ± 95% CI",
-        config.paths.figure(THROUGHPUT_PLOT),
+        config.figure(THROUGHPUT_PLOT),
     )
 
     write_html_report(results, config)

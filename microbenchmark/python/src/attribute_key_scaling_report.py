@@ -1,8 +1,7 @@
-from dataclasses import dataclass
-
 from reporting.benchmark import (
     CIPHERTEXT_BYTES,
     NS_PER_MICROSECOND,
+    NS_PER_MILLISECOND,
     NS_PER_OP,
     STORED_KEY_BYTES,
     TOTAL_CIPHERTEXT_BYTES,
@@ -17,31 +16,25 @@ from reporting.charts import (
     CRIMSON,
     TEAL,
     VIOLET,
+    Series,
     mark_crossover,
     apply_value_grid,
+    draw_distribution,
     draw_summary,
     plt,
     save_figure,
     calculate_axis_top,
 )
-from reporting.environment import (
-    FilePaths,
-    parse_int_env,
-    parse_int_list_env,
-    resolve_paths,
-)
+from reporting.environment import Config
 from reporting.formatting import (
     format_byte_size,
     format_mean_with_ci,
 )
 from reporting.html import build_html_generic_data, build_html_report, build_html_table
-from reporting.statistics import (
-    LinearFit,
-    fit_linear_regression,
-    get_student_t_critical_95,
-)
+from reporting.statistics import LinearFit, fit_linear_regression
 
 SCENARIO = "attribute-key-scaling"
+ENV_PREFIX = "ATTRIBUTE_KEY_SCALING"
 BENCHMARK_PREFIX = "BenchmarkAttributeKeyScaling"
 TEMPLATE_NAME = "attribute_key_scaling_template.html"
 
@@ -57,77 +50,36 @@ CPABE_ATTRIBUTES = "CPABEAttributes"
 RSA_SUBSCRIBERS = "RSASubscribers"
 RSA_KEY_BITS = "RSAKeyBits"
 
-OPERATIONS = ["encrypt", "decrypt", "keygen"]
+# CP-ABE key issuance is deliberately not measured by the benchmark, it is paid by the
+# trusted attribute authority and never by the constrained device, so only the RSA key
+# size sweep carries a key generation operation
 ENCRYPT_DECRYPT = ["encrypt", "decrypt"]
+ENCRYPT_DECRYPT_KEYGEN = ["encrypt", "decrypt", "keygen"]
 
 OPERATION_COLORS = {"encrypt": AMBER, "decrypt": VIOLET, "keygen": CRIMSON}
 TOTAL_CIPHERTEXT_COLOR = TEAL
 
 RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
 
-FANOUT_LARGEST_DIAMETER_PX = 168.0
-FANOUT_SMALLEST_DIAMETER_PX = 22.0
-
-CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
-ASYMMETRY_FIGURE_SIZE = (9, 5.5)
-
-
-# One size metric drawn on the "Sizes" panel of a sweep figure
-@dataclass(frozen=True)
-class SizeSeries:
-    operation: str
-    unit: str
-    label: str
-    color: str
-
-
-CIPHERTEXT_SERIES = SizeSeries("encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER)
-TOTAL_CIPHERTEXT_SERIES = SizeSeries(
+CIPHERTEXT_SERIES = Series("encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER)
+TOTAL_CIPHERTEXT_SERIES = Series(
     "encrypt", TOTAL_CIPHERTEXT_BYTES, "Ciphertext (TOTAL)", TOTAL_CIPHERTEXT_COLOR
 )
-STORED_KEY_SERIES = SizeSeries("keygen", STORED_KEY_BYTES, "Private Key", CRIMSON)
+
+# CP-ABE's stored key size is reported by the decrypt benchmark since its issuance is
+# not timed, whereas RSA's is reported by the key generation benchmark
+CPABE_STORED_KEY_SERIES = Series("decrypt", STORED_KEY_BYTES, "Private Key", CRIMSON)
+RSA_STORED_KEY_SERIES = Series("keygen", STORED_KEY_BYTES, "Private Key", CRIMSON)
 
 CIPHERTEXT_COLUMN = ("CIPHERTEXT", CIPHERTEXT_BYTES)
 TOTAL_CIPHERTEXT_COLUMN = ("CIPHERTEXT (TOTAL)", TOTAL_CIPHERTEXT_BYTES)
 STORED_KEY_COLUMN = ("STORED KEY", STORED_KEY_BYTES)
 
+FANOUT_LARGEST_DIAMETER_PX = 168.0
+FANOUT_SMALLEST_DIAMETER_PX = 22.0
 
-# Stores all configuration needed to process attribute key scaling benchmark
-@dataclass(frozen=True)
-class Config:
-    runs: int
-    t_critical: float
-    attribute_counts: list[int]
-    subscriber_counts: list[int]
-    rsa_key_bits: list[int]
-    fixed_rsa_key_bits: int
-    paths: FilePaths
-
-    @property
-    def min_attributes(self) -> int:
-        return self.attribute_counts[0]
-
-    @property
-    def max_attributes(self) -> int:
-        return self.attribute_counts[-1]
-
-    @property
-    def max_subscribers(self) -> int:
-        return self.subscriber_counts[-1]
-
-
-def load_config() -> Config:
-    runs = parse_int_env("ATTRIBUTE_KEY_SCALING_RUNS")
-
-    return Config(
-        runs=runs,
-        t_critical=get_student_t_critical_95(runs - 1),
-        attribute_counts=parse_int_list_env("ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT"),
-        subscriber_counts=parse_int_list_env("ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT"),
-        rsa_key_bits=parse_int_list_env("ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES"),
-        fixed_rsa_key_bits=parse_int_env("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_BITS"),
-        paths=resolve_paths(SCENARIO, TEMPLATE_NAME),
-    )
+CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
+ASYMMETRY_FIGURE_SIZE = (9, 5.5)
 
 
 def format_attribute_label(attribute_count: int) -> str:
@@ -138,170 +90,77 @@ def format_attribute_label(attribute_count: int) -> str:
 
 
 # CP-ABE's cost as a straight line in the policy attribute count
-@dataclass(frozen=True)
-class CPABEFittedSlopes:
-    encrypt: LinearFit
-    decrypt: LinearFit
-    key_issuance: LinearFit
-    ciphertext: LinearFit
-    stored_key: LinearFit
-
-
-# Where RSA's per-subscriber ciphertext growth overtakes CP-ABE's fixed ciphertext
-@dataclass(frozen=True)
-class CiphertextSizeCrossover:
-    rsa_total_bytes: FeatureSweep
-    cpabe_bytes_min: float
-    cpabe_bytes_max: float
-    crossover_min: float
-    crossover_max: float
-
-
-# Where RSA's per-subscriber encrypt cost overtakes CP-ABE's fixed encrypt cost,
-# plus the decrypt cost CP-ABE pays in exchange
-@dataclass(frozen=True)
-class LatencyCrossover:
-    rsa_encrypt_micros: FeatureSweep
-    rsa_encrypt_fit: LinearFit
-    cpabe_encrypt_micros_min: float
-    cpabe_encrypt_micros_max: float
-    crossover_min: float
-    crossover_max: float
-    decrypt_penalty_min: float
-    decrypt_penalty_max: float
-
-
-# Everything derived from the parsed benchmark output, computed once and shared
-# by the figures and the HTML report
-@dataclass(frozen=True)
-class Analysis:
-    cpabe: CPABEFittedSlopes
-    ciphertext_crossover: CiphertextSizeCrossover
-    latency_crossover: LatencyCrossover
-    # Size of one wrapped session key, so also the total ciphertext growth per subscriber
-    rsa_ciphertext_bytes_per_subscriber: float
-
-
-def fit_cpabe_slopes(
+def fit_cpabe_slope(
     results: BenchmarkSummary,
     config: Config,
-) -> CPABEFittedSlopes:
+    operation: str,
+    unit: str,
+    divisor: float = 1.0,
+) -> LinearFit:
 
-    def fit(operation: str, unit: str, divisor: float = 1.0) -> LinearFit:
-        series = results.sweep_features(
-            operation, CPABE_ATTRIBUTES, config.attribute_counts, unit, divisor
-        )
-        return fit_linear_regression(series.sweep_values, series.means)
+    series = results.sweep_features(
+        operation,
+        CPABE_ATTRIBUTES,
+        config.integers("ATTRIBUTE_COUNT"),
+        unit,
+        divisor,
+    )
 
-    return CPABEFittedSlopes(
-        encrypt=fit("encrypt", NS_PER_OP, NS_PER_MICROSECOND),
-        decrypt=fit("decrypt", NS_PER_OP, NS_PER_MICROSECOND),
-        key_issuance=fit("keygen", NS_PER_OP, NS_PER_MICROSECOND),
-        ciphertext=fit("encrypt", CIPHERTEXT_BYTES),
-        stored_key=fit("keygen", STORED_KEY_BYTES),
+    return fit_linear_regression(series.sweep_values, series.means)
+
+
+def sweep_rsa_encrypt_micros(
+    results: BenchmarkSummary,
+    config: Config,
+) -> FeatureSweep:
+
+    return results.sweep_features(
+        "encrypt",
+        RSA_SUBSCRIBERS,
+        config.integers("SUBSCRIBER_COUNT"),
+        NS_PER_OP,
+        NS_PER_MICROSECOND,
     )
 
 
-def build_ciphertext_size_crossover(
+# RSA's publisher cost as a straight line in the subscriber count
+def fit_rsa_encrypt_slope(results: BenchmarkSummary, config: Config) -> LinearFit:
+
+    series = sweep_rsa_encrypt_micros(results, config)
+
+    return fit_linear_regression(series.sweep_values, series.means)
+
+
+def cpabe_micros(
     results: BenchmarkSummary,
-    config: Config,
-    rsa_bytes_per_subscriber: float,
-) -> CiphertextSizeCrossover:
+    operation: str,
+    attribute_count: int,
+) -> float:
 
-    def cpabe_bytes(attribute_count: int) -> float:
-        return (
-            results.get_case_summary("encrypt", CPABE_ATTRIBUTES, attribute_count)
-            .get_feature(CIPHERTEXT_BYTES)
-            .mean
-        )
-
-    cpabe_bytes_min = cpabe_bytes(config.min_attributes)
-    cpabe_bytes_max = cpabe_bytes(config.max_attributes)
-
-    return CiphertextSizeCrossover(
-        rsa_total_bytes=results.sweep_features(
-            "encrypt",
-            RSA_SUBSCRIBERS,
-            config.subscriber_counts,
-            TOTAL_CIPHERTEXT_BYTES,
-        ),
-        cpabe_bytes_min=cpabe_bytes_min,
-        cpabe_bytes_max=cpabe_bytes_max,
-        # Subscriber count at which RSA's wrapped keys add up to CP-ABE's one ciphertext
-        crossover_min=cpabe_bytes_min / rsa_bytes_per_subscriber,
-        crossover_max=cpabe_bytes_max / rsa_bytes_per_subscriber,
+    return (
+        results.get_case_summary(operation, CPABE_ATTRIBUTES, attribute_count)
+        .latency()
+        .mean
     )
 
 
-def build_latency_crossover(
-    results: BenchmarkSummary,
-    config: Config,
-    rsa_encrypt_micros: FeatureSweep,
-    rsa_encrypt_fit: LinearFit,
-) -> LatencyCrossover:
-
-    def cpabe_micros(operation: str, attribute_count: int) -> float:
-        return results.get_case_summary(
-            operation, CPABE_ATTRIBUTES, attribute_count
-        ).get_latency_in_micros.mean
-
-    cpabe_encrypt_micros_min = cpabe_micros("encrypt", config.min_attributes)
-    cpabe_encrypt_micros_max = cpabe_micros("encrypt", config.max_attributes)
-
-    rsa_decrypt_micros = results.get_case_summary(
-        "decrypt", RSA_KEY_BITS, config.fixed_rsa_key_bits
-    ).get_latency_in_micros.mean
-
-    # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
-    def crossover_at(cpabe_micros_level: float) -> float:
-        return (cpabe_micros_level - rsa_encrypt_fit.intercept) / rsa_encrypt_fit.slope
-
-    return LatencyCrossover(
-        rsa_encrypt_micros=rsa_encrypt_micros,
-        rsa_encrypt_fit=rsa_encrypt_fit,
-        cpabe_encrypt_micros_min=cpabe_encrypt_micros_min,
-        cpabe_encrypt_micros_max=cpabe_encrypt_micros_max,
-        crossover_min=crossover_at(cpabe_encrypt_micros_min),
-        crossover_max=crossover_at(cpabe_encrypt_micros_max),
-        decrypt_penalty_min=cpabe_micros("decrypt", config.min_attributes)
-        / rsa_decrypt_micros,
-        decrypt_penalty_max=cpabe_micros("decrypt", config.max_attributes)
-        / rsa_decrypt_micros,
-    )
-
-
-def analyse(results: BenchmarkSummary, config: Config) -> Analysis:
-
-    # One wrapped session key is the same size at every subscriber count, and RSA's total
-    # ciphertext grows by exactly that much per additional subscriber
-    rsa_ciphertext_bytes_per_subscriber = (
-        results.get_case_summary(
-            "encrypt", RSA_SUBSCRIBERS, config.subscriber_counts[0]
-        )
+def cpabe_ciphertext_bytes(results: BenchmarkSummary, attribute_count: int) -> float:
+    return (
+        results.get_case_summary("encrypt", CPABE_ATTRIBUTES, attribute_count)
         .get_feature(CIPHERTEXT_BYTES)
         .mean
     )
 
-    rsa_encrypt_micros = results.sweep_features(
-        "encrypt",
-        RSA_SUBSCRIBERS,
-        config.subscriber_counts,
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
-    )
-    rsa_encrypt_fit = fit_linear_regression(
-        rsa_encrypt_micros.sweep_values, rsa_encrypt_micros.means
-    )
 
-    return Analysis(
-        cpabe=fit_cpabe_slopes(results, config),
-        ciphertext_crossover=build_ciphertext_size_crossover(
-            results, config, rsa_ciphertext_bytes_per_subscriber
-        ),
-        latency_crossover=build_latency_crossover(
-            results, config, rsa_encrypt_micros, rsa_encrypt_fit
-        ),
-        rsa_ciphertext_bytes_per_subscriber=rsa_ciphertext_bytes_per_subscriber,
+# One wrapped session key is the same size at every subscriber count, and RSA's total
+# ciphertext grows by exactly that much per additional subscriber
+def rsa_bytes_per_subscriber(results: BenchmarkSummary, config: Config) -> float:
+    return (
+        results.get_case_summary(
+            "encrypt", RSA_SUBSCRIBERS, config.integers("SUBSCRIBER_COUNT")[0]
+        )
+        .get_feature(CIPHERTEXT_BYTES)
+        .mean
     )
 
 
@@ -310,7 +169,7 @@ def plot_sweep(
     sweep_name: str,
     sweep_values: list[int],
     sweep_operations: list[str],
-    size_series: tuple[SizeSeries, ...],
+    size_series: tuple[Series, ...],
     x_label: str,
     figure_title: str,
     output_path: str,
@@ -346,25 +205,33 @@ def plot_sweep(
 
     for operation in sweep_operations:
 
-        series = results.sweep_features(
-            operation,
-            sweep_name,
-            sweep_values,
-            NS_PER_OP,
-            NS_PER_MICROSECOND,
-            with_ci=True,
-        )
+        # Key generation is a probabilistic prime search, so its samples are skewed with
+        # a long right tail and a mean would hide it. It is drawn as a distribution, in
+        # milliseconds because it is far slower than the operations it sits above
+        if operation == "keygen":
+            draw_distribution(
+                keygen_latency_axis,
+                results.sweep_features(
+                    operation, sweep_name, sweep_values, NS_PER_OP, NS_PER_MILLISECOND
+                ),
+                "Keygen",
+                OPERATION_COLORS[operation],
+            )
+            continue
 
         draw_summary(
-            keygen_latency_axis if operation == "keygen" else latency_axis,
-            series,
+            latency_axis,
+            results.sweep_features(
+                operation, sweep_name, sweep_values, NS_PER_OP, NS_PER_MICROSECOND
+            ),
             operation.capitalize(),
             OPERATION_COLORS[operation],
+            with_ci=True,
         )
 
     if keygen_on_own_axis:
         keygen_latency_axis.set_title("Key Generation Latency", fontsize=11)
-        keygen_latency_axis.set_ylabel("Latency (µs) ± 95% CI")
+        keygen_latency_axis.set_ylabel("Latency (ms), Median + IQR + Min-Max")
         keygen_latency_axis.set_ylim(bottom=0)
         keygen_latency_axis.set_xticks(sweep_values)
 
@@ -387,12 +254,7 @@ def plot_sweep(
     latency_axis.legend(fontsize=10)
 
     for size in size_series:
-        draw_summary(
-            size_axis,
-            results.sweep_features(size.operation, sweep_name, sweep_values, size.unit),
-            size.label,
-            size.color,
-        )
+        size.draw(size_axis, results, sweep_name, sweep_values)
 
     size_axis.set_title("Sizes", fontsize=11)
     size_axis.set_ylabel("Size (bytes)")
@@ -410,26 +272,38 @@ def plot_sweep(
     save_figure(figure, output_path)
 
 
+# Where RSA's per-subscriber ciphertext growth overtakes CP-ABE's fixed ciphertext
 def plot_ciphertext_size_crossover(
-    crossover: CiphertextSizeCrossover,
+    results: BenchmarkSummary,
     config: Config,
 ) -> None:
 
-    x_limit = config.max_subscribers
+    attribute_counts = config.integers("ATTRIBUTE_COUNT")
+    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
+
+    bytes_per_subscriber = rsa_bytes_per_subscriber(results, config)
+    x_limit = subscriber_counts[-1]
 
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
     draw_summary(
         axis,
-        crossover.rsa_total_bytes,
+        results.sweep_features(
+            "encrypt",
+            RSA_SUBSCRIBERS,
+            subscriber_counts,
+            TOTAL_CIPHERTEXT_BYTES,
+        ),
         "RSA Scaling Subs",
         TOTAL_CIPHERTEXT_COLOR,
     )
 
-    for level, attribute_count, color in (
-        (crossover.cpabe_bytes_min, config.min_attributes, AMBER),
-        (crossover.cpabe_bytes_max, config.max_attributes, CRIMSON),
+    for attribute_count, color in (
+        (attribute_counts[0], AMBER),
+        (attribute_counts[-1], CRIMSON),
     ):
+        level = cpabe_ciphertext_bytes(results, attribute_count)
+
         axis.hlines(
             level,
             1,
@@ -439,14 +313,13 @@ def plot_ciphertext_size_crossover(
             label=f"CP-ABE, {format_attribute_label(attribute_count)}",
         )
 
-    for crossover_value, level_value in (
-        (crossover.crossover_min, crossover.cpabe_bytes_min),
-        (crossover.crossover_max, crossover.cpabe_bytes_max),
-    ):
-        mark_crossover(axis, crossover_value, level_value, f"≈{crossover_value:,.1f}")
+        # Subscriber count at which RSA's wrapped keys add up to CP-ABE's one ciphertext
+        crossover = level / bytes_per_subscriber
 
-    linear_tick_values = [config.subscriber_counts[0]] + [
-        count for count in config.subscriber_counts if count >= 8
+        mark_crossover(axis, crossover, level, f"≈{crossover:,.1f}")
+
+    linear_tick_values = [subscriber_counts[0]] + [
+        count for count in subscriber_counts if count >= 8
     ]
 
     axis.set_xticks(linear_tick_values)
@@ -458,27 +331,37 @@ def plot_ciphertext_size_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(CIPHERTEXT_SIZE_CROSSOVER_PLOT))
+    save_figure(figure, config.figure(CIPHERTEXT_SIZE_CROSSOVER_PLOT))
 
 
+# Where RSA's per-subscriber encrypt cost overtakes CP-ABE's fixed encrypt cost
 def plot_encrypt_latency_crossover(
-    crossover: LatencyCrossover,
+    results: BenchmarkSummary,
     config: Config,
 ) -> None:
 
-    x_limit = crossover.crossover_max * 1.15
+    attribute_counts = config.integers("ATTRIBUTE_COUNT")
+    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
+
+    encrypt_fit = fit_rsa_encrypt_slope(results, config)
+
+    # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
+    x_limit = (
+        encrypt_fit.solve_x_for_y(
+            cpabe_micros(results, "encrypt", attribute_counts[-1])
+        )
+        * 1.15
+    )
 
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
-    projection_start_subscribers = float(config.max_subscribers)
-    projection_end_micros = crossover.rsa_encrypt_fit.calculate_y_based_on_x(x_limit)
+    projection_start_subscribers = float(subscriber_counts[-1])
+    projection_end_micros = encrypt_fit.calculate_y_based_on_x(x_limit)
 
     axis.plot(
         [projection_start_subscribers, x_limit],
         [
-            crossover.rsa_encrypt_fit.calculate_y_based_on_x(
-                projection_start_subscribers
-            ),
+            encrypt_fit.calculate_y_based_on_x(projection_start_subscribers),
             projection_end_micros,
         ],
         color=TOTAL_CIPHERTEXT_COLOR,
@@ -489,16 +372,20 @@ def plot_encrypt_latency_crossover(
 
     draw_summary(
         axis,
-        crossover.rsa_encrypt_micros,
+        sweep_rsa_encrypt_micros(results, config),
         "RSA Scaling Subs (Measured)",
         TOTAL_CIPHERTEXT_COLOR,
         linewidth=2.6,
     )
 
-    for level, attribute_count, color in (
-        (crossover.cpabe_encrypt_micros_min, config.min_attributes, AMBER),
-        (crossover.cpabe_encrypt_micros_max, config.max_attributes, CRIMSON),
+    largest_value = projection_end_micros
+
+    for attribute_count, color in (
+        (attribute_counts[0], AMBER),
+        (attribute_counts[-1], CRIMSON),
     ):
+        level = cpabe_micros(results, "encrypt", attribute_count)
+
         axis.hlines(
             level,
             0.0,
@@ -508,13 +395,11 @@ def plot_encrypt_latency_crossover(
             label=f"CP-ABE, {format_attribute_label(attribute_count)}",
         )
 
-    for crossover_value, level_value in (
-        (crossover.crossover_min, crossover.cpabe_encrypt_micros_min),
-        (crossover.crossover_max, crossover.cpabe_encrypt_micros_max),
-    ):
-        mark_crossover(axis, crossover_value, level_value, f"≈{crossover_value:,.0f}")
+        crossover = encrypt_fit.solve_x_for_y(level)
 
-    largest_value = max(crossover.cpabe_encrypt_micros_max, projection_end_micros)
+        mark_crossover(axis, crossover, level, f"≈{crossover:,.0f}")
+
+        largest_value = max(largest_value, level)
 
     axis.set_xlim(0.0, x_limit)
     axis.set_ylim(0.0, largest_value * 1.12)
@@ -524,7 +409,7 @@ def plot_encrypt_latency_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(ENCRYPT_LATENCY_CROSSOVER_PLOT))
+    save_figure(figure, config.figure(ENCRYPT_LATENCY_CROSSOVER_PLOT))
 
 
 def plot_decrypt_latency_crossover(
@@ -532,33 +417,34 @@ def plot_decrypt_latency_crossover(
     config: Config,
 ) -> None:
 
+    attribute_counts = config.integers("ATTRIBUTE_COUNT")
+
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
     cpabe_series = results.sweep_features(
         "decrypt",
         CPABE_ATTRIBUTES,
-        config.attribute_counts,
+        attribute_counts,
         NS_PER_OP,
         NS_PER_MICROSECOND,
-        with_ci=True,
     )
 
-    draw_summary(axis, cpabe_series, "CP-ABE", VIOLET, linewidth=2.0)
+    draw_summary(axis, cpabe_series, "CP-ABE", VIOLET, with_ci=True, linewidth=2.0)
 
     largest_value = calculate_axis_top([cpabe_series])
 
-    for index, rsa_key_bits in enumerate(config.rsa_key_bits):
+    for index, rsa_key_bits in enumerate(config.integers("RSA_KEY_SIZES")):
 
         rsa_latency = results.get_case_summary(
             "decrypt", RSA_KEY_BITS, rsa_key_bits
-        ).get_latency_in_micros
+        ).latency()
 
         rsa_color = RSA_KEY_BITS_COLORS[index % len(RSA_KEY_BITS_COLORS)]
 
         axis.hlines(
             rsa_latency.mean,
-            config.min_attributes,
-            config.max_attributes,
+            attribute_counts[0],
+            attribute_counts[-1],
             color=rsa_color,
             linestyle="--",
             linewidth=1.6,
@@ -566,7 +452,7 @@ def plot_decrypt_latency_crossover(
         )
 
         axis.errorbar(
-            [config.max_attributes],
+            [attribute_counts[-1]],
             [rsa_latency.mean],
             yerr=[rsa_latency.ci],
             color=rsa_color,
@@ -576,8 +462,8 @@ def plot_decrypt_latency_crossover(
 
         largest_value = max(largest_value, rsa_latency.mean + rsa_latency.ci)
 
-    axis.set_xticks(config.attribute_counts)
-    axis.set_xlim(0.0, float(config.max_attributes) * AXIS_HEADROOM)
+    axis.set_xticks(attribute_counts)
+    axis.set_xlim(0.0, float(attribute_counts[-1]) * AXIS_HEADROOM)
     axis.set_ylim(0.0, largest_value * 1.15)
     axis.set_xlabel("Policy Attributes")
     axis.set_ylabel("Decrypt Latency (µs) ± 95% CI")
@@ -585,7 +471,7 @@ def plot_decrypt_latency_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(DECRYPT_LATENCY_CROSSOVER_PLOT))
+    save_figure(figure, config.figure(DECRYPT_LATENCY_CROSSOVER_PLOT))
 
 
 def plot_encrypt_decrypt_asymmetry(
@@ -593,22 +479,27 @@ def plot_encrypt_decrypt_asymmetry(
     config: Config,
 ) -> None:
 
-    def micros(operation: str, sweep_name: str, sweep_value: int) -> float:
-        return results.get_case_summary(
-            operation, sweep_name, sweep_value
-        ).get_latency_in_micros.mean
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_BITS")
+    min_attributes = config.integers("ATTRIBUTE_COUNT")[0]
+
+    def rsa_micros(operation: str) -> float:
+        return (
+            results.get_case_summary(operation, RSA_KEY_BITS, fixed_rsa_key_bits)
+            .latency()
+            .mean
+        )
 
     scheme_labels = [
-        f"RSA-{config.fixed_rsa_key_bits}",
-        f"CP-ABE ({format_attribute_label(config.min_attributes)})",
+        f"RSA-{fixed_rsa_key_bits}",
+        f"CP-ABE ({format_attribute_label(min_attributes)})",
     ]
     encrypt_values = [
-        micros("encrypt", RSA_KEY_BITS, config.fixed_rsa_key_bits),
-        micros("encrypt", CPABE_ATTRIBUTES, config.min_attributes),
+        rsa_micros("encrypt"),
+        cpabe_micros(results, "encrypt", min_attributes),
     ]
     decrypt_values = [
-        micros("decrypt", RSA_KEY_BITS, config.fixed_rsa_key_bits),
-        micros("decrypt", CPABE_ATTRIBUTES, config.min_attributes),
+        rsa_micros("decrypt"),
+        cpabe_micros(results, "decrypt", min_attributes),
     ]
 
     figure, axis = plt.subplots(figsize=ASYMMETRY_FIGURE_SIZE)
@@ -674,10 +565,10 @@ def plot_encrypt_decrypt_asymmetry(
     axis.legend(loc="upper center", ncol=2, frameon=False, fontsize=10)
 
     figure.tight_layout()
-    save_figure(figure, config.paths.figure(ASYMMETRY_PLOT))
+    save_figure(figure, config.figure(ASYMMETRY_PLOT))
 
 
-def build_table(
+def build_latency_table(
     results: BenchmarkSummary,
     config: Config,
     sweep_name: str,
@@ -693,7 +584,7 @@ def build_table(
 
         case = results.get_case_summary(operation, sweep_name, sweep_value)
 
-        latency = case.get_latency_in_micros
+        latency = case.latency()
 
         rows.append(
             [
@@ -718,15 +609,56 @@ def build_table(
     )
 
 
+# Key generation is reported as the distribution it is. Every run performs exactly one
+# generation, so each run contributes one sample and the column n is that sample count.
+# The spread between min and max is the point, a single averaged figure would not be
+# representative of a probabilistic prime search
+def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
+
+    rows = []
+
+    for rsa_key_bits in config.integers("RSA_KEY_SIZES"):
+
+        case = results.get_case_summary("keygen", RSA_KEY_BITS, rsa_key_bits)
+
+        latency = case.latency(NS_PER_MILLISECOND)
+
+        rows.append(
+            [
+                str(rsa_key_bits),
+                f"{latency.median:,.2f}",
+                f"{latency.minimum:,.2f}",
+                f"{latency.maximum:,.2f}",
+                f"{latency.iqr:,.2f}",
+                format_byte_size(round(case.get_feature(STORED_KEY_BYTES).mean)),
+                str(latency.count),
+            ]
+        )
+
+    return build_html_table(
+        [
+            "KEY BITS",
+            "MEDIAN (ms)",
+            "MIN (ms)",
+            "MAX (ms)",
+            "IQR (ms)",
+            "STORED KEY",
+            "n",
+        ],
+        rows,
+    )
+
+
 def build_rsa_circle_visualization(
     results: BenchmarkSummary,
-    analysis: Analysis,
     config: Config,
 ) -> dict[str, str]:
 
-    single_bytes = analysis.rsa_ciphertext_bytes_per_subscriber
+    single_bytes = rsa_bytes_per_subscriber(results, config)
     total_bytes = (
-        results.get_case_summary("encrypt", RSA_SUBSCRIBERS, config.max_subscribers)
+        results.get_case_summary(
+            "encrypt", RSA_SUBSCRIBERS, config.integers("SUBSCRIBER_COUNT")[-1]
+        )
         .get_feature(TOTAL_CIPHERTEXT_BYTES)
         .mean
     )
@@ -748,15 +680,33 @@ def build_rsa_circle_visualization(
     }
 
 
-def write_html_report(
-    results: BenchmarkSummary,
-    config: Config,
-    analysis: Analysis,
-) -> None:
+def write_html_report(results: BenchmarkSummary, config: Config) -> None:
 
-    cpabe = analysis.cpabe
-    ciphertext = analysis.ciphertext_crossover
-    latency = analysis.latency_crossover
+    attribute_counts = config.integers("ATTRIBUTE_COUNT")
+    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
+    rsa_key_bits = config.integers("RSA_KEY_SIZES")
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_BITS")
+
+    min_attributes = attribute_counts[0]
+    max_attributes = attribute_counts[-1]
+
+    encrypt_fit = fit_rsa_encrypt_slope(results, config)
+    bytes_per_subscriber = rsa_bytes_per_subscriber(results, config)
+
+    cpabe_encrypt = fit_cpabe_slope(
+        results, config, "encrypt", NS_PER_OP, NS_PER_MICROSECOND
+    )
+    cpabe_decrypt = fit_cpabe_slope(
+        results, config, "decrypt", NS_PER_OP, NS_PER_MICROSECOND
+    )
+    cpabe_ciphertext = fit_cpabe_slope(results, config, "encrypt", CIPHERTEXT_BYTES)
+    cpabe_stored_key = fit_cpabe_slope(results, config, "decrypt", STORED_KEY_BYTES)
+
+    rsa_decrypt_micros = (
+        results.get_case_summary("decrypt", RSA_KEY_BITS, fixed_rsa_key_bits)
+        .latency()
+        .mean
+    )
 
     def micros_slope(fit: LinearFit) -> str:
         return f"+{format_mean_with_ci(fit.slope, fit.slope_ci, decimals=0)} µs"
@@ -764,8 +714,22 @@ def write_html_report(
     def bytes_slope(fit: LinearFit) -> str:
         return f"+{format_mean_with_ci(fit.slope, fit.slope_ci, decimals=0, thousands=False)} B"
 
+    # Subscriber count at which RSA's wrapped keys add up to CP-ABE's one ciphertext
+    def bytes_crossover(attribute_count: int) -> float:
+        return cpabe_ciphertext_bytes(results, attribute_count) / bytes_per_subscriber
+
+    # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
+    def latency_crossover(attribute_count: int) -> float:
+        return encrypt_fit.solve_x_for_y(
+            cpabe_micros(results, "encrypt", attribute_count)
+        )
+
+    # How much more decrypt latency CP-ABE asks of the subscriber than RSA does
+    def decrypt_penalty(attribute_count: int) -> float:
+        return cpabe_micros(results, "decrypt", attribute_count) / rsa_decrypt_micros
+
     def table(sweep_name, sweep_values, operation, value_header, *size_columns) -> str:
-        return build_table(
+        return build_latency_table(
             results,
             config,
             sweep_name,
@@ -777,32 +741,26 @@ def write_html_report(
 
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, results.get_total_iterations
+            config.runs, config.t_critical, results.total_iterations
         ),
-        **build_rsa_circle_visualization(results, analysis, config),
+        **build_rsa_circle_visualization(results, config),
         "CpabeEncryptTable": table(
             CPABE_ATTRIBUTES,
-            config.attribute_counts,
+            attribute_counts,
             "encrypt",
             "Attributes",
             CIPHERTEXT_COLUMN,
         ),
         "CpabeDecryptTable": table(
             CPABE_ATTRIBUTES,
-            config.attribute_counts,
+            attribute_counts,
             "decrypt",
-            "Attributes",
-        ),
-        "CpabeKeygenTable": table(
-            CPABE_ATTRIBUTES,
-            config.attribute_counts,
-            "keygen",
             "Attributes",
             STORED_KEY_COLUMN,
         ),
         "RsaSubscribersEncryptTable": table(
             RSA_SUBSCRIBERS,
-            config.subscriber_counts,
+            subscriber_counts,
             "encrypt",
             "Subscribers",
             CIPHERTEXT_COLUMN,
@@ -810,34 +768,28 @@ def write_html_report(
         ),
         "RsaSubscribersDecryptTable": table(
             RSA_SUBSCRIBERS,
-            config.subscriber_counts,
+            subscriber_counts,
             "decrypt",
             "Subscribers",
         ),
         "RsaKeyBitsEncryptTable": table(
             RSA_KEY_BITS,
-            config.rsa_key_bits,
+            rsa_key_bits,
             "encrypt",
             "Key Bits",
             CIPHERTEXT_COLUMN,
         ),
         "RsaKeyBitsDecryptTable": table(
             RSA_KEY_BITS,
-            config.rsa_key_bits,
+            rsa_key_bits,
             "decrypt",
             "Key Bits",
         ),
-        "RsaKeyBitsKeygenTable": table(
-            RSA_KEY_BITS,
-            config.rsa_key_bits,
-            "keygen",
-            "Key Bits",
-            STORED_KEY_COLUMN,
-        ),
-        "MinAttributeLabel": format_attribute_label(config.min_attributes),
-        "MaxAttributeLabel": format_attribute_label(config.max_attributes),
-        "MaxSubscriberCount": str(config.max_subscribers),
-        "FixedRsaKeyBits": str(config.fixed_rsa_key_bits),
+        "RsaKeyBitsKeygenTable": build_keygen_table(results, config),
+        "MinAttributeLabel": format_attribute_label(min_attributes),
+        "MaxAttributeLabel": format_attribute_label(max_attributes),
+        "MaxSubscriberCount": str(subscriber_counts[-1]),
+        "FixedRsaKeyBits": str(fixed_rsa_key_bits),
         "CpabePlot": CPABE_PLOT,
         "RsaSubscribersPlot": RSA_SUBSCRIBERS_PLOT,
         "RsaKeyBitsPlot": RSA_KEY_BITS_PLOT,
@@ -845,84 +797,77 @@ def write_html_report(
         "AsymmetryPlot": ASYMMETRY_PLOT,
         "EncryptCpuCrossoverPlot": ENCRYPT_LATENCY_CROSSOVER_PLOT,
         "DecryptCpuCrossoverPlot": DECRYPT_LATENCY_CROSSOVER_PLOT,
-        "CpabeEncryptSlope": micros_slope(cpabe.encrypt),
-        "CpabeDecryptSlope": micros_slope(cpabe.decrypt),
-        "CpabeKeyIssuanceSlope": micros_slope(cpabe.key_issuance),
-        "CpabeCiphertextSlope": bytes_slope(cpabe.ciphertext),
-        "CpabeStoredKeySlope": bytes_slope(cpabe.stored_key),
-        "CpabeEncryptRSquared": f"{cpabe.encrypt.r_squared:.6f}",
-        "CpabeDecryptRSquared": f"{cpabe.decrypt.r_squared:.6f}",
-        "CpabeKeyIssuanceRSquared": f"{cpabe.key_issuance.r_squared:.6f}",
-        "CpabeCiphertextRSquared": f"{cpabe.ciphertext.r_squared:.6f}",
-        "CpabeStoredKeyRSquared": f"{cpabe.stored_key.r_squared:.6f}",
+        "CpabeEncryptSlope": micros_slope(cpabe_encrypt),
+        "CpabeDecryptSlope": micros_slope(cpabe_decrypt),
+        "CpabeCiphertextSlope": bytes_slope(cpabe_ciphertext),
+        "CpabeStoredKeySlope": bytes_slope(cpabe_stored_key),
+        "CpabeEncryptRSquared": f"{cpabe_encrypt.r_squared:.6f}",
+        "CpabeDecryptRSquared": f"{cpabe_decrypt.r_squared:.6f}",
+        "CpabeCiphertextRSquared": f"{cpabe_ciphertext.r_squared:.6f}",
+        "CpabeStoredKeyRSquared": f"{cpabe_stored_key.r_squared:.6f}",
         "RsaSubscriberEncryptSlope": (
-            f"+{format_mean_with_ci(latency.rsa_encrypt_fit.slope, latency.rsa_encrypt_fit.slope_ci)} µs"
+            f"+{format_mean_with_ci(encrypt_fit.slope, encrypt_fit.slope_ci)} µs"
         ),
-        "RsaSubscriberEncryptRSquared": f"{latency.rsa_encrypt_fit.r_squared:.6f}",
-        "RsaSubscriberTotalCiphertextSlope": (
-            f"+{analysis.rsa_ciphertext_bytes_per_subscriber:.0f} B"
-        ),
-        "BytesCrossoverLow": f"{ciphertext.crossover_min:,.1f}",
-        "BytesCrossoverHigh": f"{ciphertext.crossover_max:,.1f}",
-        "BytesRsaThroughMin": f"{int(ciphertext.crossover_min):,}",
-        "BytesRsaThroughMax": f"{int(ciphertext.crossover_max):,}",
-        "EncryptCpuCrossoverLow": f"{latency.crossover_min:,.0f}",
-        "EncryptCpuCrossoverHigh": f"{latency.crossover_max:,.0f}",
-        "CpuRsaThroughMin": f"{int(latency.crossover_min):,}",
-        "CpuRsaThroughMax": f"{int(latency.crossover_max):,}",
-        "DecryptPenaltyMin": f"{latency.decrypt_penalty_min:,.1f}",
-        "DecryptPenaltyMax": f"{latency.decrypt_penalty_max:,.1f}",
+        "RsaSubscriberEncryptRSquared": f"{encrypt_fit.r_squared:.6f}",
+        "RsaSubscriberTotalCiphertextSlope": f"+{bytes_per_subscriber:.0f} B",
+        "BytesCrossoverLow": f"{bytes_crossover(min_attributes):,.1f}",
+        "BytesCrossoverHigh": f"{bytes_crossover(max_attributes):,.1f}",
+        "BytesRsaThroughMin": f"{int(bytes_crossover(min_attributes)):,}",
+        "BytesRsaThroughMax": f"{int(bytes_crossover(max_attributes)):,}",
+        "EncryptCpuCrossoverLow": f"{latency_crossover(min_attributes):,.0f}",
+        "EncryptCpuCrossoverHigh": f"{latency_crossover(max_attributes):,.0f}",
+        "CpuRsaThroughMin": f"{int(latency_crossover(min_attributes)):,}",
+        "CpuRsaThroughMax": f"{int(latency_crossover(max_attributes)):,}",
+        "DecryptPenaltyMin": f"{decrypt_penalty(min_attributes):,.1f}",
+        "DecryptPenaltyMax": f"{decrypt_penalty(max_attributes):,.1f}",
     }
 
-    build_html_report(config.paths.template, config.paths.report, placeholders)
+    build_html_report(config.template, config.report, placeholders)
 
 
 def main() -> None:
-    config = load_config()
-    results = load_results(
-        config.paths.bench_output, BENCHMARK_PREFIX, config.t_critical
-    )
-    analysis = analyse(results, config)
+    config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
+    results = load_results(config.bench_output, BENCHMARK_PREFIX)
 
     plot_sweep(
         results,
         CPABE_ATTRIBUTES,
-        config.attribute_counts,
-        OPERATIONS,
-        (CIPHERTEXT_SERIES, STORED_KEY_SERIES),
+        config.integers("ATTRIBUTE_COUNT"),
+        ENCRYPT_DECRYPT,
+        (CIPHERTEXT_SERIES, CPABE_STORED_KEY_SERIES),
         "Policy Attributes",
         "CP-ABE Scaling with Policy Attribute Count",
-        config.paths.figure(CPABE_PLOT),
+        config.figure(CPABE_PLOT),
     )
 
     plot_sweep(
         results,
         RSA_SUBSCRIBERS,
-        config.subscriber_counts,
+        config.integers("SUBSCRIBER_COUNT"),
         ENCRYPT_DECRYPT,
         (CIPHERTEXT_SERIES, TOTAL_CIPHERTEXT_SERIES),
         "Subscribers",
-        f"RSA Scaling with Subscriber Count (Fixed Key: {config.fixed_rsa_key_bits} bits)",
-        config.paths.figure(RSA_SUBSCRIBERS_PLOT),
+        f"RSA Scaling with Subscriber Count (Fixed Key: {config.integer('FIXED_RSA_KEY_BITS')} bits)",
+        config.figure(RSA_SUBSCRIBERS_PLOT),
     )
 
     plot_sweep(
         results,
         RSA_KEY_BITS,
-        config.rsa_key_bits,
-        OPERATIONS,
-        (CIPHERTEXT_SERIES, STORED_KEY_SERIES),
+        config.integers("RSA_KEY_SIZES"),
+        ENCRYPT_DECRYPT_KEYGEN,
+        (CIPHERTEXT_SERIES, RSA_STORED_KEY_SERIES),
         "RSA Key Bits",
         "RSA Scaling with Key Size (1 Subscriber)",
-        config.paths.figure(RSA_KEY_BITS_PLOT),
+        config.figure(RSA_KEY_BITS_PLOT),
     )
 
-    plot_ciphertext_size_crossover(analysis.ciphertext_crossover, config)
-    plot_encrypt_latency_crossover(analysis.latency_crossover, config)
+    plot_ciphertext_size_crossover(results, config)
+    plot_encrypt_latency_crossover(results, config)
     plot_decrypt_latency_crossover(results, config)
     plot_encrypt_decrypt_asymmetry(results, config)
 
-    write_html_report(results, config, analysis)
+    write_html_report(results, config)
 
 
 if __name__ == "__main__":

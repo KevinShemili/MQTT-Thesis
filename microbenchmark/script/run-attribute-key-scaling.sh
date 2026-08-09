@@ -20,7 +20,7 @@ for AttributeCount in $(echo "${ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT}" | tr ','
   set +e
   ./benchmark-binary \
     -test.run='^$' \
-    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^CPABEAttributes/${AttributeCount}\$" \
+    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^CPABEAttributes\$/^${AttributeCount}\$" \
     -test.benchtime='5s' \
     -test.count="${ATTRIBUTE_KEY_SCALING_RUNS}" \
     -test.timeout=0 \
@@ -41,7 +41,7 @@ for SubscriberCount in $(echo "${ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT}" | tr '
   set +e
   ./benchmark-binary \
     -test.run='^$' \
-    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^RSASubscribers/${SubscriberCount}\$" \
+    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^RSASubscribers\$/^${SubscriberCount}\$" \
     -test.benchtime='5s' \
     -test.count="${ATTRIBUTE_KEY_SCALING_RUNS}" \
     -test.timeout=0 \
@@ -60,7 +60,7 @@ for RSAKeyBits in $(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' ' ');
   set +e
   ./benchmark-binary \
     -test.run='^$' \
-    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^RSAKeyBits/${RSAKeyBits}\$" \
+    -test.bench="^BenchmarkAttributeKeyScaling(Encrypt|Decrypt)\$/^RSAKeyBits\$/^${RSAKeyBits}\$" \
     -test.benchtime='5s' \
     -test.count="${ATTRIBUTE_KEY_SCALING_RUNS}" \
     -test.timeout=0 \
@@ -81,7 +81,7 @@ for RSAKeyBits in $(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' ' ');
   set +e
   ./benchmark-binary \
     -test.run='^$' \
-    -test.bench="^BenchmarkAttributeKeyScalingKeyGen\$/^RSAKeyBits/${RSAKeyBits}\$" \
+    -test.bench="^BenchmarkAttributeKeyScalingKeyGen\$/^RSAKeyBits\$/^${RSAKeyBits}\$" \
     -test.benchtime='1x' \
     -test.count="${ATTRIBUTE_KEY_SCALING_KEYGEN_RUNS}" \
     -test.timeout=0 \
