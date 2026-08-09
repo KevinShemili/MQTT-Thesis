@@ -34,6 +34,9 @@ coverage.out
 *.swo
 .agents
 
+# Agent instruction files
+CLAUDE.md
+
 # OS files
 .DS_Store
 Thumbs.db
