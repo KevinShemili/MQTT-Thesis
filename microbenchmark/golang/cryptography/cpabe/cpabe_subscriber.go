@@ -17,12 +17,12 @@ func (subscriber CPABESubscriber) Decrypt(ciphertext []byte) []byte {
 	return plaintext
 }
 
-func (subscriber CPABESubscriber) StoredKeySize() int {
+func (subscriber CPABESubscriber) StoredPrivateKeySize() int {
 
-	return len(MarshalCPABESubscriberKey(subscriber.PrivateKey))
+	return len(MarshalCPABEPrivateKey(subscriber.PrivateKey))
 }
 
-func MarshalCPABESubscriberKey(subscriberKey tkn20.AttributeKey) []byte {
+func MarshalCPABEPrivateKey(subscriberKey tkn20.AttributeKey) []byte {
 
 	keyBytes, err := subscriberKey.MarshalBinary()
 	if err != nil {
@@ -32,7 +32,7 @@ func MarshalCPABESubscriberKey(subscriberKey tkn20.AttributeKey) []byte {
 	return keyBytes
 }
 
-func UnmarshalCPABESubscriberKey(keyBytes []byte) tkn20.AttributeKey {
+func UnmarshalCPABEPrivateKey(keyBytes []byte) CPABESubscriber {
 
 	var privateKey tkn20.AttributeKey
 
@@ -40,5 +40,5 @@ func UnmarshalCPABESubscriberKey(keyBytes []byte) tkn20.AttributeKey {
 		panic(err)
 	}
 
-	return privateKey
+	return CPABESubscriber{PrivateKey: privateKey}
 }

@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"project/cache"
 	"project/cryptography/cpabe"
 	"project/cryptography/rsa"
-	"project/fixture"
 	"project/utils"
 	"strconv"
 )
@@ -46,10 +46,10 @@ func main() {
 		provisionCPABE(sweepValue, aesKeySize, aesKey)
 
 	case rsaSubscribersGroup:
-		provisionRSASubscribers(sweepValue, aesKeySize, aesKey)
+		provisionRSASubscribers(sweepValue, aesKey)
 
 	case rsaKeyBitsGroup:
-		provisionRSAKeyBits(sweepValue, aesKeySize, aesKey)
+		provisionRSAKeyBits(sweepValue, aesKey)
 
 	default:
 		panic(fmt.Sprintf("unknown group %q", group))
@@ -58,40 +58,14 @@ func main() {
 
 func provisionAESKey(aesKeySize int) []byte {
 
-	if aesKey, found := fixture.Find(fixture.NameAESKey(aesKeySize)); found {
+	if aesKey, found := cache.FindFile(cache.CreateAESKeyFileName(aesKeySize)); found {
 		return aesKey
 	}
 
 	aesKey := utils.GenerateRandomBytes(aesKeySize)
-	fixture.Store(fixture.NameAESKey(aesKeySize), aesKey)
+	cache.StoreFile(cache.CreateAESKeyFileName(aesKeySize), aesKey)
 
 	return aesKey
-}
-
-func provisionCPABEAuthority() cpabe.CPABEAuthority {
-
-	// Check if the authority is already provisioned, and if so, return it
-	publicKeyBytes, isPublicKeyFound := fixture.Find(fixture.CPABEPublicKey)
-	masterSecretBytes, isMasterSecretFound := fixture.Find(fixture.CPABEMasterSecret)
-
-	if isPublicKeyFound && isMasterSecretFound {
-		return cpabe.UnmarshalCPABEAuthority(publicKeyBytes, masterSecretBytes)
-	}
-
-	// It is not, so create a new one
-	authority := cpabe.NewCPABEAuthority()
-
-	// Store the public key & master secret
-	fixture.Store(
-		fixture.CPABEPublicKey,
-		cpabe.MarshalCPABEPublicKey(authority.PublicKey),
-	)
-	fixture.Store(
-		fixture.CPABEMasterSecret,
-		cpabe.MarshalCPABEMasterSecret(authority.SystemSecretKey),
-	)
-
-	return authority
 }
 
 func provisionCPABE(attributeCount int, aesKeySize int, aesKey []byte) {
@@ -100,23 +74,50 @@ func provisionCPABE(attributeCount int, aesKeySize int, aesKey []byte) {
 
 	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-	fixture.Store(
-		fixture.NameCPABEPolicy(attributeCount),
-		[]byte(cpabe.BuildSyntheticPolicyString(attributeCount)),
+	cache.StoreFile(
+		cache.CreateCPABEPolicyFileName(attributeCount),
+		[]byte(abePolicy.String()),
 	)
 
-	fixture.Store(
-		fixture.NameCPABEAttributeKey(attributeCount),
-		cpabe.MarshalCPABESubscriberKey(authority.IssueSubscriberKey(abeAttributes).PrivateKey),
+	cache.StoreFile(
+		cache.CreateCPABEPrivateKeyFileName(attributeCount),
+		cpabe.MarshalCPABEPrivateKey(authority.IssuePrivateKey(abeAttributes).PrivateKey),
 	)
 
-	fixture.Store(
-		fixture.NameCPABECiphertext(attributeCount, aesKeySize),
+	cache.StoreFile(
+		cache.CreateCPABECiphertextFileName(attributeCount),
 		authority.Encrypt(abePolicy, aesKey),
 	)
 }
 
-func provisionRSASubscribers(subscriberCount int, aesKeySize int, aesKey []byte) {
+func provisionCPABEAuthority() cpabe.CPABEAuthority {
+
+	// Check if the authority is already provisioned
+	// - If so -> return it
+	publicKeyBytes, isPublicKeyFound := cache.FindFile(cache.CPABEPublicKeyFileName)
+	masterSecretBytes, isMasterSecretFound := cache.FindFile(cache.CPABEMasterSecretFileName)
+
+	if isPublicKeyFound && isMasterSecretFound {
+		return cpabe.UnmarshalCPABEAuthority(publicKeyBytes, masterSecretBytes)
+	}
+
+	// If not -> Create it
+	authority := cpabe.NewCPABEAuthority()
+
+	cache.StoreFile(
+		cache.CPABEPublicKeyFileName,
+		cpabe.MarshalCPABEPublicKey(authority.PublicKey),
+	)
+
+	cache.StoreFile(
+		cache.CPABEMasterSecretFileName,
+		cpabe.MarshalCPABEMasterSecret(authority.SystemSecretKey),
+	)
+
+	return authority
+}
+
+func provisionRSASubscribers(subscriberCount int, aesKey []byte) {
 
 	rsaKeyBits := utils.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_BITS")
 
@@ -128,35 +129,39 @@ func provisionRSASubscribers(subscriberCount int, aesKeySize int, aesKey []byte)
 
 	decryptingIndex := subscriberCount - 1
 
-	fixture.Store(
-		fixture.NameRSACiphertext(rsaKeyBits, decryptingIndex, aesKeySize),
+	cache.StoreFile(
+		cache.CreateRSACiphertextFileName(rsaKeyBits, decryptingIndex),
 		subscriberKey.Encrypt(aesKey),
 	)
 }
 
-func provisionRSAKeyBits(rsaKeyBits int, aesKeySize int, aesKey []byte) {
+func provisionRSAKeyBits(rsaKeyBits int, aesKey []byte) {
 
 	subscriberKey := provisionRSAKey(rsaKeyBits, 0)
 
-	fixture.Store(
-		fixture.NameRSACiphertext(rsaKeyBits, 0, aesKeySize),
+	cache.StoreFile(
+		cache.CreateRSACiphertextFileName(rsaKeyBits, 0),
 		subscriberKey.Encrypt(aesKey),
 	)
 }
 
 func provisionRSAKey(rsaKeyBits int, index int) rsa.RSA {
 
-	directory := fixture.RSAKeyDirectory(rsaKeyBits)
-
-	key, stored := rsa.LoadRSAKey(directory, index)
-	if !stored {
-		key = rsa.NewRSA(rsaKeyBits)
-		rsa.StoreRSAKey(key, directory, index)
+	if keyBytes, found := cache.FindFile(cache.CreateRSAPrivateKeyFileName(rsaKeyBits, index)); found {
+		return rsa.UnmarshalPrivateKey(keyBytes)
 	}
 
-	if _, stored := rsa.LoadRSAPublicKey(directory, index); !stored {
-		rsa.StoreRSAPublicKey(key, directory, index)
-	}
+	key := rsa.NewRSA(rsaKeyBits)
+
+	// A key is cached whole, so a private half that is there means the public half is too
+	cache.StoreFile(
+		cache.CreateRSAPrivateKeyFileName(rsaKeyBits, index),
+		rsa.MarshalPrivateKey(key.PrivateKey),
+	)
+	cache.StoreFile(
+		cache.CreateRSAPublicKeyFileName(rsaKeyBits, index),
+		rsa.MarshalPublicKey(key.PublicKey),
+	)
 
 	return key
 }

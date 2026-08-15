@@ -80,7 +80,7 @@ func TestCPABERoundTrip(t *testing.T) {
 	plaintext := []byte("test")
 	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(1)
 	authority := cpabe.NewCPABEAuthority()
-	subscriberKey := authority.IssueSubscriberKey(attributes)
+	subscriberKey := authority.IssuePrivateKey(attributes)
 
 	// Act
 	ciphertext := authority.Encrypt(policy, plaintext)

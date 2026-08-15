@@ -2,9 +2,9 @@ package benchmark
 
 import (
 	"fmt"
+	"project/cache"
 	"project/cryptography/cpabe"
 	"project/cryptography/rsa"
-	"project/fixture"
 	"project/utils"
 	"testing"
 	"time"
@@ -133,9 +133,9 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
 
-			subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
+			subscriberKey := cpAbe.IssuePrivateKey(abeAttributes)
 			abeCiphertext := cpAbe.Encrypt(abePolicy, aesKey)
-			abeStoredKeySize := subscriberKey.StoredKeySize()
+			abeStoredKeySize := subscriberKey.StoredPrivateKeySize()
 
 			waitForCooldown()
 
@@ -262,18 +262,31 @@ func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 
 func rsaKeyPool(rsaKeyBits int, requiredCount int) []rsa.RSA {
 
-	directory := fixture.RSAKeyDirectory(rsaKeyBits)
-
 	pool := rsaKeyCache[rsaKeyBits]
 
-	// Keys are reached by position rather than by listing the directory, so the pool
+	// Keys are reached by position rather than by listing the cache, so the pool
 	// only ever grows and the same key can never be added twice
 	for len(pool) < requiredCount {
 
-		key, stored := rsa.LoadRSAKey(directory, len(pool))
-		if !stored {
+		index := len(pool)
+
+		var key rsa.RSA
+
+		if keyBytes, cached := cache.FindFile(cache.CreateRSAPrivateKeyFileName(rsaKeyBits, index)); cached {
+			key = rsa.UnmarshalPrivateKey(keyBytes)
+		} else {
 			key = rsa.NewRSA(rsaKeyBits)
-			rsa.StoreRSAKey(key, directory, len(pool))
+
+			// Both halves at once, so a key this process generated is indistinguishable
+			// from one the provisioning process did
+			cache.StoreFile(
+				cache.CreateRSAPrivateKeyFileName(rsaKeyBits, index),
+				rsa.MarshalPrivateKey(key.PrivateKey),
+			)
+			cache.StoreFile(
+				cache.CreateRSAPublicKeyFileName(rsaKeyBits, index),
+				rsa.MarshalPublicKey(key.PublicKey),
+			)
 		}
 
 		pool = append(pool, key)

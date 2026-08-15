@@ -34,8 +34,8 @@ func (authority CPABEAuthority) Encrypt(policy tkn20.Policy, plaintext []byte) [
 	return ciphertext
 }
 
-// Issues a subscriber key for given an attribute set
-func (authority CPABEAuthority) IssueSubscriberKey(attributes tkn20.Attributes) CPABESubscriber {
+// Issues a private key to a subscriber for given an attribute set
+func (authority CPABEAuthority) IssuePrivateKey(attributes tkn20.Attributes) CPABESubscriber {
 
 	privateKey, err := authority.SystemSecretKey.KeyGen(rand.Reader, attributes)
 	if err != nil {

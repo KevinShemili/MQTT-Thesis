@@ -2,109 +2,92 @@ package benchmark
 
 import (
 	"fmt"
+	"project/cache"
 	"project/cryptography/cpabe"
 	"project/cryptography/rsa"
-	"project/fixture"
 	"project/utils"
 	"runtime"
 	"runtime/debug"
 	"testing"
 )
 
-// Peak resident memory is a property of a whole process rather than of a loop, so these
-// cases are driven one sample per process with -test.benchtime=1x, and their output is
-// kept in a file of its own because they are a different experiment from the timing one.
+// Peak memory is a property of a whole process rather than of a loop, so these
+// cases are driven one sample per process with -test.benchtime=1x
 //
-// Nothing here is generated. Every prerequisite is restored from the fixture cache that
-// cmd/provision built in an earlier process, and a fixture that is missing panics: VmHWM
-// is an absolute figure, not a delta, so a process that had generated a key would keep a
-// larger resident baseline afterwards even once the heap had been handed back, and that
-// baseline would be counted as part of the operation.
-//
-// Each closure restores only what the role it stands for would actually hold. A publisher
-// holds public material, a subscriber holds its own private key. Holding anything else
-// would measure what we chose to keep resident instead of what the operation costs
-
+// No benchmark fixture is generated, every requisite is restored from the cache that
+// cmd/provision built in an earlier process
 func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 
 	config := loadAttributeKeyScalingConfig()
 
-	// Scenario 1: CP-ABE scaling attribute count
+	// Scenario 1: Measure how memory changes as policy grows
 	for _, attributeCount := range config.AttributeCountList {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			// Restored inside the closure so a filtered run loads only its own case, and
-			// the master secret a publisher never holds stays out of the process
-			publisher := cpabe.UnmarshalCPABEPublicKey(fixture.Load(fixture.CPABEPublicKey))
-			abePolicy := cpabe.ParseCPABEPolicy(
-				string(fixture.Load(fixture.NameCPABEPolicy(attributeCount))),
-			)
-			aesKey := fixture.Load(fixture.NameAESKey(config.AESKeySize))
+			// Load from cache:
+			// 1. Public Key
+			// 2. Policy
+			// 3. AES Symmetric Key
+			asymmetricPublicKey := cpabe.UnmarshalCPABEPublicKey(cache.LoadFile(cache.CPABEPublicKeyFileName))
+			abePolicy := cpabe.ParseCPABEPolicy(string(cache.LoadFile(cache.CreateCPABEPolicyFileName(attributeCount))))
+			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
-			// Restoring the fixtures dirtied a heap that is now garbage, and clear_refs
-			// sets the watermark to the resident size of the moment, so those pages go
-			// back to the kernel first or they are counted as part of the operation
-			runtime.GC()
-			debug.FreeOSMemory()
-
-			reset := utils.ResetPeakResidentMemory()
+			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				publisher.Encrypt(abePolicy, aesKey)
+				asymmetricPublicKey.Encrypt(abePolicy, symmetricKey)
 			}
 
-			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
+			if peakBytes, isAvailable := utils.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
 	}
 
-	// Scenario 2: RSA scaling subscriber count
+	// Scenario 2: Measure how memory changes as one publisher encrypts AES key once for every subscriber
 	for _, subscriberCount := range config.SubscriberCountList {
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
 
-			// A publisher holds one public key per subscriber and no private key at all
-			rsaSubscribers := rsaPublisherKeys(config.FixedRSAKeyBits, subscriberCount)
-			aesKey := fixture.Load(fixture.NameAESKey(config.AESKeySize))
+			// Load from cache:
+			// 1. Each subscriber's public key
+			// 2. AES Symmetric Key
+			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeyBits, subscriberCount)
+			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
-			runtime.GC()
-			debug.FreeOSMemory()
+			isPrepared := preparePeakMemoryMeasurement()
 
-			reset := utils.ResetPeakResidentMemory()
-
-			// One publish is one operation, the same unit the timing benchmark measures
 			for b.Loop() {
 				for index := range subscriberCount {
-					rsaSubscribers[index].Encrypt(aesKey)
+					publicKeySlice[index].Encrypt(symmetricKey)
 				}
 			}
 
-			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
+			if peakBytes, isAvailable := utils.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
 	}
 
-	// Scenario 3: RSA scaling key size
+	// Scenario 3: Measure how memory changes as key size is varied
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-			rsaScheme := rsaPublisherKeys(rsaKeyBits, 1)[0]
-			aesKey := fixture.Load(fixture.NameAESKey(config.AESKeySize))
+			// Load from cache:
+			// 1. Load one RSA key with specified size, take index 0 from slice
+			// 2. AES Symmetric Key
+			asymmetricPublicKey := loadIndividualRSAPublicKeys(rsaKeyBits, 1)[0]
+			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
-			runtime.GC()
-			debug.FreeOSMemory()
-
-			reset := utils.ResetPeakResidentMemory()
+			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				rsaScheme.Encrypt(aesKey)
+				asymmetricPublicKey.Encrypt(symmetricKey)
 			}
 
-			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
+			if peakBytes, isAvailable := utils.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -115,115 +98,77 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 
 	config := loadAttributeKeyScalingConfig()
 
-	// Scenario 1: CP-ABE scaling attribute count
+	// Scenario 1: Measure how memory changes as as policy grows
 	for _, attributeCount := range config.AttributeCountList {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			subscriberKey := cpabe.UnmarshalCPABESubscriberKey(
-				fixture.Load(fixture.NameCPABEAttributeKey(attributeCount)),
-			)
-			abeCiphertext := fixture.Load(
-				fixture.NameCPABECiphertext(attributeCount, config.AESKeySize),
-			)
+			// Load from cache:
+			// 1. Private key with attributes
+			// 2. Ciphertext to decrypt
+			asymmetricPrivateKey := cpabe.UnmarshalCPABEPrivateKey(cache.LoadFile(cache.CreateCPABEPrivateKeyFileName(attributeCount)))
+			asymmetricCiphertext := cache.LoadFile(cache.CreateCPABECiphertextFileName(attributeCount))
 
-			runtime.GC()
-			debug.FreeOSMemory()
-
-			reset := utils.ResetPeakResidentMemory()
+			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				subscriberKey.Decrypt(abeCiphertext)
+				asymmetricPrivateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
+			if peakBytes, isAvailable := utils.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
 	}
 
-	// Scenario 2: RSA scaling subscriber count
-	// A subscriber holds its own key and unwraps its own copy, so the sweep point loads
-	// exactly one key. Loading the publisher's whole pool here would draw a rising curve
-	// caused by the fixture rather than by decryption
-	for _, subscriberCount := range config.SubscriberCountList {
-
-		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
-
-			decryptingIndex := subscriberCount - 1
-
-			subscriber := rsaSubscriberKey(config.FixedRSAKeyBits, decryptingIndex)
-			subscriberCiphertext := fixture.Load(
-				fixture.NameRSACiphertext(config.FixedRSAKeyBits, decryptingIndex, config.AESKeySize),
-			)
-
-			runtime.GC()
-			debug.FreeOSMemory()
-
-			reset := utils.ResetPeakResidentMemory()
-
-			for b.Loop() {
-				subscriber.Decrypt(subscriberCiphertext)
-			}
-
-			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
-				b.ReportMetric(peakBytes, "peak_rss_bytes")
-			}
-		})
-	}
-
-	// Scenario 3: RSA scaling key size
+	// Scenario 2: Measure how memory changes as key size is varied
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-			rsa := rsaSubscriberKey(rsaKeyBits, 0)
-			rsaCiphertext := fixture.Load(
-				fixture.NameRSACiphertext(rsaKeyBits, 0, config.AESKeySize),
-			)
+			// Load from cache:
+			// 1. Private key
+			// 2. Ciphertext to decrypt
+			asymmetricPrivateKey := rsa.UnmarshalPrivateKey(cache.LoadFile(cache.CreateRSAPrivateKeyFileName(rsaKeyBits, 0)))
+			asymmetricCiphertext := cache.LoadFile(cache.CreateRSACiphertextFileName(rsaKeyBits, 0))
 
-			runtime.GC()
-			debug.FreeOSMemory()
-
-			reset := utils.ResetPeakResidentMemory()
+			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				rsa.Decrypt(rsaCiphertext)
+				asymmetricPrivateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
+			if peakBytes, isAvailable := utils.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
 	}
 }
 
-// A measuring process never generates. A key that is not there means the provisioning
-// step never ran, and a measurement taken anyway would be meaningless
-func rsaPublisherKeys(rsaKeyBits int, requiredCount int) []rsa.RSA {
+func preparePeakMemoryMeasurement() bool {
 
-	directory := fixture.RSAKeyDirectory(rsaKeyBits)
-	keys := make([]rsa.RSA, requiredCount)
+	// Remove unused Go objects left behind by fixture loading
+	runtime.GC()
 
-	for index := range requiredCount {
+	// Return unused Go memory to Linux so it does not remain part of the process footprint
+	debug.FreeOSMemory()
 
-		key, provisioned := rsa.LoadRSAPublicKey(directory, index)
-		if !provisioned {
-			panic(fmt.Sprintf("rsa-%d public key %d was never provisioned", rsaKeyBits, index))
-		}
+	// Forget the previous process memory peak so the next VmHWM reflects this benchmark case
+	flag := utils.ResetPeakResidentMemory()
 
-		keys[index] = key
-	}
-
-	return keys
+	return flag
 }
 
-func rsaSubscriberKey(rsaKeyBits int, index int) rsa.RSA {
+// Load the individual public keys of all subscribers
+func loadIndividualRSAPublicKeys(rsaKeyBits int, requiredCount int) []rsa.RSA {
 
-	key, provisioned := rsa.LoadRSAKey(fixture.RSAKeyDirectory(rsaKeyBits), index)
-	if !provisioned {
-		panic(fmt.Sprintf("rsa-%d private key %d was never provisioned", rsaKeyBits, index))
+	keySlice := make([]rsa.RSA, requiredCount)
+
+	for index := range requiredCount {
+		keySlice[index] = rsa.UnmarshalPublicKey(
+			cache.LoadFile(cache.CreateRSAPublicKeyFileName(rsaKeyBits, index)),
+		)
 	}
 
-	return key
+	return keySlice
 }

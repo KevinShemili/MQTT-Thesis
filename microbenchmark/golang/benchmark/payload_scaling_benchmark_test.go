@@ -125,7 +125,7 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
 	// Issue the subscriber's key since it is not per-message work
-	subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
+	subscriberKey := cpAbe.IssuePrivateKey(abeAttributes)
 
 	nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
 
