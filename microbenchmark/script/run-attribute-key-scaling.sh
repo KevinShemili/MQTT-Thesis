@@ -7,7 +7,7 @@ MemoryOutputFile="${ResultDirectory}/memory_output.txt"
 StatusFile="${ResultDirectory}/case_status.txt"
 LogDirectory="${ResultDirectory}/case_logs"
 
-rm -rf key-cache "${LogDirectory}" # ensure old keys and old logs are not used in PI
+rm -rf "${CACHE_DIRECTORY}" "${LogDirectory}" # ensure old keys and old logs are not used in PI
 
 mkdir -p "${ResultDirectory}" "${LogDirectory}"
 : > "${OutputFile}"

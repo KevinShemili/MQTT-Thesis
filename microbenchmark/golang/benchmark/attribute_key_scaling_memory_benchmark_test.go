@@ -2,7 +2,8 @@ package benchmark
 
 import (
 	"fmt"
-	"project/cryptography"
+	"project/cryptography/cpabe"
+	"project/cryptography/rsa"
 	"project/fixture"
 	"project/utils"
 	"runtime"
@@ -35,10 +36,8 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 
 			// Restored inside the closure so a filtered run loads only its own case, and
 			// the master secret a publisher never holds stays out of the process
-			publisherKey := cryptography.UnmarshalCPABEPublicKey(
-				fixture.Load(fixture.CPABEPublicKey),
-			)
-			abePolicy := cryptography.ParseCPABEPolicy(
+			publisher := cpabe.UnmarshalCPABEPublicKey(fixture.Load(fixture.CPABEPublicKey))
+			abePolicy := cpabe.ParseCPABEPolicy(
 				string(fixture.Load(fixture.NameCPABEPolicy(attributeCount))),
 			)
 			aesKey := fixture.Load(fixture.NameAESKey(config.AESKeySize))
@@ -52,7 +51,7 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 			reset := utils.ResetPeakResidentMemory()
 
 			for b.Loop() {
-				publisherKey.Encrypt(abePolicy, aesKey)
+				publisher.Encrypt(abePolicy, aesKey)
 			}
 
 			if peakBytes, available := utils.PeakResidentMemory(); reset && available {
@@ -121,7 +120,7 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			subscriberKey := cryptography.UnmarshalCPABESubscriberKey(
+			subscriberKey := cpabe.UnmarshalCPABESubscriberKey(
 				fixture.Load(fixture.NameCPABEAttributeKey(attributeCount)),
 			)
 			abeCiphertext := fixture.Load(
@@ -201,14 +200,14 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 
 // A measuring process never generates. A key that is not there means the provisioning
 // step never ran, and a measurement taken anyway would be meaningless
-func rsaPublisherKeys(rsaKeyBits int, requiredCount int) []cryptography.RSA {
+func rsaPublisherKeys(rsaKeyBits int, requiredCount int) []rsa.RSA {
 
 	directory := fixture.RSAKeyDirectory(rsaKeyBits)
-	keys := make([]cryptography.RSA, requiredCount)
+	keys := make([]rsa.RSA, requiredCount)
 
 	for index := range requiredCount {
 
-		key, provisioned := cryptography.LoadRSAPublicKey(directory, index)
+		key, provisioned := rsa.LoadRSAPublicKey(directory, index)
 		if !provisioned {
 			panic(fmt.Sprintf("rsa-%d public key %d was never provisioned", rsaKeyBits, index))
 		}
@@ -219,9 +218,9 @@ func rsaPublisherKeys(rsaKeyBits int, requiredCount int) []cryptography.RSA {
 	return keys
 }
 
-func rsaSubscriberKey(rsaKeyBits int, index int) cryptography.RSA {
+func rsaSubscriberKey(rsaKeyBits int, index int) rsa.RSA {
 
-	key, provisioned := cryptography.LoadRSAKey(fixture.RSAKeyDirectory(rsaKeyBits), index)
+	key, provisioned := rsa.LoadRSAKey(fixture.RSAKeyDirectory(rsaKeyBits), index)
 	if !provisioned {
 		panic(fmt.Sprintf("rsa-%d private key %d was never provisioned", rsaKeyBits, index))
 	}

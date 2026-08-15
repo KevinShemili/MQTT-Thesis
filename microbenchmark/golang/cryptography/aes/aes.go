@@ -1,15 +1,16 @@
-package cryptography
+package aes
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
 )
 
-type AESGCM struct {
+type AES struct {
 	cipher.AEAD
 }
 
-func NewAESGCM(key []byte) AESGCM {
+// ctor
+func NewAES(key []byte) AES {
 
 	// AES provides the block cipher
 	block, err := aes.NewCipher(key)
@@ -23,5 +24,5 @@ func NewAESGCM(key []byte) AESGCM {
 		panic(err)
 	}
 
-	return AESGCM{AEAD: gcm}
+	return AES{AEAD: gcm}
 }

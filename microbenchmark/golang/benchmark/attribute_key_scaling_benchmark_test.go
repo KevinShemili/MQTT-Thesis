@@ -2,7 +2,8 @@ package benchmark
 
 import (
 	"fmt"
-	"project/cryptography"
+	"project/cryptography/cpabe"
+	"project/cryptography/rsa"
 	"project/fixture"
 	"project/utils"
 	"testing"
@@ -11,7 +12,7 @@ import (
 
 const cooldownTimeout = 5 * time.Minute
 
-var rsaKeyCache = map[int][]cryptography.RSA{}
+var rsaKeyCache = map[int][]rsa.RSA{}
 
 type AttributeKeyScalingConfig struct {
 	AttributeCountList  []int
@@ -30,10 +31,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			cpAbe := cryptography.NewCPABEAuthority()
+			cpAbe := cpabe.NewCPABEAuthority()
 
 			// Build policy for given attribute number
-			abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 			// True cryptographic realism is not necessary here,
 			// hence no need to regenerate a symmetric key for each new encryption
@@ -128,8 +129,8 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			cpAbe := cryptography.NewCPABEAuthority()
-			abePolicy, abeAttributes := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+			cpAbe := cpabe.NewCPABEAuthority()
+			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
 
 			subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
@@ -224,10 +225,10 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 
 			throttle := utils.WatchThrottling()
 
-			var scheme cryptography.RSA
+			var scheme rsa.RSA
 
 			for b.Loop() {
-				scheme = cryptography.NewRSA(rsaKeyBits)
+				scheme = rsa.NewRSA(rsaKeyBits)
 			}
 
 			b.ReportMetric(float64(scheme.StoredKeySize()), "stored_key_bytes")
@@ -259,7 +260,7 @@ func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 	}
 }
 
-func rsaKeyPool(rsaKeyBits int, requiredCount int) []cryptography.RSA {
+func rsaKeyPool(rsaKeyBits int, requiredCount int) []rsa.RSA {
 
 	directory := fixture.RSAKeyDirectory(rsaKeyBits)
 
@@ -269,10 +270,10 @@ func rsaKeyPool(rsaKeyBits int, requiredCount int) []cryptography.RSA {
 	// only ever grows and the same key can never be added twice
 	for len(pool) < requiredCount {
 
-		key, stored := cryptography.LoadRSAKey(directory, len(pool))
+		key, stored := rsa.LoadRSAKey(directory, len(pool))
 		if !stored {
-			key = cryptography.NewRSA(rsaKeyBits)
-			cryptography.StoreRSAKey(key, directory, len(pool))
+			key = rsa.NewRSA(rsaKeyBits)
+			rsa.StoreRSAKey(key, directory, len(pool))
 		}
 
 		pool = append(pool, key)

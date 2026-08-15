@@ -2,7 +2,8 @@ package benchmark
 
 import (
 	"fmt"
-	"project/cryptography"
+	"project/cryptography/aes"
+	"project/cryptography/cpabe"
 	"project/envelope"
 	"project/utils"
 	"testing"
@@ -22,8 +23,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 	symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
 	// Construct CP-ABE & AES-GCM outside timed benchmarks
-	cpAbe := cryptography.NewCPABEAuthority()
-	aesGcm := cryptography.NewAESGCM(symmetricKey)
+	cpAbe := cpabe.NewCPABEAuthority()
+	aesGcm := aes.NewAES(symmetricKey)
 
 	plaintext := utils.GenerateRandomBytes(config.PayloadSize)
 	nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
@@ -32,7 +33,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 	for _, attributeCount := range config.AttributeSizes {
 
 		// Stick to synthetic `AND` policies so that ciphertext size grows with every added attribute
-		abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+		abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 		// Encrypt the session key under policy
 		abeCiphertext := cpAbe.Encrypt(abePolicy, symmetricKey)
@@ -115,8 +116,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 	symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
 	// Construct CP-ABE & AES-GCM outside timed benchmarks
-	cpAbe := cryptography.NewCPABEAuthority()
-	aesGcm := cryptography.NewAESGCM(symmetricKey)
+	cpAbe := cpabe.NewCPABEAuthority()
+	aesGcm := aes.NewAES(symmetricKey)
 
 	plaintext := utils.GenerateRandomBytes(config.PayloadSize)
 	nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
@@ -125,7 +126,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 	for _, attributeCount := range config.AttributeSizes {
 
 		// Stick to synthetic `AND` policies so that ciphertext size grows with every added attribute
-		abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+		abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 		// Encrypt the session key under policy
 		abeCiphertext := cpAbe.Encrypt(abePolicy, symmetricKey)

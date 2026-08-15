@@ -2,7 +2,8 @@ package benchmark
 
 import (
 	"fmt"
-	"project/cryptography"
+	"project/cryptography/aes"
+	"project/cryptography/ascon"
 	"project/utils"
 	"testing"
 )
@@ -18,8 +19,8 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 	config := loadAESASCONConfig()
 
 	// Construct ciphers outside timed benchmarks
-	aesGcm := cryptography.NewAESGCM(utils.GenerateRandomBytes(config.AESKeySize))
-	ascon := cryptography.NewASCON(utils.GenerateRandomBytes(config.ASCONKeySize))
+	aesGcm := aes.NewAES(utils.GenerateRandomBytes(config.AESKeySize))
+	ascon := ascon.NewASCON(utils.GenerateRandomBytes(config.ASCONKeySize))
 
 	// Construct nonces outside timed benchmarks
 	// Normally reusing nonce is insecure, but acceptable here because ciphertexts are discarded benchmark artifacts
@@ -76,8 +77,8 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 	config := loadAESASCONConfig()
 
 	// Construct ciphers outside timed benchmarks
-	aesGcm := cryptography.NewAESGCM(utils.GenerateRandomBytes(config.AESKeySize))
-	ascon := cryptography.NewASCON(utils.GenerateRandomBytes(config.ASCONKeySize))
+	aesGcm := aes.NewAES(utils.GenerateRandomBytes(config.AESKeySize))
+	ascon := ascon.NewASCON(utils.GenerateRandomBytes(config.ASCONKeySize))
 
 	// Construct nonces outside timed benchmarks
 	aesGcmNonce := utils.GenerateRandomBytes(aesGcm.NonceSize())

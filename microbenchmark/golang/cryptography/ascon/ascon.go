@@ -1,4 +1,4 @@
-package cryptography
+package ascon
 
 import (
 	"crypto/cipher"
@@ -10,6 +10,7 @@ type ASCON struct {
 	cipher.AEAD
 }
 
+// ctor
 func NewASCON(key []byte) ASCON {
 
 	// ASCON exposes itself directly as AEAD

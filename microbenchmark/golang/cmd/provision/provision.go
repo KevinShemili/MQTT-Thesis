@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"project/cryptography"
+	"project/cryptography/cpabe"
+	"project/cryptography/rsa"
 	"project/fixture"
 	"project/utils"
 	"strconv"
@@ -67,24 +68,27 @@ func provisionAESKey(aesKeySize int) []byte {
 	return aesKey
 }
 
-func provisionCPABEAuthority() cryptography.CPABEAuthority {
+func provisionCPABEAuthority() cpabe.CPABEAuthority {
 
-	publicKeyBytes, publicKeyFound := fixture.Find(fixture.CPABEPublicKey)
-	masterSecretBytes, masterSecretFound := fixture.Find(fixture.CPABEMasterSecret)
+	// Check if the authority is already provisioned, and if so, return it
+	publicKeyBytes, isPublicKeyFound := fixture.Find(fixture.CPABEPublicKey)
+	masterSecretBytes, isMasterSecretFound := fixture.Find(fixture.CPABEMasterSecret)
 
-	if publicKeyFound && masterSecretFound {
-		return cryptography.UnmarshalCPABEAuthority(publicKeyBytes, masterSecretBytes)
+	if isPublicKeyFound && isMasterSecretFound {
+		return cpabe.UnmarshalCPABEAuthority(publicKeyBytes, masterSecretBytes)
 	}
 
-	authority := cryptography.NewCPABEAuthority()
+	// It is not, so create a new one
+	authority := cpabe.NewCPABEAuthority()
 
+	// Store the public key & master secret
 	fixture.Store(
 		fixture.CPABEPublicKey,
-		cryptography.MarshalCPABEPublicKey(authority.PublisherKey()),
+		cpabe.MarshalCPABEPublicKey(authority.PublicKey),
 	)
 	fixture.Store(
 		fixture.CPABEMasterSecret,
-		cryptography.MarshalCPABEMasterSecret(authority),
+		cpabe.MarshalCPABEMasterSecret(authority.SystemSecretKey),
 	)
 
 	return authority
@@ -94,16 +98,18 @@ func provisionCPABE(attributeCount int, aesKeySize int, aesKey []byte) {
 
 	authority := provisionCPABEAuthority()
 
-	abePolicy, abeAttributes := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 	fixture.Store(
 		fixture.NameCPABEPolicy(attributeCount),
-		[]byte(cryptography.BuildSyntheticPolicyString(attributeCount)),
+		[]byte(cpabe.BuildSyntheticPolicyString(attributeCount)),
 	)
+
 	fixture.Store(
 		fixture.NameCPABEAttributeKey(attributeCount),
-		cryptography.MarshalCPABESubscriberKey(authority.IssueSubscriberKey(abeAttributes)),
+		cpabe.MarshalCPABESubscriberKey(authority.IssueSubscriberKey(abeAttributes).PrivateKey),
 	)
+
 	fixture.Store(
 		fixture.NameCPABECiphertext(attributeCount, aesKeySize),
 		authority.Encrypt(abePolicy, aesKey),
@@ -114,7 +120,7 @@ func provisionRSASubscribers(subscriberCount int, aesKeySize int, aesKey []byte)
 
 	rsaKeyBits := utils.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_BITS")
 
-	var subscriberKey cryptography.RSA
+	var subscriberKey rsa.RSA
 
 	for index := range subscriberCount {
 		subscriberKey = provisionRSAKey(rsaKeyBits, index)
@@ -138,18 +144,18 @@ func provisionRSAKeyBits(rsaKeyBits int, aesKeySize int, aesKey []byte) {
 	)
 }
 
-func provisionRSAKey(rsaKeyBits int, index int) cryptography.RSA {
+func provisionRSAKey(rsaKeyBits int, index int) rsa.RSA {
 
 	directory := fixture.RSAKeyDirectory(rsaKeyBits)
 
-	key, stored := cryptography.LoadRSAKey(directory, index)
+	key, stored := rsa.LoadRSAKey(directory, index)
 	if !stored {
-		key = cryptography.NewRSA(rsaKeyBits)
-		cryptography.StoreRSAKey(key, directory, index)
+		key = rsa.NewRSA(rsaKeyBits)
+		rsa.StoreRSAKey(key, directory, index)
 	}
 
-	if _, stored := cryptography.LoadRSAPublicKey(directory, index); !stored {
-		cryptography.StoreRSAPublicKey(key, directory, index)
+	if _, stored := rsa.LoadRSAPublicKey(directory, index); !stored {
+		rsa.StoreRSAPublicKey(key, directory, index)
 	}
 
 	return key

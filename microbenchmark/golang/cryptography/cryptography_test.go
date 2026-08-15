@@ -2,6 +2,10 @@ package cryptography
 
 import (
 	"bytes"
+	"project/cryptography/aes"
+	"project/cryptography/ascon"
+	"project/cryptography/cpabe"
+	"project/cryptography/rsa"
 	"project/utils"
 	"testing"
 )
@@ -15,7 +19,7 @@ func TestAESRoundTrip(t *testing.T) {
 	// Arrange
 	key := utils.GenerateRandomBytes(AES_KEY_SIZE)
 	plaintext := []byte("test")
-	aes := NewAESGCM(key)
+	aes := aes.NewAES(key)
 	nonce := utils.GenerateRandomBytes(aes.NonceSize())
 
 	// Act
@@ -37,7 +41,7 @@ func TestASCONRoundTrip(t *testing.T) {
 	// Arrange
 	key := utils.GenerateRandomBytes(ASCON_KEY_SIZE)
 	plaintext := []byte("test")
-	ascon := NewASCON(key)
+	ascon := ascon.NewASCON(key)
 	nonce := utils.GenerateRandomBytes(ascon.NonceSize())
 
 	// Act
@@ -58,7 +62,7 @@ func TestRSARoundTrip(t *testing.T) {
 
 	// Arrange
 	plaintext := []byte("test")
-	rsa := NewRSA(RSA_KEY_SIZE)
+	rsa := rsa.NewRSA(RSA_KEY_SIZE)
 
 	// Act
 	ciphertext := rsa.Encrypt(plaintext)
@@ -74,8 +78,8 @@ func TestCPABERoundTrip(t *testing.T) {
 
 	// Arrange
 	plaintext := []byte("test")
-	policy, attributes := BuildSyntheticPolicyAndAttributes(1)
-	authority := NewCPABEAuthority()
+	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(1)
+	authority := cpabe.NewCPABEAuthority()
 	subscriberKey := authority.IssueSubscriberKey(attributes)
 
 	// Act

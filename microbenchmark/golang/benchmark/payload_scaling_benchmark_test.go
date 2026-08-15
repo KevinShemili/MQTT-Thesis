@@ -2,7 +2,9 @@ package benchmark
 
 import (
 	"fmt"
-	"project/cryptography"
+	"project/cryptography/aes"
+	"project/cryptography/cpabe"
+	"project/cryptography/rsa"
 	"project/utils"
 	"testing"
 )
@@ -22,11 +24,11 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 	// 1. PSK
 	// 2. RSA
 	// 3. CP-ABE
-	aesGcm := cryptography.NewAESGCM(utils.GenerateRandomBytes(config.AESKeySize))
-	rsaScheme := cryptography.NewRSA(config.RSAKeyBits)
-	cpAbe := cryptography.NewCPABEAuthority()
+	aesGcm := aes.NewAES(utils.GenerateRandomBytes(config.AESKeySize))
+	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
+	cpAbe := cpabe.NewCPABEAuthority()
 
-	abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
+	abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
 	for _, payloadSize := range config.PayloadSizes {
 
@@ -69,7 +71,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			for b.Loop() {
 				nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
 				symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
-				aesGcm := cryptography.NewAESGCM(symmetricKey)
+				aesGcm := aes.NewAES(symmetricKey)
 
 				rsaScheme.Encrypt(symmetricKey)
 				aesGcm.Seal(aesCiphertextBuffer[:0], nonce, plaintext, nil)
@@ -91,7 +93,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			for b.Loop() {
 				nonce := utils.GenerateRandomBytes(aesGcm.NonceSize())
 				symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
-				aesGcm := cryptography.NewAESGCM(symmetricKey)
+				aesGcm := aes.NewAES(symmetricKey)
 
 				cpAbe.Encrypt(abePolicy, symmetricKey)
 				aesGcm.Seal(aesCiphertextBuffer[:0], nonce, plaintext, nil)
@@ -115,12 +117,12 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 	// 3. CP-ABE
 	// One-time scheme setup, mirroring the encrypt benchmark
 	symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
-	aesGcm := cryptography.NewAESGCM(symmetricKey)
-	rsaScheme := cryptography.NewRSA(config.RSAKeyBits)
-	cpAbe := cryptography.NewCPABEAuthority()
+	aesGcm := aes.NewAES(symmetricKey)
+	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
+	cpAbe := cpabe.NewCPABEAuthority()
 
 	// Obtain a policy & attributes forming that policy
-	abePolicy, abeAttributes := cryptography.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
+	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
 	// Issue the subscriber's key since it is not per-message work
 	subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
@@ -164,7 +166,7 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 
 			for b.Loop() {
 				recoveredSymmetricAESKey := rsaScheme.Decrypt(asymmetricRSAKey)
-				cryptography.NewAESGCM(recoveredSymmetricAESKey).Open(plaintextBuffer[:0], nonce, aesCiphertext, nil)
+				aes.NewAES(recoveredSymmetricAESKey).Open(plaintextBuffer[:0], nonce, aesCiphertext, nil)
 			}
 
 			if throttled, available := throttle.Throttled(); available {
@@ -180,7 +182,7 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 
 			for b.Loop() {
 				recoveredSymmetricAESKey := subscriberKey.Decrypt(asymmetricABEKey)
-				cryptography.NewAESGCM(recoveredSymmetricAESKey).Open(plaintextBuffer[:0], nonce, aesCiphertext, nil)
+				aes.NewAES(recoveredSymmetricAESKey).Open(plaintextBuffer[:0], nonce, aesCiphertext, nil)
 			}
 
 			if throttled, available := throttle.Throttled(); available {

@@ -1,4 +1,4 @@
-package cryptography
+package rsa
 
 import (
 	"crypto/rand"
@@ -15,6 +15,7 @@ type RSA struct {
 	PublicKey  *rsa.PublicKey
 }
 
+// ctor
 func NewRSA(keyBits int) RSA {
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, keyBits)
