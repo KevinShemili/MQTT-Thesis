@@ -1,5 +1,7 @@
 from __future__ import annotations
+import os
 from collections import defaultdict
+from typing import Callable
 from .statistics import (
     get_student_t_critical_95,
     mean_and_confidence_interval,
@@ -17,11 +19,22 @@ RAW_BYTES = "raw_bytes/op"
 CIPHERTEXT_BYTES = "ciphertext_bytes"
 TOTAL_CIPHERTEXT_BYTES = "total_ciphertext_bytes"
 STORED_KEY_BYTES = "stored_key_bytes"
+PEAK_RSS_BYTES = "peak_rss_bytes"
 THROTTLED = "throttled"
 
 # The following constants are used to convert ns to µs and to ms
 NS_PER_MICROSECOND = 1000.0
 NS_PER_MILLISECOND = 1000000.0
+
+# The kernel kills a process that asks for memory it cannot have with SIGKILL, which a
+# shell reports as 128 + 9. The Go runtime instead gives up on an allocation and exits 2
+# like any other fatal error, so that one is recognisable only by what it printed first
+OOM_KILLED_EXIT_CODE = 137
+RUNTIME_OUT_OF_MEMORY = "out of memory"
+
+# What a sweep reads where a case has no measurement. Matplotlib breaks a line at a NaN
+# rather than drawing through it, which is exactly what a missing case should look like
+NO_MEASUREMENT = float("nan")
 
 
 # Everything that can be said about the repeated samples of one feature of one case.
@@ -37,13 +50,19 @@ class Measurement:
         self.values = values
         self.count = len(values)
 
-        self.mean, self.ci = mean_and_confidence_interval(
-            values,
-            # Each measurement carries its own sample count, so it also decides
-            # its own t. Cases collected over a different number of runs than the
-            # rest of the benchmark are therefore still given the correct multiplier
-            get_student_t_critical_95(self.count - 1),
-        )
+        if self.count > 1:
+            self.mean, self.ci = mean_and_confidence_interval(
+                values,
+                # Each measurement carries its own sample count, so it also decides
+                # its own t. Cases collected over a different number of runs than the
+                # rest of the benchmark are therefore still given the correct multiplier
+                get_student_t_critical_95(self.count - 1),
+            )
+        else:
+            # A lone sample has no spread to describe. A caller that requires the full
+            # set of repetitions checks the count itself rather than reading this zero
+            # as agreement between measurements that were never taken
+            self.mean, self.ci = values[0], 0.0
 
         self.median = median(values)
         self.minimum = min(values)
@@ -68,45 +87,73 @@ class Measurement:
 class FeatureSweep:
     def __init__(self) -> None:
         self.sweep_values: list[float] = []
-        self.measurements: list[Measurement] = []
+        self.measurements: list[Measurement | None] = []
 
     def add(self, sweep_value: float, measurement: Measurement) -> None:
         self.sweep_values.append(sweep_value)
         self.measurements.append(measurement)
 
+    # A case whose process died has no measurement, but the sweep value it belonged to
+    # still exists. Carried as a gap it makes a plot break the line there, instead of
+    # joining the two points that surround it as though nothing were missing
+    def add_gap(self, sweep_value: float) -> None:
+        self.sweep_values.append(sweep_value)
+        self.measurements.append(None)
+
+    # Only the points that were measured, for a calculation that cannot carry a gap
+    def without_gaps(self) -> FeatureSweep:
+
+        series = FeatureSweep()
+
+        for sweep_value, measurement in zip(self.sweep_values, self.measurements):
+            if measurement is not None:
+                series.add(sweep_value, measurement)
+
+        return series
+
     @property
     def means(self) -> list[float]:
-        return [measurement.mean for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.mean)
 
     @property
     def ci(self) -> list[float]:
-        return [measurement.ci for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.ci)
 
     @property
     def medians(self) -> list[float]:
-        return [measurement.median for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.median)
 
     @property
     def minimums(self) -> list[float]:
-        return [measurement.minimum for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.minimum)
 
     @property
     def maximums(self) -> list[float]:
-        return [measurement.maximum for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.maximum)
 
     @property
     def first_quartiles(self) -> list[float]:
-        return [measurement.first_quartile for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.first_quartile)
 
     @property
     def third_quartiles(self) -> list[float]:
-        return [measurement.third_quartile for measurement in self.measurements]
+        return self._statistic(lambda measurement: measurement.third_quartile)
+
+    def _statistic(self, read: Callable[[Measurement], float]) -> list[float]:
+        return [
+            NO_MEASUREMENT if measurement is None else read(measurement)
+            for measurement in self.measurements
+        ]
 
 
 # One benchmark case, ex. "encrypt/PSK/16". Collects the repeated runs of that case as
 # they are read from the file, then reduces each feature's samples to a Measurement
 class CaseSummary:
-    def __init__(self) -> None:
+    def __init__(self, operation: str, group: str, sweep_value: int) -> None:
+        self.operation = operation
+        self.group = group
+        self.sweep_value = sweep_value
+
         self.iterations = 0  # total iterations across the repeated runs
         self.samples: dict[str, list[float]] = defaultdict(list)
         self.features: dict[str, Measurement] = {}
@@ -127,6 +174,9 @@ class CaseSummary:
     def get_feature(self, feature_name: str) -> Measurement:
         return self.features[feature_name]
 
+    def sample_count(self, feature_name: str) -> int:
+        return len(self.samples.get(feature_name, []))
+
     # Whether any repetition of this case ran while the Raspberry Pi firmware was
     # throttling the clock. One throttled repetition is enough, the case then carries
     # a pessimistic bound and is reported as such
@@ -140,6 +190,28 @@ class CaseSummary:
         return self.features[NS_PER_OP].scale_unit(divisor)
 
 
+# One exact process the orchestrator launched: which operation it ran, at which sweep
+# value, which repetition it was, what it exited with, and whether it said it had run
+# out of memory before it went
+class CaseInvocation:
+    def __init__(
+        self,
+        operation: str,
+        group: str,
+        sweep_value: int,
+        sample: int,
+        exit_code: int,
+        out_of_memory: bool,
+    ) -> None:
+        self.operation = operation
+        self.group = group
+        self.sweep_value = sweep_value
+        self.sample = sample
+        self.exit_code = exit_code
+        self.out_of_memory = out_of_memory
+        self.completed = exit_code == 0
+
+
 # Full statistical summary of the benchmark including all of the inner cases
 class BenchmarkSummary:
     def __init__(self, cases: dict[str, CaseSummary]) -> None:
@@ -150,6 +222,32 @@ class BenchmarkSummary:
         self, operation: str, group: str, sweep_value: int
     ) -> CaseSummary:
         return self.cases[_generate_case_id(operation, group, sweep_value)]
+
+    # Whether this case left a measurement the report can stand behind
+    def has_case(self, operation: str, group: str, sweep_value: int) -> bool:
+        return _generate_case_id(operation, group, sweep_value) in self.cases
+
+    # Forgets a case whose process died. Its rows are only what it managed to print
+    # before it went, and averaging those would present a partial run as a finished one
+    def drop_case(self, operation: str, group: str, sweep_value: int) -> None:
+        self.cases.pop(_generate_case_id(operation, group, sweep_value), None)
+
+    # Cases that produced fewer readings of a feature than the experiment asked for. A
+    # process that exited cleanly without one measured nothing, and a confidence interval
+    # quietly computed from the rest would describe a smaller experiment than was run
+    def incomplete_cases(
+        self, feature_name: str, expected_count: int
+    ) -> list[CaseSummary]:
+        return [
+            case
+            for case in self.cases.values()
+            if case.sample_count(feature_name) != expected_count
+        ]
+
+    # Whether this benchmark carries the feature at all, ex. a peak memory reading a host
+    # without /proc could never have produced
+    def measures(self, feature_name: str) -> bool:
+        return any(feature_name in case.features for case in self.cases.values())
 
     # Collects all data of a sweep of just one feature
     def sweep_features(
@@ -164,6 +262,10 @@ class BenchmarkSummary:
         series = FeatureSweep()
 
         for sweep_value in sweep_values:
+
+            if not self.has_case(operation, group, sweep_value):
+                series.add_gap(sweep_value)
+                continue
 
             measurement = (
                 self.get_case_summary(operation, group, sweep_value)
@@ -203,16 +305,66 @@ def load_results(
     return BenchmarkSummary(cases=cases)
 
 
+# The orchestrator records one row per process it launched, naming the file that holds
+# everything that process printed. Only a row that did not exit cleanly is worth opening
+def load_invocations(status_path: str, log_directory: str) -> list[CaseInvocation]:
+
+    if not os.path.exists(status_path):
+        return []
+
+    invocations = []
+
+    with open(status_path, "r", encoding="utf-8") as file:
+
+        for line in file:
+            fields = line.split()
+
+            if not fields or fields[0].startswith("#") or len(fields) != 6:
+                continue
+
+            operation, group, sweep_text, sample, exit_text, log_file = fields
+            exit_code = int(exit_text)
+
+            invocations.append(
+                CaseInvocation(
+                    operation,
+                    group,
+                    int(sweep_text),
+                    int(sample),
+                    exit_code,
+                    _out_of_memory(exit_code, os.path.join(log_directory, log_file)),
+                )
+            )
+
+    return invocations
+
+
 # Throttle flag of each given case, in the order the rows of a table are built. Returns
 # None where the benchmark carries no throttle readings at all, ex. output produced on a
 # machine without vcgencmd, so that a report claims measurements were thermally clean
-# only where it actually knows that they were
-def throttle_flags(cases: list[CaseSummary]) -> list[bool] | None:
+# only where it actually knows that they were. A row whose case was dropped has no
+# reading of its own and is neither flagged nor counted as clean
+def throttle_flags(cases: list[CaseSummary | None]) -> list[bool] | None:
 
-    if not any(THROTTLED in case.features for case in cases):
+    if not any(case is not None and THROTTLED in case.features for case in cases):
         return None
 
-    return [case.throttled for case in cases]
+    return [case is not None and case.throttled for case in cases]
+
+
+# SIGKILL says it on its own. The Go runtime's allocation failure exits 2, the same code
+# an ordinary panic leaves behind, so there the printed text is the only thing that
+# tells the two apart
+def _out_of_memory(exit_code: int, log_path: str) -> bool:
+
+    if exit_code == OOM_KILLED_EXIT_CODE:
+        return True
+
+    if exit_code == 0 or not os.path.exists(log_path):
+        return False
+
+    with open(log_path, "r", encoding="utf-8", errors="replace") as file:
+        return RUNTIME_OUT_OF_MEMORY in file.read()
 
 
 # Builds a sort of ID for identifying one benchmark case,
@@ -236,21 +388,32 @@ def _read_rows(
             fields = line.split()
 
             # Skip the goos/goarch/cpu
-            if len(fields) == 0 or not fields[0].startswith(prefix):
+            if len(fields) < 2 or not fields[0].startswith(prefix):
                 continue
 
             # After skip we encounter rows that start like "BenchmarkPayloadScalingEncrypt/PSK/16B-4",
             # which we split into operation="Encrypt", group="PSK", sweep value=16B-4
-            operation, group, sweep_text = fields[0][len(prefix) :].split("/")[:3]
+            name_parts = fields[0][len(prefix) :].split("/")
+
+            # A process killed mid-write leaves a truncated line behind, and a row that
+            # cannot be read whole is not a measurement of anything
+            if len(name_parts) < 3 or not fields[1].isdigit():
+                continue
+
+            operation, group, sweep_text = name_parts[:3]
 
             # Remove suffix from 16B-4 to get the sweep value as an integer, ex. 16
-            sweep_value = int(sweep_text.split("-")[0].removesuffix(value_suffix))
+            sweep_text = sweep_text.split("-")[0].removesuffix(value_suffix)
+            if not sweep_text.isdigit():
+                continue
+
+            sweep_value = int(sweep_text)
 
             # Check if data already exists for this case,
             # otherwise create a fresh CaseSummary object
             case = rows.setdefault(
                 _generate_case_id(operation.lower(), group, sweep_value),
-                CaseSummary(),
+                CaseSummary(operation.lower(), group, sweep_value),
             )
 
             # Each feature of each row follows a "<feature value> <feature unit>" pattern, for example "123456 ns/op" or "123.45 MB/s",

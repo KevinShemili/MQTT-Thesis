@@ -50,44 +50,89 @@ func (r RSA) StoredKeySize() int {
 	return len(x509.MarshalPKCS1PrivateKey(r.PrivateKey))
 }
 
-// Reads every stored key in the given directory
-func LoadRSAKeys(directory string) []RSA {
+// Reads the key stored at one position, and reports whether it was ever stored.
+// Keys are reached by position rather than by listing the directory so that a caller
+// restores exactly the ones it asked for
+func LoadRSAKey(directory string, index int) (RSA, bool) {
 
-	entries, err := os.ReadDir(directory)
+	keyBytes, found := readKeyFile(privateKeyPath(directory, index))
+	if !found {
+		return RSA{}, false
+	}
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(keyBytes)
 	if err != nil {
-		return nil
+		panic(err)
 	}
 
-	keys := []RSA{}
+	return RSA{PrivateKey: privateKey, PublicKey: &privateKey.PublicKey}, true
+}
 
-	for _, entry := range entries {
+// A publisher holds public keys and never private ones, so the two halves are stored
+// apart and this restores one without the private material entering the process at all
+func LoadRSAPublicKey(directory string, index int) (RSA, bool) {
 
-		keyBytes, err := os.ReadFile(filepath.Join(directory, entry.Name()))
-		if err != nil {
-			panic(err)
-		}
-
-		privateKey, err := x509.ParsePKCS1PrivateKey(keyBytes)
-		if err != nil {
-			panic(err)
-		}
-
-		keys = append(keys, RSA{PrivateKey: privateKey, PublicKey: &privateKey.PublicKey})
+	keyBytes, found := readKeyFile(publicKeyPath(directory, index))
+	if !found {
+		return RSA{}, false
 	}
 
-	return keys
+	publicKey, err := x509.ParsePKCS1PublicKey(keyBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	return RSA{PublicKey: publicKey}, true
 }
 
 // Appends one key to the directory, named by its position
 func StoreRSAKey(key RSA, directory string, index int) {
 
-	if err := os.MkdirAll(directory, 0o755); err != nil {
+	writeKeyFile(
+		privateKeyPath(directory, index),
+		x509.MarshalPKCS1PrivateKey(key.PrivateKey),
+	)
+}
+
+// The public half of the same position, so that a publisher-side fixture can be
+// restored on its own
+func StoreRSAPublicKey(key RSA, directory string, index int) {
+
+	writeKeyFile(
+		publicKeyPath(directory, index),
+		x509.MarshalPKCS1PublicKey(key.PublicKey),
+	)
+}
+
+func privateKeyPath(directory string, index int) string {
+
+	return filepath.Join(directory, fmt.Sprintf("%d.der", index))
+}
+
+func publicKeyPath(directory string, index int) string {
+
+	return filepath.Join(directory, fmt.Sprintf("%d.pub.der", index))
+}
+
+// A key that was never stored is a fact about the filesystem the caller decides on,
+// whereas a key that is there but unreadable is a broken experiment
+func readKeyFile(keyPath string) ([]byte, bool) {
+
+	keyBytes, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, false
+	}
+
+	return keyBytes, true
+}
+
+func writeKeyFile(keyPath string, keyBytes []byte) {
+
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
 		panic(err)
 	}
 
-	keyPath := filepath.Join(directory, fmt.Sprintf("%d.der", index))
-
-	if err := os.WriteFile(keyPath, x509.MarshalPKCS1PrivateKey(key.PrivateKey), 0o644); err != nil {
+	if err := os.WriteFile(keyPath, keyBytes, 0o644); err != nil {
 		panic(err)
 	}
 }

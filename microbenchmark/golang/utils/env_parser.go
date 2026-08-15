@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -28,5 +29,16 @@ func ParseIntFromEnv(envVarName string) int {
 	if err != nil {
 		panic(err)
 	}
+	return value
+}
+
+func ParseStringFromEnv(envVarName string) string {
+
+	value := strings.TrimSpace(os.Getenv(envVarName))
+
+	if value == "" {
+		panic(fmt.Sprintf("environment variable %s is not set", envVarName))
+	}
+
 	return value
 }

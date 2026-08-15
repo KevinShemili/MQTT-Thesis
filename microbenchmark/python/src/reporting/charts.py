@@ -1,4 +1,5 @@
 import matplotlib
+from math import isnan
 from typing import Callable, Iterable
 
 matplotlib.use("Agg")
@@ -253,7 +254,9 @@ def draw_two_panel_figure(
 
 
 # Finds the highest visible value across the series, including the top of each confidence interval.
-# Used to choose a Y-axis limit that does not cut off any error bars
+# Used to choose a Y-axis limit that does not cut off any error bars.
+# A sweep value whose case never produced a measurement reads as NaN and is skipped,
+# since a gap in a line has no height to leave room for
 def calculate_axis_top(series_list: Iterable[FeatureSweep]) -> float:
 
     return max(
@@ -261,6 +264,7 @@ def calculate_axis_top(series_list: Iterable[FeatureSweep]) -> float:
             mean_value + ci_half
             for series in series_list
             for mean_value, ci_half in zip(series.means, series.ci)
+            if not isnan(mean_value)
         ),
         default=0.0,
     )

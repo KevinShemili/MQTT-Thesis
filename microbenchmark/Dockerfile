@@ -13,6 +13,7 @@ RUN go mod download
 COPY golang/ .
 
 RUN go test -c -o benchmark-binary ./benchmark
+RUN go build -o provision-binary ./cmd/provision
 
 COPY python/ .
 COPY script/ .

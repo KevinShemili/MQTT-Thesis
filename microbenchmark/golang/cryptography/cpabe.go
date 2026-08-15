@@ -12,6 +12,12 @@ type CPABEAuthority struct {
 	systemSecretKey tkn20.SystemSecretKey // package private
 }
 
+// What a publisher holds and all it needs to encrypt: the authority's public key,
+// without the master secret that issues keys
+type CPABEPublicKey struct {
+	PublicKey tkn20.PublicKey
+}
+
 type CPABESubscriberKey struct {
 	PrivateKey tkn20.AttributeKey
 }
@@ -27,10 +33,22 @@ func NewCPABEAuthority() CPABEAuthority {
 	return CPABEAuthority{PublicKey: publicKey, systemSecretKey: systemSecretKey}
 }
 
+// The half of itself the authority hands to publishers
+func (authority CPABEAuthority) PublisherKey() CPABEPublicKey {
+
+	return CPABEPublicKey{PublicKey: authority.PublicKey}
+}
+
 // Encrypt a key under a given policy
 func (authority CPABEAuthority) Encrypt(policy tkn20.Policy, plaintext []byte) []byte {
 
-	ciphertext, err := authority.PublicKey.Encrypt(rand.Reader, policy, plaintext)
+	return authority.PublisherKey().Encrypt(policy, plaintext)
+}
+
+// The same encryption, performed from what a publisher actually holds
+func (publicKey CPABEPublicKey) Encrypt(policy tkn20.Policy, plaintext []byte) []byte {
+
+	ciphertext, err := publicKey.PublicKey.Encrypt(rand.Reader, policy, plaintext)
 	if err != nil {
 		panic(err)
 	}
@@ -62,30 +80,110 @@ func (subscriberKey CPABESubscriberKey) Decrypt(ciphertext []byte) []byte {
 
 func (subscriberKey CPABESubscriberKey) StoredKeySize() int {
 
+	return len(MarshalCPABESubscriberKey(subscriberKey))
+}
+
+// The authority's two halves marshal apart, so a publisher can be restored from the
+// public one alone and the master secret never enters a process that only encrypts
+func MarshalCPABEPublicKey(publicKey CPABEPublicKey) []byte {
+
+	keyBytes, err := publicKey.PublicKey.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
+	return keyBytes
+}
+
+func UnmarshalCPABEPublicKey(keyBytes []byte) CPABEPublicKey {
+
+	var publicKey tkn20.PublicKey
+
+	if err := publicKey.UnmarshalBinary(keyBytes); err != nil {
+		panic(err)
+	}
+
+	return CPABEPublicKey{PublicKey: publicKey}
+}
+
+func MarshalCPABEMasterSecret(authority CPABEAuthority) []byte {
+
+	secretBytes, err := authority.systemSecretKey.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
+	return secretBytes
+}
+
+// Only key issuance needs the authority whole, so only a provisioning side restores it
+func UnmarshalCPABEAuthority(publicKeyBytes []byte, masterSecretBytes []byte) CPABEAuthority {
+
+	var systemSecretKey tkn20.SystemSecretKey
+
+	if err := systemSecretKey.UnmarshalBinary(masterSecretBytes); err != nil {
+		panic(err)
+	}
+
+	return CPABEAuthority{
+		PublicKey:       UnmarshalCPABEPublicKey(publicKeyBytes).PublicKey,
+		systemSecretKey: systemSecretKey,
+	}
+}
+
+func MarshalCPABESubscriberKey(subscriberKey CPABESubscriberKey) []byte {
+
 	keyBytes, err := subscriberKey.PrivateKey.MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
 
-	return len(keyBytes)
+	return keyBytes
+}
+
+func UnmarshalCPABESubscriberKey(keyBytes []byte) CPABESubscriberKey {
+
+	var privateKey tkn20.AttributeKey
+
+	if err := privateKey.UnmarshalBinary(keyBytes); err != nil {
+		panic(err)
+	}
+
+	return CPABESubscriberKey{PrivateKey: privateKey}
 }
 
 // Returns synthetic policy & attribute set
 func BuildSyntheticPolicyAndAttributes(attributeCount int) (tkn20.Policy, tkn20.Attributes) {
 
-	policyString := ""
 	attributeList := make(map[string]string, attributeCount)
 
 	for index := range attributeCount {
 
-		attributeName := fmt.Sprintf("attr%d", index) // Synthetic attribute name: attr0, attr1, ...
-		attributeValue := fmt.Sprintf("val%d", index) // Synthetic attribute value: val0, val1, ...
+		// Attribute side: the same synthetic pair the policy states as a clause
+		attributeList[syntheticAttributeName(index)] = syntheticAttributeValue(index)
+	}
 
-		// Attribute side: the pair as a map entry
-		attributeList[attributeName] = attributeValue
+	var attributes tkn20.Attributes
+	attributes.FromMap(attributeList)
 
-		// Policy side: the same pair as a clause
-		clause := fmt.Sprintf("(%s: %s)", attributeName, attributeValue)
+	return ParseCPABEPolicy(BuildSyntheticPolicyString(attributeCount)), attributes
+}
+
+// The policy on its own, as the text it is parsed from. It is fully determined by the
+// attribute count, so it can be stored and read back instead of being built by a
+// process whose allocations are being measured
+func BuildSyntheticPolicyString(attributeCount int) string {
+
+	policyString := ""
+
+	for index := range attributeCount {
+
+		clause := fmt.Sprintf(
+			"(%s: %s)",
+			syntheticAttributeName(index),
+			syntheticAttributeValue(index),
+		)
+
 		if index == 0 {
 			policyString = clause
 		} else {
@@ -93,14 +191,28 @@ func BuildSyntheticPolicyAndAttributes(attributeCount int) (tkn20.Policy, tkn20.
 		}
 	}
 
+	return policyString
+}
+
+func ParseCPABEPolicy(policyText string) tkn20.Policy {
+
 	var policy tkn20.Policy
-	err := policy.FromString(policyString)
-	if err != nil {
+
+	if err := policy.FromString(policyText); err != nil {
 		panic(err)
 	}
 
-	var attributes tkn20.Attributes
-	attributes.FromMap(attributeList)
+	return policy
+}
 
-	return policy, attributes
+// Synthetic attribute name: attr0, attr1, ...
+func syntheticAttributeName(index int) string {
+
+	return fmt.Sprintf("attr%d", index)
+}
+
+// Synthetic attribute value: val0, val1, ...
+func syntheticAttributeValue(index int) string {
+
+	return fmt.Sprintf("val%d", index)
 }

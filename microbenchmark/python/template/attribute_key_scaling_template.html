@@ -569,6 +569,38 @@
             text-align: center;
         }
 
+        /* Emitted only where a case did not complete, or where a comparison rests on one
+           that did not. A clean run carries neither. */
+        .failure-notice {
+            border-color: #e7bcc6;
+            background: linear-gradient(180deg, #fff8f9 0%, var(--surface) 60%);
+        }
+
+        .failure-notice .section-heading h2 {
+            color: var(--rose);
+        }
+
+        .failure-notice .section-heading p {
+            max-width: 720px;
+        }
+
+        .failure-notice td {
+            text-align: left;
+            white-space: normal;
+        }
+
+        .failure-notice th {
+            text-align: left;
+        }
+
+        .missing-note {
+            margin: 0;
+            padding: 26px 22px;
+            color: var(--muted);
+            font-size: 13px;
+            text-align: center;
+        }
+
         .table-note {
             margin: 10px 14px 12px;
             color: var(--muted);
@@ -670,6 +702,8 @@
             <h1>Asymmetric Schemas under Attribute &amp; Key Scaling</h1>
         </header>
 
+        {{OutOfMemoryNotice}}
+
         <section class="metadata" aria-label="Benchmark metadata">
             <div class="metric">
                 <div class="metric-label">Independent runs</div>
@@ -767,6 +801,40 @@
 
         <section class="section">
             <div class="section-heading">
+                <h2>Peak Process Memory</h2>
+                <p>Timing and memory are separate experiments. Each point below is one process that
+                    restored the data its role holds, handed its heap back to the kernel, reset the
+                    peak-RSS watermark, performed the operation exactly once, and read the watermark.
+                    The figures are whole-process resident sizes and so include a runtime floor of
+                    several megabytes; the vertical axis is shared but not anchored at zero.</p>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-frame">
+                        {{PeakMemoryFrame}}
+                    </div>
+                </article>
+
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>How Peak Memory Tracks Each Swept Variable</h3>
+                        <p>Slope, spread and end-to-end change, stated the same way for all three
+                            sweeps.</p>
+                    </div>
+                    <div class="table-row table-row-one">
+                        <div class="table-block">
+                            <div class="table-wrapper">
+                                {{PeakMemoryTrendTable}}
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
                 <h2>Cross-Schema Comparison</h2>
             </div>
 
@@ -777,7 +845,7 @@
                             <h3>CP-ABE vs. RSA: Ciphertext Size</h3>
                         </div>
                         <div class="plot-frame">
-                            <img src="{{BandwidthCrossoverPlot}}">
+                            {{BandwidthCrossoverFrame}}
                         </div>
                     </article>
 
@@ -798,7 +866,7 @@
                             <h3>CP-ABE vs. RSA: Publisher Encrypt Cost</h3>
                         </div>
                         <div class="plot-frame">
-                            <img src="{{EncryptCpuCrossoverPlot}}">
+                            {{EncryptCpuCrossoverFrame}}
                         </div>
                     </article>
 
@@ -819,7 +887,7 @@
                             <h3>CP-ABE vs. RSA: Decrypt Cost by Policy and Key Size</h3>
                         </div>
                         <div class="plot-frame">
-                            <img src="{{DecryptCpuCrossoverPlot}}">
+                            {{DecryptCpuCrossoverFrame}}
                         </div>
                     </article>
 
@@ -840,7 +908,7 @@
                         <h3>Encrypt vs. Decrypt: Asymmetry</h3>
                     </div>
                     <div class="plot-frame">
-                        <img src="{{AsymmetryPlot}}">
+                        {{AsymmetryFrame}}
                     </div>
                 </article>
             </div>
@@ -910,6 +978,32 @@
                         <h3>RSA: Key Size Scaling</h3>
                         <div class="table-wrapper">
                             {{RsaKeyBitsKeygenTable}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Peak Process Memory</h3>
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>CP-ABE: Policy Attribute Scaling</h3>
+                        <div class="table-wrapper">
+                            {{PeakMemoryCpabeTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>RSA: Subscriber Scaling</h3>
+                        <div class="table-wrapper">
+                            {{PeakMemoryRsaSubscribersTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>RSA: Key Size Scaling</h3>
+                        <div class="table-wrapper">
+                            {{PeakMemoryRsaKeyBitsTable}}
                         </div>
                     </div>
                 </div>

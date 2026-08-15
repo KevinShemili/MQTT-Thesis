@@ -2,16 +2,14 @@ package benchmark
 
 import (
 	"fmt"
-	"path/filepath"
 	"project/cryptography"
+	"project/fixture"
 	"project/utils"
-	"slices"
 	"testing"
 	"time"
 )
 
 const cooldownTimeout = 5 * time.Minute
-const keyCacheDirectory = "key-cache"
 
 var rsaKeyCache = map[int][]cryptography.RSA{}
 
@@ -27,32 +25,27 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 	config := loadAttributeKeyScalingConfig()
 
-	// Scheme Setup
-	// 1. CP-ABE authority
-	// 2. RSA recipient pool at fixed key size
-	cpAbe := cryptography.NewCPABEAuthority()
-
-	// Get highest subscriber count to provision the recipient pool once
-	maxSubscriberCount := slices.Max(config.SubscriberCountList)
-	rsaSubscribers := rsaKeyPool(config.FixedRSAKeyBits, maxSubscriberCount)
-
-	// True cryptographic realism is not necessary here either,
-	// rather isolation of asymmetric cost is the goal
-	aesKey := utils.GenerateRandomBytes(config.AESKeySize)
-
-	// Scenario 1: CP-ABE scaling attribute count
+	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCountList {
 
-		// Build policy for given attribute number
-		abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
-
-		// Ciphertext size is fixed, so measured once outside timed loop
-		abeCiphertextSize := len(cpAbe.Encrypt(abePolicy, aesKey))
-
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
-			waitForCooldown()
-			b.ResetTimer()
 
+			cpAbe := cryptography.NewCPABEAuthority()
+
+			// Build policy for given attribute number
+			abePolicy, _ := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+
+			// True cryptographic realism is not necessary here,
+			// hence no need to regenerate a symmetric key for each new encryption
+			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+
+			// Ciphertext size is fixed, so measured once outside timed loop
+			abeCiphertextSize := len(cpAbe.Encrypt(abePolicy, aesKey))
+
+			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
+			waitForCooldown()
+
+			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
@@ -60,25 +53,29 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(abeCiphertextSize), "ciphertext_bytes")
+
 			if throttled, available := throttle.Throttled(); available {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
 	}
 
-	// Scenario 2: RSA scaling subscriber count
-	// Size of a single wrapped key, directly comparable to CP-ABE's single ciphertext.
-	// Fixed by the key size, so measured once outside the sweep
-	singleCiphertextSize := len(rsaSubscribers[0].Encrypt(aesKey))
-
+	// Scenario 2: Scaling subscriber count in RSA
 	for _, subscriberCount := range config.SubscriberCountList {
 
-		// However, in RSA each one gets its own key
-		totalCiphertextSize := subscriberCount * singleCiphertextSize
-
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
+
+			rsaSubscribers := rsaKeyPool(config.FixedRSAKeyBits, subscriberCount)
+			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+
+			// Size of a single wrapped key, directly comparable to CP-ABE's single
+			// ciphertext. Fixed by the key size, so measured once outside timed loop
+			singleCiphertextSize := len(rsaSubscribers[0].Encrypt(aesKey))
+
+			// However, in RSA each one gets its own key
+			totalCiphertextSize := subscriberCount * singleCiphertextSize
+
 			waitForCooldown()
-			b.ResetTimer()
 
 			throttle := utils.WatchThrottling()
 
@@ -96,16 +93,17 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: RSA scaling key size
+	// Scenario 3: Scaling key size in RSA
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
-		rsaScheme := rsaKeyPool(rsaKeyBits, 1)[0]
-
-		rsaCiphertextSize := len(rsaScheme.Encrypt(aesKey))
-
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+
+			rsaScheme := rsaKeyPool(rsaKeyBits, 1)[0]
+			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+
+			rsaCiphertextSize := len(rsaScheme.Encrypt(aesKey))
+
 			waitForCooldown()
-			b.ResetTimer()
 
 			throttle := utils.WatchThrottling()
 
@@ -124,22 +122,21 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 	config := loadAttributeKeyScalingConfig()
-	aesKey := utils.GenerateRandomBytes(config.AESKeySize)
-	subscriberKeys := rsaKeyPool(config.FixedRSAKeyBits, len(config.SubscriberCountList))
 
 	// Scenario 1: CP-ABE scaling attribute count
-	cpAbe := cryptography.NewCPABEAuthority()
 	for _, attributeCount := range config.AttributeCountList {
 
-		abePolicy, abeAttributes := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
-
-		subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
-		abeCiphertext := cpAbe.Encrypt(abePolicy, aesKey)
-		abeStoredKeySize := subscriberKey.StoredKeySize()
-
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
+
+			cpAbe := cryptography.NewCPABEAuthority()
+			abePolicy, abeAttributes := cryptography.BuildSyntheticPolicyAndAttributes(attributeCount)
+			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+
+			subscriberKey := cpAbe.IssueSubscriberKey(abeAttributes)
+			abeCiphertext := cpAbe.Encrypt(abePolicy, aesKey)
+			abeStoredKeySize := subscriberKey.StoredKeySize()
+
 			waitForCooldown()
-			b.ResetTimer()
 
 			throttle := utils.WatchThrottling()
 
@@ -160,12 +157,14 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 	// result reflects measured behaviour rather than a repetition of byte-identical work
 	for index, subscriberCount := range config.SubscriberCountList {
 
-		subscriber := subscriberKeys[index]
-		subscriberCiphertext := subscriber.Encrypt(aesKey)
-
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
+
+			subscriber := rsaKeyPool(config.FixedRSAKeyBits, index+1)[index]
+			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+
+			subscriberCiphertext := subscriber.Encrypt(aesKey)
+
 			waitForCooldown()
-			b.ResetTimer()
 
 			throttle := utils.WatchThrottling()
 
@@ -182,12 +181,14 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 	// Scenario 3: RSA scaling key size
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
-		rsa := rsaKeyPool(rsaKeyBits, 1)[0]
-		rsaCiphertext := rsa.Encrypt(aesKey)
-
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+
+			rsa := rsaKeyPool(rsaKeyBits, 1)[0]
+			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+
+			rsaCiphertext := rsa.Encrypt(aesKey)
+
 			waitForCooldown()
-			b.ResetTimer()
 
 			throttle := utils.WatchThrottling()
 
@@ -220,7 +221,6 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 			waitForCooldown()
-			b.ResetTimer()
 
 			throttle := utils.WatchThrottling()
 
@@ -261,17 +261,20 @@ func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 
 func rsaKeyPool(rsaKeyBits int, requiredCount int) []cryptography.RSA {
 
-	directory := filepath.Join(keyCacheDirectory, fmt.Sprintf("rsa-%d", rsaKeyBits))
+	directory := fixture.RSAKeyDirectory(rsaKeyBits)
 
-	pool, loaded := rsaKeyCache[rsaKeyBits]
-	if !loaded {
-		pool = cryptography.LoadRSAKeys(directory)
-	}
+	pool := rsaKeyCache[rsaKeyBits]
 
-	// Only generation extends the pool, so the same key can never be added twice
+	// Keys are reached by position rather than by listing the directory, so the pool
+	// only ever grows and the same key can never be added twice
 	for len(pool) < requiredCount {
-		key := cryptography.NewRSA(rsaKeyBits)
-		cryptography.StoreRSAKey(key, directory, len(pool))
+
+		key, stored := cryptography.LoadRSAKey(directory, len(pool))
+		if !stored {
+			key = cryptography.NewRSA(rsaKeyBits)
+			cryptography.StoreRSAKey(key, directory, len(pool))
+		}
+
 		pool = append(pool, key)
 	}
 

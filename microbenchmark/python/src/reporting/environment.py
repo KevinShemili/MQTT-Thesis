@@ -4,6 +4,9 @@ from .statistics import get_student_t_critical_95
 DEFAULT_RESULT_ROOT = "/results"
 TEMPLATE_DIR = "/app/template"
 BENCH_OUTPUT_NAME = "bench_output.txt"
+MEMORY_OUTPUT_NAME = "memory_output.txt"
+CASE_STATUS_NAME = "case_status.txt"
+CASE_LOG_DIR_NAME = "case_logs"
 REPORT_NAME = "report.html"
 
 
@@ -43,6 +46,14 @@ class Config:
         )
 
         self.bench_output = os.path.join(self.result_dir, BENCH_OUTPUT_NAME)
+
+        # Peak memory is a separate experiment from timing and keeps its own raw file,
+        # so neither parser has to defend itself against the other's rows. The status
+        # file and the logs beside it are what the orchestrator recorded per process
+        self.memory_output = os.path.join(self.result_dir, MEMORY_OUTPUT_NAME)
+        self.case_status = os.path.join(self.result_dir, CASE_STATUS_NAME)
+        self.case_logs = os.path.join(self.result_dir, CASE_LOG_DIR_NAME)
+
         self.report = os.path.join(self.result_dir, REPORT_NAME)
         self.template = os.path.join(TEMPLATE_DIR, template_name)
 
