@@ -103,6 +103,10 @@ Pipfile.lock
 # Benchmark / Data files (optional)
 # ==========================================
 
+# Benchmark binaries and provisioned fixtures
+microbenchmark/bin/
+microbenchmark/cache/
+
 # Temporary files
 tmp/
 temp/

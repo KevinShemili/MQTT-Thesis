@@ -1,41 +1,84 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-RESULT_DIRECTORY = Path("/results/attribute-key-scaling")
+# Everything is found relative to this file, so no process depends on the directory
+# it was started from. orchestration/linux/ is two levels below the suite
+MICROBENCHMARK_DIRECTORY = Path(__file__).resolve().parents[2]
+
+ENVIRONMENT_FILE = MICROBENCHMARK_DIRECTORY / "config" / "benchmark.env"
+GO_DIRECTORY = MICROBENCHMARK_DIRECTORY / "golang"
+BINARY_DIRECTORY = MICROBENCHMARK_DIRECTORY / "bin"
+RESULT_DIRECTORY = MICROBENCHMARK_DIRECTORY / "results" / "attribute-key-scaling"
 
 OUTPUT_FILE = RESULT_DIRECTORY / "bench_output.txt"
 MEMORY_OUTPUT_FILE = RESULT_DIRECTORY / "memory_output.txt"
 STATUS_FILE = RESULT_DIRECTORY / "case_status.txt"
 LOG_DIRECTORY = RESULT_DIRECTORY / "case_logs"
 
-BENCHMARK_BINARY = "./benchmark-binary"
-PROVISION_BINARY = "./provision-binary"
-REPORT_SCRIPT = "src/attribute_key_scaling_report.py"
-
-
-# ---------------------------------------------------------------------------
-# Benchmark configuration
-# ---------------------------------------------------------------------------
-
-ATTRIBUTE_COUNTS = os.environ["ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT"].split(",")
-SUBSCRIBER_COUNTS = os.environ["ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT"].split(",")
-RSA_KEY_SIZES = os.environ["ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES"].split(",")
-
-BENCHMARK_RUNS = int(os.environ["ATTRIBUTE_KEY_SCALING_RUNS"])
-KEYGEN_RUNS = int(os.environ["ATTRIBUTE_KEY_SCALING_KEYGEN_RUNS"])
-
-CACHE_DIRECTORY = Path(os.environ["CACHE_DIRECTORY"])
+BENCHMARK_BINARY = str(BINARY_DIRECTORY / "benchmark-binary")
+PROVISION_BINARY = str(BINARY_DIRECTORY / "provision-binary")
+REPORT_SCRIPT = str(
+    MICROBENCHMARK_DIRECTORY / "python" / "src" / "attribute_key_scaling_report.py"
+)
 
 
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
+
+
+def load_environment_variables():
+
+    global ATTRIBUTE_COUNTS, SUBSCRIBER_COUNTS, RSA_KEY_SIZES
+    global BENCHMARK_RUNS, KEYGEN_RUNS, CACHE_DIRECTORY
+
+    load_dotenv(ENVIRONMENT_FILE, override=True)
+
+    # The Go binaries resolve a relative cache directory against the directory they
+    # were started from, so it is anchored to the project before either one reads it
+    CACHE_DIRECTORY = MICROBENCHMARK_DIRECTORY / os.environ["CACHE_DIRECTORY"]
+    os.environ["CACHE_DIRECTORY"] = str(CACHE_DIRECTORY)
+
+    # The report would otherwise look for this run under the results root the
+    # container mounted, which is what this override exists for
+    os.environ["ATTRIBUTE_KEY_SCALING_RESULT_DIR"] = str(RESULT_DIRECTORY)
+
+    ATTRIBUTE_COUNTS = os.environ["ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT"].split(",")
+    SUBSCRIBER_COUNTS = os.environ["ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT"].split(",")
+    RSA_KEY_SIZES = os.environ["ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES"].split(",")
+
+    BENCHMARK_RUNS = int(os.environ["ATTRIBUTE_KEY_SCALING_RUNS"])
+    KEYGEN_RUNS = int(os.environ["ATTRIBUTE_KEY_SCALING_KEYGEN_RUNS"])
+
+
+def build_binaries():
+
+    # The image used to compile these ahead of the run, so that a measurement is
+    # never attributed to a binary older than the source it is reported against
+    print("Building benchmark and provision binaries...")
+
+    BINARY_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(
+        ["go", "test", "-c", "-o", BENCHMARK_BINARY, "./benchmark"],
+        cwd=GO_DIRECTORY,
+        check=True,
+    )
+
+    subprocess.run(
+        ["go", "build", "-o", PROVISION_BINARY, "./cmd/provision"],
+        cwd=GO_DIRECTORY,
+        check=True,
+    )
 
 
 def prepare_output_directories():
@@ -324,8 +367,10 @@ def generate_report():
 
     print("Generating Attribute & Key Scaling HTML report...")
 
+    # The interpreter running the orchestrator is the one that has the reporting
+    # dependencies installed, which is not necessarily the one "python3" resolves to
     subprocess.run(
-        ["python3", REPORT_SCRIPT],
+        [sys.executable, REPORT_SCRIPT],
         check=True,
     )
 
@@ -336,6 +381,9 @@ def generate_report():
 
 
 def main():
+
+    load_environment_variables()
+    build_binaries()
 
     prepare_output_directories()
 
