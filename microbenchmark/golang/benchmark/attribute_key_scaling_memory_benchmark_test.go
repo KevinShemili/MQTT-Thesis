@@ -53,7 +53,7 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 			// Load from cache:
 			// 1. Each subscriber's public key
 			// 2. AES Symmetric Key
-			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeyBits, subscriberCount)
+			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeySize, subscriberCount)
 			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
 			isPrepared := preparePeakMemoryMeasurement()

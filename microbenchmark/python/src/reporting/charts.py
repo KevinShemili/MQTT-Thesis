@@ -103,6 +103,28 @@ def draw_summary(
     )
 
 
+# A measurement that does not depend on the swept variable, drawn as the flat line it is.
+# Spans the whole sweep rather than carrying a point at every value, since it was measured
+# once and repeating it at each tick would read as a sweep that had been performed
+def draw_constant(
+    axis: Axes,
+    value: float,
+    sweep_values: list[int],
+    label: str,
+    color: str,
+) -> None:
+
+    axis.hlines(
+        value,
+        sweep_values[0],
+        sweep_values[-1],
+        color=color,
+        linestyle="--",
+        linewidth=1.8,
+        label=label,
+    )
+
+
 # Draws a sweep as a distribution rather than as a mean, for a measurement whose
 # samples are skewed and where the tail is the point, ex. RSA key generation.
 # The median is the line, the box spans the IQR and the thin whiskers reach the

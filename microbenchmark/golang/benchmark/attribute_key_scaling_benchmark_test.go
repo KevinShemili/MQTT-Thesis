@@ -2,7 +2,6 @@ package benchmark
 
 import (
 	"fmt"
-	"project/cache"
 	"project/cryptography/cpabe"
 	"project/cryptography/rsa"
 	"project/utils"
@@ -12,13 +11,17 @@ import (
 
 const cooldownTimeout = 5 * time.Minute
 
-var rsaKeyCache = map[int][]rsa.RSA{}
+// Helps if -test.count >>> 1
+// - In subscriber sweep we would need to create N RSA keys for N subscribers
+// - If -test.count = 1-2 that's fine
+// - However, if -test.count >>> 1, the same key would be generated multiple times, especially expensive for RSA-7680
+var rsaKeyInMemoryCache = map[int][]rsa.RSA{}
 
 type AttributeKeyScalingConfig struct {
 	AttributeCountList  []int
 	SubscriberCountList []int
 	RSAKeySizeList      []int
-	FixedRSAKeyBits     int
+	FixedRSAKeySize     int
 	AESKeySize          int
 }
 
@@ -31,17 +34,18 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			cpAbe := cpabe.NewCPABEAuthority()
+			// Instantiate authority
+			authority := cpabe.NewCPABEAuthority()
 
 			// Build policy for given attribute number
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
 			// True cryptographic realism is not necessary here,
 			// hence no need to regenerate a symmetric key for each new encryption
-			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
-			abeCiphertextSize := len(cpAbe.Encrypt(abePolicy, aesKey))
+			asymmetricCiphertextSize := len(authority.Encrypt(abePolicy, symmetricKey))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			waitForCooldown()
@@ -50,12 +54,12 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
-				cpAbe.Encrypt(abePolicy, aesKey)
+				authority.Encrypt(abePolicy, symmetricKey)
 			}
 
-			b.ReportMetric(float64(abeCiphertextSize), "ciphertext_bytes")
+			b.ReportMetric(float64(asymmetricCiphertextSize), "ciphertext_bytes")
 
-			if throttled, available := throttle.Throttled(); available {
+			if throttled, isAvailable := throttle.Throttled(); isAvailable {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
@@ -66,29 +70,33 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
 
-			rsaSubscribers := rsaKeyPool(config.FixedRSAKeyBits, subscriberCount)
-			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+			publicKeySlice := loadRSAKeysFromInMemoryCache(config.FixedRSAKeySize, subscriberCount)
+			symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
-			// Size of a single wrapped key, directly comparable to CP-ABE's single
-			// ciphertext. Fixed by the key size, so measured once outside timed loop
-			singleCiphertextSize := len(rsaSubscribers[0].Encrypt(aesKey))
+			// Size of a single wrapped key
+			// - Directly comparable with CP-ABE's single ciphertext
+			asymmetricCiphertextSize := len(publicKeySlice[0].Encrypt(symmetricKey))
 
-			// However, in RSA each one gets its own key
-			totalCiphertextSize := subscriberCount * singleCiphertextSize
+			// However, in RSA each sub gets own key
+			totalAsymmetricCiphertextSize := subscriberCount * asymmetricCiphertextSize
 
+			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			waitForCooldown()
 
+			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
 				for index := range subscriberCount {
-					rsaSubscribers[index].Encrypt(aesKey)
+					publicKeySlice[index].Encrypt(symmetricKey)
 				}
 			}
 
-			b.ReportMetric(float64(singleCiphertextSize), "ciphertext_bytes")
-			b.ReportMetric(float64(totalCiphertextSize), "total_ciphertext_bytes")
-			if throttled, available := throttle.Throttled(); available {
+			b.ReportMetric(float64(asymmetricCiphertextSize), "ciphertext_bytes")
+
+			b.ReportMetric(float64(totalAsymmetricCiphertextSize), "total_ciphertext_bytes")
+
+			if throttled, isAvailable := throttle.Throttled(); isAvailable {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
@@ -99,21 +107,26 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-			rsaScheme := rsaKeyPool(rsaKeyBits, 1)[0]
-			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+			// Get just 1 RSA key of the specified size
+			publicKey := loadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+			symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
-			rsaCiphertextSize := len(rsaScheme.Encrypt(aesKey))
+			// Ciphertext size is fixed, so measured once outside timed loop
+			asymmetricCiphertextSize := len(publicKey.Encrypt(symmetricKey))
 
+			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			waitForCooldown()
 
+			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
-				rsaScheme.Encrypt(aesKey)
+				publicKey.Encrypt(symmetricKey)
 			}
 
-			b.ReportMetric(float64(rsaCiphertextSize), "ciphertext_bytes")
-			if throttled, available := throttle.Throttled(); available {
+			b.ReportMetric(float64(asymmetricCiphertextSize), "ciphertext_bytes")
+
+			if throttled, isAvailable := throttle.Throttled(); isAvailable {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
@@ -129,75 +142,64 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			cpAbe := cpabe.NewCPABEAuthority()
+			// Instantiate authority
+			authority := cpabe.NewCPABEAuthority()
+
+			// Create synthetic policy and attributes for given attribute count
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
-			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
 
-			subscriberKey := cpAbe.IssuePrivateKey(abeAttributes)
-			abeCiphertext := cpAbe.Encrypt(abePolicy, aesKey)
-			abeStoredKeySize := subscriberKey.StoredPrivateKeySize()
+			symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
+			// Create private key based on attributes
+			privateKey := authority.IssuePrivateKey(abeAttributes)
+
+			// Create ciphertext based on policy to measure decryption cost
+			asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
+
+			// Measure size of created private key, relevant as it is attribute count dependent
+			privateKeySize := privateKey.StoredPrivateKeySize()
+
+			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			waitForCooldown()
 
+			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
-				subscriberKey.Decrypt(abeCiphertext)
+				privateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			b.ReportMetric(float64(abeStoredKeySize), "stored_key_bytes")
-			if throttled, available := throttle.Throttled(); available {
+			b.ReportMetric(float64(privateKeySize), "stored_key_bytes")
+
+			if throttled, isAvailable := throttle.Throttled(); isAvailable {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
 	}
 
-	// Scenario 2: RSA scaling subscriber count
-	// A subscriber only ever decrypts own session key, so cost is expected to stay flat.
-	// Each sweep point provisions its own subscriber and decrypts its own wrapped key, so a flat
-	// result reflects measured behaviour rather than a repetition of byte-identical work
-	for index, subscriberCount := range config.SubscriberCountList {
-
-		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
-
-			subscriber := rsaKeyPool(config.FixedRSAKeyBits, index+1)[index]
-			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
-
-			subscriberCiphertext := subscriber.Encrypt(aesKey)
-
-			waitForCooldown()
-
-			throttle := utils.WatchThrottling()
-
-			for b.Loop() {
-				subscriber.Decrypt(subscriberCiphertext)
-			}
-
-			if throttled, available := throttle.Throttled(); available {
-				b.ReportMetric(throttled, "throttled")
-			}
-		})
-	}
-
-	// Scenario 3: RSA scaling key size
+	// Scenario 2: RSA scaling key size
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-			rsa := rsaKeyPool(rsaKeyBits, 1)[0]
-			aesKey := utils.GenerateRandomBytes(config.AESKeySize)
+			// Get just 1 RSA key of the specified size
+			privateKey := loadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+			symmetricKey := utils.GenerateRandomBytes(config.AESKeySize)
 
-			rsaCiphertext := rsa.Encrypt(aesKey)
+			// Create ciphertext based on policy to measure decryption cost
+			asymmetricCiphertext := privateKey.Encrypt(symmetricKey)
 
+			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			waitForCooldown()
 
+			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := utils.WatchThrottling()
 
 			for b.Loop() {
-				rsa.Decrypt(rsaCiphertext)
+				privateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			if throttled, available := throttle.Throttled(); available {
+			if throttled, isAvailable := throttle.Throttled(); isAvailable {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
@@ -210,29 +212,37 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 
 	// CP-ABE key issuance is deliberately not measured. It is executed by the attribute
 	// authority, which holds the master secret and is by definition a trusted,
-	// unconstrained entity, so it is never a cost the constrained device pays.
-	// CP-ABE's stored key size is reported by the decrypt benchmark instead
+	// unconstrained entity, so it is never a cost the constrained device pays...
 
-	// Key generation is a probabilistic prime search, so its cost is a random variable
-	// with a long right tail and a single averaged figure is not representative.
-	// Run with -benchtime=1x so each run performs exactly one generation and its ns/op
-	// is one sample, and -count=N to collect N of them. The distribution is reduced to
-	// median, IQR, min and max at reporting time
+	// However it is reported for RSA
+	// In RSA, key generation is a probabilistic prime search, so its cost is a random variable
+	// with a long right tail... hence an averaged figure is not representative
+
+	// Instead this case is run with an explicit -benchtime=1x, ensuring b.loop is executed exactly once,
+	// making ns/op a single sample...
+	// We use then -test.count = x to collect x samples, enabling reporting of:
+	// - Median
+	// - IQR
+	// - Min & Max
 	for _, rsaKeyBits := range config.RSAKeySizeList {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+
+			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			waitForCooldown()
 
+			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := utils.WatchThrottling()
 
-			var scheme rsa.RSA
+			var schema rsa.RSA
 
 			for b.Loop() {
-				scheme = rsa.NewRSA(rsaKeyBits)
+				schema = rsa.NewRSA(rsaKeyBits)
 			}
 
-			b.ReportMetric(float64(scheme.StoredKeySize()), "stored_key_bytes")
-			if throttled, available := throttle.Throttled(); available {
+			b.ReportMetric(float64(schema.StoredKeySize()), "stored_key_bytes")
+
+			if throttled, isAvailable := throttle.Throttled(); isAvailable {
 				b.ReportMetric(throttled, "throttled")
 			}
 		})
@@ -251,8 +261,8 @@ func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 		RSAKeySizeList: utils.ParseIntListFromEnv(
 			"ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES",
 		),
-		FixedRSAKeyBits: utils.ParseIntFromEnv(
-			"ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_BITS",
+		FixedRSAKeySize: utils.ParseIntFromEnv(
+			"ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE",
 		),
 		AESKeySize: utils.ParseIntFromEnv(
 			"ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE",
@@ -260,41 +270,21 @@ func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 	}
 }
 
-func rsaKeyPool(rsaKeyBits int, requiredCount int) []rsa.RSA {
+// Generate RSA keys & retain them for the lifetime of this process
+func loadRSAKeysFromInMemoryCache(rsaKeySize int, amount int) []rsa.RSA {
 
-	pool := rsaKeyCache[rsaKeyBits]
+	keySlice := rsaKeyInMemoryCache[rsaKeySize]
 
-	// Keys are reached by position rather than by listing the cache, so the pool
-	// only ever grows and the same key can never be added twice
-	for len(pool) < requiredCount {
-
-		index := len(pool)
-
-		var key rsa.RSA
-
-		if keyBytes, cached := cache.FindFile(cache.CreateRSAPrivateKeyFileName(rsaKeyBits, index)); cached {
-			key = rsa.UnmarshalPrivateKey(keyBytes)
-		} else {
-			key = rsa.NewRSA(rsaKeyBits)
-
-			// Both halves at once, so a key this process generated is indistinguishable
-			// from one the provisioning process did
-			cache.StoreFile(
-				cache.CreateRSAPrivateKeyFileName(rsaKeyBits, index),
-				rsa.MarshalPrivateKey(key.PrivateKey),
-			)
-			cache.StoreFile(
-				cache.CreateRSAPublicKeyFileName(rsaKeyBits, index),
-				rsa.MarshalPublicKey(key.PublicKey),
-			)
-		}
-
-		pool = append(pool, key)
+	// If not enough keys are cached, generate & store
+	for len(keySlice) < amount {
+		keySlice = append(keySlice, rsa.NewRSA(rsaKeySize))
 	}
 
-	rsaKeyCache[rsaKeyBits] = pool
+	// Update in-memory cache
+	rsaKeyInMemoryCache[rsaKeySize] = keySlice
 
-	return pool[:requiredCount]
+	// Return desired amount
+	return keySlice[:amount]
 }
 
 func waitForCooldown() {

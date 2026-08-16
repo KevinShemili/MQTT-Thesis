@@ -17,3 +17,4 @@ RUN go build -o provision-binary ./cmd/provision
 
 COPY python/ .
 COPY script/ .
+COPY orchestration/ ./orchestration/

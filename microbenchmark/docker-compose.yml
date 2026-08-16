@@ -62,4 +62,4 @@ services:
       - ./config/benchmark.env
     volumes:
       - ./results:/results
-    command: ["./run-attribute-key-scaling.sh"]
+    command: ["python3", "orchestration/orchestrate_attribute_key_scaling.py"]

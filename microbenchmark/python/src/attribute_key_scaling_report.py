@@ -12,6 +12,7 @@ from reporting.benchmark import (
     BenchmarkSummary,
     CaseSummary,
     FeatureSweep,
+    Measurement,
     load_invocations,
     load_results,
     throttle_flags,
@@ -26,6 +27,7 @@ from reporting.charts import (
     Series,
     mark_crossover,
     apply_value_grid,
+    draw_constant,
     draw_distribution,
     draw_summary,
     plt,
@@ -83,17 +85,34 @@ TIMING_OPERATIONS = {"Encrypt": "encrypt", "Decrypt": "decrypt", "KeyGen": "keyg
 MEMORY_OPERATIONS = {"MemoryEncrypt": "encrypt", "MemoryDecrypt": "decrypt"}
 
 # The three sweeps the memory experiment covers, keyed by the group Go names them with:
-# the environment variable holding the values, the panel title, the axis label, and the
-# unit a slope through them is quoted per
+# the environment variable holding the values, the panel title, the axis label, the unit a
+# slope through them is quoted per, and the operations that sweep actually measures.
+#
+# The subscriber sweep measures encrypt alone. Decrypt is the publisher's fan-out turned
+# around: a subscriber only ever unwraps its own session key, so there is nothing there
+# for a subscriber count to move
 MEMORY_SWEEPS = {
-    CPABE_ATTRIBUTES: ("ATTRIBUTE_COUNT", "CP-ABE", "Policy Attributes", "attribute"),
+    CPABE_ATTRIBUTES: (
+        "ATTRIBUTE_COUNT",
+        "CP-ABE",
+        "Policy Attributes",
+        "attribute",
+        ENCRYPT_DECRYPT,
+    ),
     RSA_SUBSCRIBERS: (
         "SUBSCRIBER_COUNT",
         "RSA Subscribers",
         "Subscribers",
         "subscriber",
+        ["encrypt"],
     ),
-    RSA_KEY_BITS: ("RSA_KEY_SIZES", "RSA Key Size", "RSA Key Bits", "key bit"),
+    RSA_KEY_BITS: (
+        "RSA_KEY_SIZES",
+        "RSA Key Size",
+        "RSA Key Bits",
+        "key bit",
+        ENCRYPT_DECRYPT,
+    ),
 }
 
 OPERATION_COLORS = {"encrypt": AMBER, "decrypt": VIOLET, "keygen": CRIMSON}
@@ -243,6 +262,30 @@ def cpabe_micros(
     )
 
 
+# Decrypt does not depend on how many subscribers there are, a subscriber only ever
+# unwraps its own session key, so it is not swept against subscriber count at all. What
+# the subscriber sweep quotes for it is the figure the key size sweep measured at the
+# fixed key size, which is the same operation on the same key actually performed
+def fixed_rsa_decrypt(
+    summary: BenchmarkSummary,
+    config: Config,
+    feature_name: str,
+    divisor: float = 1.0,
+) -> Measurement | None:
+
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
+
+    if not summary.has_case("decrypt", RSA_KEY_BITS, fixed_rsa_key_bits):
+        return None
+
+    case = summary.get_case_summary("decrypt", RSA_KEY_BITS, fixed_rsa_key_bits)
+
+    if feature_name not in case.features:
+        return None
+
+    return case.get_feature(feature_name).scale_unit(divisor)
+
+
 def cpabe_ciphertext_bytes(results: BenchmarkSummary, attribute_count: int) -> float:
     return (
         results.get_case_summary("encrypt", CPABE_ATTRIBUTES, attribute_count)
@@ -272,6 +315,8 @@ def plot_sweep(
     x_label: str,
     figure_title: str,
     output_path: str,
+    reference_latency: Measurement | None = None,
+    reference_label: str = "",
 ) -> None:
 
     # Key generation is orders of magnitude slower than encrypt and decrypt, so it gets
@@ -328,6 +373,16 @@ def plot_sweep(
             with_ci=True,
         )
 
+    # An operation this sweep does not move, quoted from where it was measured
+    if reference_latency is not None:
+        draw_constant(
+            latency_axis,
+            reference_latency.mean,
+            sweep_values,
+            reference_label,
+            OPERATION_COLORS["decrypt"],
+        )
+
     if keygen_on_own_axis:
         keygen_latency_axis.set_title("Key Generation Latency", fontsize=11)
         keygen_latency_axis.set_ylabel("Latency (ms), Median + IQR + Min-Max")
@@ -381,12 +436,14 @@ def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
     figure, axes = plt.subplots(1, 3, figsize=PEAK_MEMORY_FIGURE_SIZE, sharey=True)
     figure.suptitle("Peak Process Memory of a Single Operation", fontsize=13)
 
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
+
     for axis, (group, sweep) in zip(axes, MEMORY_SWEEPS.items()):
 
-        environment_name, panel_title, x_label, _ = sweep
+        environment_name, panel_title, x_label, _, operations = sweep
         sweep_values = config.integers(environment_name)
 
-        for operation in ENCRYPT_DECRYPT:
+        for operation in operations:
             draw_summary(
                 axis,
                 memory.sweep_features(
@@ -395,6 +452,23 @@ def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
                 operation.capitalize(),
                 OPERATION_COLORS[operation],
                 with_ci=True,
+            )
+
+        # A sweep that does not move decrypt still sits beside two that do, so it carries
+        # the reading of the operation it did not sweep rather than an empty half-panel
+        decrypt_reference = (
+            None
+            if "decrypt" in operations
+            else fixed_rsa_decrypt(memory, config, PEAK_RSS_BYTES, MEGABYTE)
+        )
+
+        if decrypt_reference is not None:
+            draw_constant(
+                axis,
+                decrypt_reference.mean,
+                sweep_values,
+                f"Decrypt (RSA-{fixed_rsa_key_bits})",
+                OPERATION_COLORS["decrypt"],
             )
 
         axis.set_title(panel_title, fontsize=11)
@@ -654,7 +728,7 @@ def plot_encrypt_decrypt_asymmetry(
     config: Config,
 ) -> bool:
 
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_BITS")
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
     min_attributes = config.integers("ATTRIBUTE_COUNT")[0]
 
     if not measured(
@@ -758,6 +832,7 @@ def build_latency_table(
     operation: str,
     value_header: str,
     size_columns: tuple[tuple[str, str], ...] = (),
+    highlight_value: int | None = None,
 ) -> str:
 
     rows = []
@@ -802,6 +877,7 @@ def build_latency_table(
         rows,
         throttle_flags(cases),
         thermal_header="THERMAL",
+        highlighted=[sweep_value == highlight_value for sweep_value in sweep_values],
     )
 
 
@@ -854,7 +930,9 @@ def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
     )
 
 
-# Peak memory as it was measured, one row per configured sweep value
+# Peak memory as it was measured, one row per configured sweep value. All three tables
+# keep the same columns so they can be read against one another, and the column a sweep
+# did not measure carries the reading of that operation from where it was measured
 def build_peak_memory_table(
     memory: BenchmarkSummary,
     config: Config,
@@ -862,7 +940,13 @@ def build_peak_memory_table(
     value_header: str,
 ) -> str:
 
-    environment_name = MEMORY_SWEEPS[group][0]
+    environment_name, _, _, _, operations = MEMORY_SWEEPS[group]
+
+    decrypt_reference = (
+        None
+        if "decrypt" in operations
+        else fixed_rsa_decrypt(memory, config, PEAK_RSS_BYTES)
+    )
 
     rows = []
 
@@ -873,6 +957,14 @@ def build_peak_memory_table(
 
         for operation in ENCRYPT_DECRYPT:
 
+            if operation not in operations:
+                row.append(
+                    NOT_AVAILABLE
+                    if decrypt_reference is None
+                    else format_byte_size(round(decrypt_reference.mean))
+                )
+                continue
+
             if not memory.has_case(operation, group, sweep_value):
                 row.append(NOT_COMPLETED)
                 continue
@@ -882,6 +974,8 @@ def build_peak_memory_table(
             )
 
             row.append(format_byte_size(round(peak.mean)))
+
+            # Counted from what this sweep measured, never from a borrowed reading
             sample_count = str(peak.count)
 
         rows.append(row + [sample_count])
@@ -923,10 +1017,12 @@ def build_peak_memory_trend_table(memory: BenchmarkSummary, config: Config) -> s
 
     for group, sweep in MEMORY_SWEEPS.items():
 
-        environment_name, panel_title, _, slope_unit = sweep
+        environment_name, panel_title, _, slope_unit, operations = sweep
         sweep_values = config.integers(environment_name)
 
-        for operation in ENCRYPT_DECRYPT:
+        # Only what this sweep moved. An operation it holds fixed has no trend of its own,
+        # and a borrowed reading quoted as a flat line here would read as a measured one
+        for operation in operations:
 
             series = memory.sweep_features(
                 operation, group, sweep_values, PEAK_RSS_BYTES, KILOBYTE
@@ -1075,7 +1171,7 @@ def write_html_report(
     attribute_counts = config.integers("ATTRIBUTE_COUNT")
     subscriber_counts = config.integers("SUBSCRIBER_COUNT")
     rsa_key_bits = config.integers("RSA_KEY_SIZES")
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_BITS")
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
 
     min_attributes = attribute_counts[0]
     max_attributes = attribute_counts[-1]
@@ -1164,7 +1260,14 @@ def write_html_report(
 
         return f"{int(value):,}"
 
-    def table(sweep_name, sweep_values, operation, value_header, *size_columns) -> str:
+    def table(
+        sweep_name,
+        sweep_values,
+        operation,
+        value_header,
+        *size_columns,
+        highlight_value=None,
+    ) -> str:
         return build_latency_table(
             results,
             config,
@@ -1173,6 +1276,7 @@ def write_html_report(
             operation,
             value_header,
             size_columns,
+            highlight_value,
         )
 
     memory_tables = {
@@ -1226,12 +1330,6 @@ def write_html_report(
             CIPHERTEXT_COLUMN,
             TOTAL_CIPHERTEXT_COLUMN,
         ),
-        "RsaSubscribersDecryptTable": table(
-            RSA_SUBSCRIBERS,
-            subscriber_counts,
-            "decrypt",
-            "Subscribers",
-        ),
         "RsaKeyBitsEncryptTable": table(
             RSA_KEY_BITS,
             rsa_key_bits,
@@ -1239,11 +1337,14 @@ def write_html_report(
             "Key Bits",
             CIPHERTEXT_COLUMN,
         ),
+        # The row the cross-schema comparisons and the subscriber sweep are quoted
+        # against, marked so it can be found among the key sizes around it
         "RsaKeyBitsDecryptTable": table(
             RSA_KEY_BITS,
             rsa_key_bits,
             "decrypt",
             "Key Bits",
+            highlight_value=fixed_rsa_key_bits,
         ),
         "RsaKeyBitsKeygenTable": build_keygen_table(results, config),
         "MinAttributeLabel": format_attribute_label(min_attributes),
@@ -1312,15 +1413,19 @@ def main() -> None:
         config.figure(CPABE_PLOT),
     )
 
+    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
+
     plot_sweep(
         results,
         RSA_SUBSCRIBERS,
         config.integers("SUBSCRIBER_COUNT"),
-        ENCRYPT_DECRYPT,
+        ["encrypt"],
         (CIPHERTEXT_SERIES, TOTAL_CIPHERTEXT_SERIES),
         "Subscribers",
-        f"RSA Scaling with Subscriber Count (Fixed Key: {config.integer('FIXED_RSA_KEY_BITS')} bits)",
+        f"RSA Scaling with Subscriber Count (Fixed Key: {fixed_rsa_key_bits} bits)",
         config.figure(RSA_SUBSCRIBERS_PLOT),
+        fixed_rsa_decrypt(results, config, NS_PER_OP, NS_PER_MICROSECOND),
+        f"Decrypt (RSA-{fixed_rsa_key_bits}, Constant)",
     )
 
     plot_sweep(

@@ -71,13 +71,34 @@ RunProvision() {
 RunMemoryCase() {
   Group=$1
   SweepValue=$2
+  HasDecrypt=$3
 
+  # Provision this sweep point once before launching its isolated memory samples
   RunProvision "${Group}" "${SweepValue}"
 
   Sample=1
   while [ "${Sample}" -le "${ATTRIBUTE_KEY_SCALING_RUNS}" ]; do
-    RunBenchmark MemoryEncrypt "${Group}" "${SweepValue}" "${Sample}" "${MemoryOutputFile}" 1x 1
-    RunBenchmark MemoryDecrypt "${Group}" "${SweepValue}" "${Sample}" "${MemoryOutputFile}" 1x 1
+
+    RunBenchmark \
+      MemoryEncrypt \
+      "${Group}" \
+      "${SweepValue}" \
+      "${Sample}" \
+      "${MemoryOutputFile}" \
+      1x \
+      1
+
+    if [ "${HasDecrypt}" = "true" ]; then
+      RunBenchmark \
+        MemoryDecrypt \
+        "${Group}" \
+        "${SweepValue}" \
+        "${Sample}" \
+        "${MemoryOutputFile}" \
+        1x \
+        1
+    fi
+
     Sample=$((Sample + 1))
   done
 }
@@ -93,7 +114,6 @@ echo 'Phase 2 of 4 - RSA subscriber and key-size scaling'
 
 for SubscriberCount in $(echo "${ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT}" | tr ',' ' '); do
   RunBenchmark Encrypt RSASubscribers "${SubscriberCount}" 1 "${OutputFile}" 5s "${ATTRIBUTE_KEY_SCALING_RUNS}"
-  RunBenchmark Decrypt RSASubscribers "${SubscriberCount}" 1 "${OutputFile}" 5s "${ATTRIBUTE_KEY_SCALING_RUNS}"
 done
 
 for RSAKeyBits in $(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' ' '); do
@@ -110,15 +130,15 @@ done
 echo 'Phase 4 of 4 - Peak process memory'
 
 for AttributeCount in $(echo "${ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT}" | tr ',' ' '); do
-  RunMemoryCase CPABEAttributes "${AttributeCount}"
+  RunMemoryCase CPABEAttributes "${AttributeCount}" true
 done
 
 for SubscriberCount in $(echo "${ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT}" | tr ',' ' '); do
-  RunMemoryCase RSASubscribers "${SubscriberCount}"
+  RunMemoryCase RSASubscribers "${SubscriberCount}" false
 done
 
 for RSAKeyBits in $(echo "${ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES}" | tr ',' ' '); do
-  RunMemoryCase RSAKeyBits "${RSAKeyBits}"
+  RunMemoryCase RSAKeyBits "${RSAKeyBits}" true
 done
 
 echo 'Generating Attribute & Key Scaling HTML report...'

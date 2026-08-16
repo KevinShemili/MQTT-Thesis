@@ -119,7 +119,7 @@ func provisionCPABEAuthority() cpabe.CPABEAuthority {
 
 func provisionRSASubscribers(subscriberCount int, aesKey []byte) {
 
-	rsaKeyBits := utils.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_BITS")
+	rsaKeyBits := utils.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
 
 	var subscriberKey rsa.RSA
 

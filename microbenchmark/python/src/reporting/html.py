@@ -7,6 +7,10 @@ CONFIDENCE_LEVEL = "95%"
 # one. The column is drawn only where something actually throttled, since a column of
 # identical marks repeated across every table would bury the rows that matter
 THERMAL_MARK = "&#9888;"
+
+# A row the rest of the report is quoted against, ex. the fixed RSA key size the
+# cross-schema comparisons use, is marked so it can be found among the swept values
+REFERENCE_ROW_CLASS = "reference-row"
 THERMAL_FLAGGED_NOTE = (
     "&#9888; marks a case measured while the Raspberry Pi firmware was thermally "
     "throttling. Those measurements are a pessimistic bound, not an invalid one."
@@ -22,12 +26,14 @@ FAILURE_NOTICE_NOTE = (
 
 
 # Builds HTML table, given header names and row values. The throttle flags are positional,
-# one per row, and are left out entirely for a benchmark that carries no throttle readings
+# one per row, and are left out entirely for a benchmark that carries no throttle readings.
+# The highlight flags are positional in the same way
 def build_html_table(
     headers: Sequence[str],
     rows: Sequence[Sequence[str]],
     throttled: list[bool] | None = None,
     thermal_header: str = "Thermal",
+    highlighted: list[bool] | None = None,
 ) -> str:
 
     flagged = throttled is not None and any(throttled)
@@ -41,7 +47,12 @@ def build_html_table(
     lines += ["</tr>", "</thead>", "<tbody>"]
 
     for index, row in enumerate(rows):
-        lines.append("<tr>")
+
+        if highlighted is not None and highlighted[index]:
+            lines.append(f'<tr class="{REFERENCE_ROW_CLASS}">')
+        else:
+            lines.append("<tr>")
+
         lines += [f"<td>{cell}</td>" for cell in row]
 
         if flagged:

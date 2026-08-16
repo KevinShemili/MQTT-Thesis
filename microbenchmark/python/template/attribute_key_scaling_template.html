@@ -615,6 +615,20 @@
             background: #f6f2fb;
         }
 
+        /* The one row of a sweep the rest of the report is quoted against. Declared after
+           the striping and the hover so it survives both. */
+        tbody tr.reference-row,
+        tbody tr.reference-row:hover {
+            background: var(--accent-soft);
+            font-weight: 800;
+        }
+
+        /* Under border-collapse a border on the row itself does not paint, so the marker
+           belongs to the first cell. */
+        tbody tr.reference-row td:first-child {
+            border-left: 3px solid var(--accent);
+        }
+
         .footer {
             padding: 22px 0 4px 0;
             color: var(--muted);
@@ -947,7 +961,7 @@
 
             <div class="operation-group">
                 <h3 class="operation-heading">Decrypt</h3>
-                <div class="table-row">
+                <div class="table-row table-row-two">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">
@@ -956,14 +970,12 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Subscriber Scaling</h3>
-                        <div class="table-wrapper">
-                            {{RsaSubscribersDecryptTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
                         <h3>RSA: Key Size Scaling</h3>
+                        <p>Decrypt is not swept against subscriber count: a subscriber only ever
+                            unwraps its own session key, so nothing there moves with the size of the
+                            audience. The highlighted RSA-{{FixedRsaKeyBits}} row is the fixed key
+                            size, and is the decrypt figure every comparison in this report quotes.
+                        </p>
                         <div class="table-wrapper">
                             {{RsaKeyBitsDecryptTable}}
                         </div>
@@ -995,6 +1007,10 @@
 
                     <div class="table-block">
                         <h3>RSA: Subscriber Scaling</h3>
+                        <p>Only encrypt is swept here. The decrypt column carries the
+                            RSA-{{FixedRsaKeyBits}} reading from the key size sweep, the same
+                            operation on the same key, since a subscriber decrypts one wrapped key
+                            regardless of how many other subscribers there are.</p>
                         <div class="table-wrapper">
                             {{PeakMemoryRsaSubscribersTable}}
                         </div>
