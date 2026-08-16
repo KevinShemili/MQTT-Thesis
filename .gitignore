@@ -105,7 +105,7 @@ Pipfile.lock
 
 # Benchmark binaries and provisioned fixtures
 microbenchmark/bin/
-microbenchmark/cache/
+microbenchmark/disk-cache/
 
 # Temporary files
 tmp/
