@@ -107,6 +107,12 @@ def prepare_output_directories():
 
 def record_status(operation, group, sweep_value, sample, exit_code, log_file):
 
+    # Python reports a child killed by a signal as a negative return code, where a shell
+    # and the reporting layer both spell that same death as 128 + signal. An OOM kill
+    # would otherwise be recorded as -9 and read back as an ordinary failure.
+    if exit_code < 0:
+        exit_code = 128 - exit_code
+
     with STATUS_FILE.open("a") as status:
         status.write(
             f"{operation} "
