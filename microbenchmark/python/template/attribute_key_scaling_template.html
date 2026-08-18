@@ -249,6 +249,51 @@
             font-weight: 600;
         }
 
+        /* The floor every peak-memory reading below sits on top of, stated once. */
+        .baseline-legend {
+            display: inline-flex;
+            gap: 10px;
+            align-items: baseline;
+            margin-bottom: 18px;
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface-soft);
+        }
+
+        .baseline-legend span {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+        }
+
+        .baseline-legend strong {
+            font-size: 18px;
+            font-weight: 850;
+            letter-spacing: -0.02em;
+        }
+
+        /* Sits under the figure as a footnote rather than beside it as a claim. */
+        .delta-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 18px;
+            padding: 4px 22px 18px 22px;
+        }
+
+        .delta-item {
+            color: var(--muted);
+            font-size: 11.5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .delta-item strong {
+            color: #4f4a54;
+            font-weight: 700;
+        }
+
         .fanout-card {
             margin: 2px 14px 16px 14px;
             padding: 24px 18px;
@@ -815,40 +860,6 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Peak Process Memory</h2>
-                <p>Timing and memory are separate experiments. Each point below is one process that
-                    restored the data its role holds, handed its heap back to the kernel, reset the
-                    peak-RSS watermark, performed the operation exactly once, and read the watermark.
-                    The figures are whole-process resident sizes and so include a runtime floor of
-                    several megabytes; the vertical axis is shared but not anchored at zero.</p>
-            </div>
-
-            <div class="plot-stack">
-                <article class="plot-card">
-                    <div class="plot-frame">
-                        {{PeakMemoryFrame}}
-                    </div>
-                </article>
-
-                <article class="plot-card">
-                    <div class="plot-copy">
-                        <h3>How Peak Memory Tracks Each Swept Variable</h3>
-                        <p>Slope, spread and end-to-end change, stated the same way for all three
-                            sweeps.</p>
-                    </div>
-                    <div class="table-row table-row-one">
-                        <div class="table-block">
-                            <div class="table-wrapper">
-                                {{PeakMemoryTrendTable}}
-                            </div>
-                        </div>
-                    </div>
-                </article>
-            </div>
-        </section>
-
-        <section class="section">
-            <div class="section-heading">
                 <h2>Cross-Schema Comparison</h2>
             </div>
 
@@ -994,9 +1005,32 @@
                     </div>
                 </div>
             </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Peak Process Memory</h2>
+                <p>Timing and memory are separate experiments. Each point below is one process that
+                    restored the data its role holds, handed its heap back to the kernel, reset the
+                    peak-RSS watermark, performed the operation exactly once, and read the watermark.
+                    The figures are whole-process resident sizes and so include a runtime floor of
+                    several megabytes; the vertical axis is shared but not anchored at zero.</p>
+            </div>
+
+            <div class="baseline-legend">
+                <span>Baseline</span><strong>{{BaselineRss}}</strong>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-frame">
+                        {{PeakMemoryFrame}}
+                    </div>
+                    {{PeakMemoryDeltas}}
+                </article>
+            </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Peak Process Memory</h3>
                 <div class="table-row">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>

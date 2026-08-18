@@ -36,7 +36,6 @@ from reporting.charts import (
 )
 from reporting.environment import Config
 from reporting.formatting import (
-    KILOBYTE,
     MEGABYTE,
     format_byte_size,
     format_mean_with_ci,
@@ -82,11 +81,20 @@ ENCRYPT_DECRYPT_KEYGEN = ["encrypt", "decrypt", "keygen"]
 # Timing and memory are read from separate files, so each maps the invocation names it
 # owns onto the operations its own summary is keyed by
 TIMING_OPERATIONS = {"Encrypt": "encrypt", "Decrypt": "decrypt", "KeyGen": "keygen"}
-MEMORY_OPERATIONS = {"MemoryEncrypt": "encrypt", "MemoryDecrypt": "decrypt"}
+MEMORY_OPERATIONS = {
+    "MemoryEncrypt": "encrypt",
+    "MemoryDecrypt": "decrypt",
+    "MemoryBaseline": "baseline",
+}
+
+# The runtime floor is measured by a case of its own that restores nothing and performs
+# nothing, so it sweeps neither a group nor a value
+BASELINE_GROUP = "Runtime"
+BASELINE_SWEEP_VALUE = 0
 
 # The three sweeps the memory experiment covers, keyed by the group Go names them with:
-# the environment variable holding the values, the panel title, the axis label, the unit a
-# slope through them is quoted per, and the operations that sweep actually measures.
+# the environment variable holding the values, the panel title, the axis label, the noun
+# its two ends are quoted in, and the operations that sweep actually measures.
 #
 # The subscriber sweep measures encrypt alone. Decrypt is the publisher's fan-out turned
 # around: a subscriber only ever unwraps its own session key, so there is nothing there
@@ -96,21 +104,21 @@ MEMORY_SWEEPS = {
         "ATTRIBUTE_COUNT",
         "CP-ABE",
         "Policy Attributes",
-        "attribute",
+        "attributes",
         ENCRYPT_DECRYPT,
     ),
     RSA_SUBSCRIBERS: (
         "SUBSCRIBER_COUNT",
         "RSA Subscribers",
         "Subscribers",
-        "subscriber",
+        "subscribers",
         ["encrypt"],
     ),
     RSA_KEY_BITS: (
         "RSA_KEY_SIZES",
         "RSA Key Size",
         "RSA Key Bits",
-        "key bit",
+        "key bits",
         ENCRYPT_DECRYPT,
     ),
 }
@@ -284,6 +292,20 @@ def fixed_rsa_decrypt(
         return None
 
     return case.get_feature(feature_name).scale_unit(divisor)
+
+
+# The resident cost of the runtime with nothing restored and nothing performed, which is
+# the floor every case of the memory experiment was measured on top of
+def baseline_rss(memory: BenchmarkSummary) -> Measurement | None:
+
+    if not memory.has_case("baseline", BASELINE_GROUP, BASELINE_SWEEP_VALUE):
+        return None
+
+    return (
+        memory.get_case_summary("baseline", BASELINE_GROUP, BASELINE_SWEEP_VALUE)
+        .get_feature(PEAK_RSS_BYTES)
+        .scale_unit(MEGABYTE)
+    )
 
 
 def cpabe_ciphertext_bytes(results: BenchmarkSummary, attribute_count: int) -> float:
@@ -945,7 +967,7 @@ def build_peak_memory_table(
     decrypt_reference = (
         None
         if "decrypt" in operations
-        else fixed_rsa_decrypt(memory, config, PEAK_RSS_BYTES)
+        else fixed_rsa_decrypt(memory, config, PEAK_RSS_BYTES, MEGABYTE)
     )
 
     rows = []
@@ -961,7 +983,9 @@ def build_peak_memory_table(
                 row.append(
                     NOT_AVAILABLE
                     if decrypt_reference is None
-                    else format_byte_size(round(decrypt_reference.mean))
+                    else format_mean_with_ci(
+                        decrypt_reference.mean, decrypt_reference.ci
+                    )
                 )
                 continue
 
@@ -969,83 +993,75 @@ def build_peak_memory_table(
                 row.append(NOT_COMPLETED)
                 continue
 
-            peak = memory.get_case_summary(operation, group, sweep_value).get_feature(
-                PEAK_RSS_BYTES
+            # Megabytes rather than the size the reading asks for, so that an interval can
+            # be quoted beside a figure in the same unit
+            peak = (
+                memory.get_case_summary(operation, group, sweep_value)
+                .get_feature(PEAK_RSS_BYTES)
+                .scale_unit(MEGABYTE)
             )
 
-            row.append(format_byte_size(round(peak.mean)))
+            row.append(format_mean_with_ci(peak.mean, peak.ci))
 
             # Counted from what this sweep measured, never from a borrowed reading
             sample_count = str(peak.count)
 
         rows.append(row + [sample_count])
 
-    return build_html_table([value_header.upper(), "ENCRYPT", "DECRYPT", "n"], rows)
+    return build_html_table(
+        [value_header.upper(), "ENCRYPT (MB)", "DECRYPT (MB)", "n"], rows
+    )
 
 
-# How peak memory tracks each swept variable, put the same way for all three so that the
-# numbers rather than the framing say whether and how far it moves
-def build_peak_memory_trend_table(memory: BenchmarkSummary, config: Config) -> str:
+# The change across the two ends of each sweep. Peak memory is a runtime floor plus
+# whatever an operation had to touch, not a quantity that follows a slope, so the two ends
+# are quoted as they were measured and nothing is fitted through what lies between them
+def build_peak_memory_deltas(memory: BenchmarkSummary, config: Config) -> str:
 
-    def slope_and_fit_quality(series: FeatureSweep, unit: str) -> tuple[str, str]:
-
-        fit = fit_sweep(series)
-
-        if fit is None:
-            return NOT_AVAILABLE, NOT_AVAILABLE
-
+    def peak_megabytes(group: str, operation: str, sweep_value: int) -> float:
         return (
-            f"{fit.slope:+,.2f} ± {fit.slope_ci:,.2f} KB / {unit}",
-            f"{fit.r_squared:.4f}",
+            memory.get_case_summary(operation, group, sweep_value)
+            .get_feature(PEAK_RSS_BYTES)
+            .scale_unit(MEGABYTE)
+            .mean
         )
 
-    def spread(values: list[float]) -> str:
+    # The ends are the ones the experiment was configured with. If either did not complete
+    # there is no such change, and the ends that did survive are not a substitute for it
+    def endpoints_change(group: str, operation: str, sweep_values: list[int]) -> str:
 
-        if not values:
+        if not measured(
+            memory, [operation], group, [sweep_values[0], sweep_values[-1]]
+        ):
             return NOT_AVAILABLE
 
-        return f"{max(values) - min(values):,.1f} KB"
+        first = peak_megabytes(group, operation, sweep_values[0])
+        last = peak_megabytes(group, operation, sweep_values[-1])
 
-    def change(values: list[float]) -> str:
+        return (
+            f"{first:,.2f} &rarr; {last:,.2f} MB &middot; {last - first:+,.2f} MB "
+            f"({(last / first - 1) * 100:+,.1f}%)"
+        )
 
-        if len(values) < 2:
-            return NOT_AVAILABLE
-
-        return f"{values[0]:,.1f} &rarr; {values[-1]:,.1f} KB ({values[-1] / values[0]:.2f}×)"
-
-    rows = []
+    items = []
 
     for group, sweep in MEMORY_SWEEPS.items():
 
-        environment_name, panel_title, _, slope_unit, operations = sweep
+        environment_name, panel_title, _, unit_label, operations = sweep
         sweep_values = config.integers(environment_name)
 
-        # Only what this sweep moved. An operation it holds fixed has no trend of its own,
-        # and a borrowed reading quoted as a flat line here would read as a measured one
+        # Only what this sweep moved. An operation it holds fixed has no change of its own,
+        # and a borrowed reading quoted here would read as a measured one
         for operation in operations:
 
-            series = memory.sweep_features(
-                operation, group, sweep_values, PEAK_RSS_BYTES, KILOBYTE
-            )
-            measured_means = series.without_gaps().means
-
-            slope_text, fit_quality = slope_and_fit_quality(series, slope_unit)
-
-            rows.append(
-                [
-                    panel_title,
-                    operation.capitalize(),
-                    slope_text,
-                    fit_quality,
-                    spread(measured_means),
-                    change(measured_means),
-                ]
+            items.append(
+                f'<span class="delta-item"><strong>{panel_title} '
+                f"{operation.capitalize()}</strong> {sweep_values[0]} &rarr; "
+                f"{sweep_values[-1]} {unit_label} &middot; "
+                f"{endpoints_change(group, operation, sweep_values)}</span>"
             )
 
-    return build_html_table(
-        ["SWEEP", "OPERATION", "SLOPE", "R²", "MIN-MAX SPREAD", "FIRST &rarr; LAST"],
-        rows,
-    )
+    return f'<div class="delta-strip">{"".join(items)}</div>'
 
 
 def build_rsa_circle_visualization(
@@ -1279,8 +1295,10 @@ def write_html_report(
             highlight_value,
         )
 
+    memory_baseline = baseline_rss(memory)
+
     memory_tables = {
-        "PeakMemoryTrendTable": "",
+        "PeakMemoryDeltas": "",
         "PeakMemoryCpabeTable": "",
         "PeakMemoryRsaSubscribersTable": "",
         "PeakMemoryRsaKeyBitsTable": "",
@@ -1288,7 +1306,7 @@ def write_html_report(
 
     if memory.measures(PEAK_RSS_BYTES):
         memory_tables = {
-            "PeakMemoryTrendTable": build_peak_memory_trend_table(memory, config),
+            "PeakMemoryDeltas": build_peak_memory_deltas(memory, config),
             "PeakMemoryCpabeTable": build_peak_memory_table(
                 memory, config, CPABE_ATTRIBUTES, "Attributes"
             ),
@@ -1308,6 +1326,11 @@ def write_html_report(
         **frames,
         **memory_tables,
         "OutOfMemoryNotice": build_html_failure_notice(failures),
+        "BaselineRss": (
+            NOT_AVAILABLE
+            if memory_baseline is None
+            else f"{format_mean_with_ci(memory_baseline.mean, memory_baseline.ci)} MB"
+        ),
         "CpabeEncryptTable": table(
             CPABE_ATTRIBUTES,
             attribute_counts,

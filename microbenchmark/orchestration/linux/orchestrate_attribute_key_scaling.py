@@ -341,9 +341,26 @@ def run_key_generation_benchmarks():
         )
 
 
+def run_baseline_memory_case():
+
+    for sample in range(1, BENCHMARK_RUNS + 1):
+
+        run_benchmark(
+            operation="MemoryBaseline",
+            group="Runtime",
+            sweep_value=0,
+            sample=sample,
+            output_file=MEMORY_OUTPUT_FILE,
+            bench_time="1x",
+            count=1,
+        )
+
+
 def run_memory_benchmarks():
 
     print("Phase 4 of 4 - Peak process memory")
+
+    run_baseline_memory_case()
 
     for attribute_count in ATTRIBUTE_COUNTS:
         run_memory_case(

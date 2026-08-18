@@ -46,7 +46,7 @@ func main() {
 		provisionCPABE(sweepValue, aesKeySize, aesKey)
 
 	case rsaSubscribersGroup:
-		provisionRSASubscribers(sweepValue, aesKey)
+		provisionRSASubscribers(sweepValue)
 
 	case rsaKeyBitsGroup:
 		provisionRSAKeyBits(sweepValue, aesKey)
@@ -117,22 +117,13 @@ func provisionCPABEAuthority() cpabe.CPABEAuthority {
 	return authority
 }
 
-func provisionRSASubscribers(subscriberCount int, aesKey []byte) {
+func provisionRSASubscribers(subscriberCount int) {
 
 	rsaKeyBits := utils.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
 
-	var subscriberKey rsa.RSA
-
 	for index := range subscriberCount {
-		subscriberKey = provisionRSAKey(rsaKeyBits, index)
+		provisionRSAKey(rsaKeyBits, index)
 	}
-
-	decryptingIndex := subscriberCount - 1
-
-	cache.StoreFile(
-		cache.CreateRSACiphertextFileName(rsaKeyBits, decryptingIndex),
-		subscriberKey.Encrypt(aesKey),
-	)
 }
 
 func provisionRSAKeyBits(rsaKeyBits int, aesKey []byte) {

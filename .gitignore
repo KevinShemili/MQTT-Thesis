@@ -36,6 +36,7 @@ coverage.out
 
 # Agent instruction files
 CLAUDE.md
+AGENTS.md
 
 # OS files
 .DS_Store

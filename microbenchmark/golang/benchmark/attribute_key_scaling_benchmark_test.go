@@ -12,9 +12,6 @@ import (
 const cooldownTimeout = 5 * time.Minute
 
 // Helps if -test.count >>> 1
-// - In subscriber sweep we would need to create N RSA keys for N subscribers
-// - If -test.count = 1-2 that's fine
-// - However, if -test.count >>> 1, the same key would be generated multiple times, especially expensive for RSA-7680
 var rsaKeyInMemoryCache = map[int][]rsa.RSA{}
 
 type AttributeKeyScalingConfig struct {

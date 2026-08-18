@@ -145,6 +145,29 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 	}
 }
 
+// The resident cost of the runtime alone. Nothing is restored and nothing is performed,
+// so what the watermark holds is the floor every case above was measured on top of
+//
+// The name carries a group and a value it does not sweep because that is the shape the
+// reporting layer reads a case from
+func BenchmarkAttributeKeyScalingMemoryBaseline(benchmark *testing.B) {
+
+	benchmark.Run("Runtime/0", func(b *testing.B) {
+
+		// Resetting the watermark leaves it at the current resident size, so the reading
+		// below is what the process holds before any fixture or operation touches it
+		isPrepared := preparePeakMemoryMeasurement()
+
+		// The measured case is a process that does nothing, so the loop does nothing
+		for b.Loop() {
+		}
+
+		if peakBytes, isAvailable := utils.PeakResidentMemory(); isPrepared && isAvailable {
+			b.ReportMetric(peakBytes, "peak_rss_bytes")
+		}
+	})
+}
+
 func preparePeakMemoryMeasurement() bool {
 
 	// Remove unused Go objects left behind by fixture loading
