@@ -17,11 +17,10 @@ THERMAL_FLAGGED_NOTE = (
 )
 THERMAL_CLEAN_NOTE = "No thermal throttling occurred while these cases were measured."
 
-FAILURE_NOTICE_HEADERS = ["OPERATION", "CASE", "SAMPLE", "EXIT CODE", "DIAGNOSIS"]
-FAILURE_NOTICE_NOTE = (
-    "Everything these processes printed before they stopped is kept in "
-    "<code>case_logs/</code>. The cases they belong to are left out of every figure and "
-    "table below rather than being averaged from partial output."
+OUT_OF_MEMORY_NOTICE_HEADERS = ["OPERATION", "CASE", "RESULT"]
+OUT_OF_MEMORY_NOTICE_NOTE = (
+    "These timing or key-generation cases ran out of memory. Any partial measurements "
+    "they emitted are excluded from the figures and tables below."
 )
 
 
@@ -74,7 +73,7 @@ def build_html_table(
 
 # A run in which every process finished has nothing to report here, so the whole section
 # collapses to an empty string and leaves no trace in the page
-def build_html_failure_notice(rows: Sequence[Sequence[str]]) -> str:
+def build_html_out_of_memory_notice(rows: Sequence[Sequence[str]]) -> str:
 
     if not rows:
         return ""
@@ -83,12 +82,12 @@ def build_html_failure_notice(rows: Sequence[Sequence[str]]) -> str:
         [
             '<section class="section failure-notice">',
             '<div class="section-heading">',
-            "<h2>Incomplete Cases</h2>",
-            f"<p>{FAILURE_NOTICE_NOTE}</p>",
+            "<h2>Out of Memory</h2>",
+            f"<p>{OUT_OF_MEMORY_NOTICE_NOTE}</p>",
             "</div>",
             '<div class="table-block">',
             '<div class="table-wrapper">',
-            build_html_table(FAILURE_NOTICE_HEADERS, rows),
+            build_html_table(OUT_OF_MEMORY_NOTICE_HEADERS, rows),
             "</div>",
             "</div>",
             "</section>",

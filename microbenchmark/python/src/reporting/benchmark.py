@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 from collections import defaultdict
 from typing import Callable
 from .statistics import (
@@ -25,12 +24,6 @@ THROTTLED = "throttled"
 # The following constants are used to convert ns to µs and to ms
 NS_PER_MICROSECOND = 1000.0
 NS_PER_MILLISECOND = 1000000.0
-
-# The kernel kills a process that asks for memory it cannot have with SIGKILL, which a
-# shell reports as 128 + 9. The Go runtime instead gives up on an allocation and exits 2
-# like any other fatal error, so that one is recognisable only by what it printed first
-OOM_KILLED_EXIT_CODE = 137
-RUNTIME_OUT_OF_MEMORY = "out of memory"
 
 # What a sweep reads where a case has no measurement. Matplotlib breaks a line at a NaN
 # rather than drawing through it, which is exactly what a missing case should look like
@@ -190,26 +183,17 @@ class CaseSummary:
         return self.features[NS_PER_OP].scale_unit(divisor)
 
 
-# One exact process the orchestrator launched: which operation it ran, at which sweep
-# value, which repetition it was, what it exited with, and whether it said it had run
-# out of memory before it went
-class CaseInvocation:
+# One timing or key-generation case whose complete benchmark process ran out of memory.
+class OutOfMemoryCase:
     def __init__(
         self,
         operation: str,
         group: str,
         sweep_value: int,
-        sample: int,
-        exit_code: int,
-        out_of_memory: bool,
     ) -> None:
         self.operation = operation
         self.group = group
         self.sweep_value = sweep_value
-        self.sample = sample
-        self.exit_code = exit_code
-        self.out_of_memory = out_of_memory
-        self.completed = exit_code == 0
 
 
 # Full statistical summary of the benchmark including all of the inner cases
@@ -231,23 +215,6 @@ class BenchmarkSummary:
     # before it went, and averaging those would present a partial run as a finished one
     def drop_case(self, operation: str, group: str, sweep_value: int) -> None:
         self.cases.pop(_generate_case_id(operation, group, sweep_value), None)
-
-    # Cases that produced fewer readings of a feature than the experiment asked for. A
-    # process that exited cleanly without one measured nothing, and a confidence interval
-    # quietly computed from the rest would describe a smaller experiment than was run
-    def incomplete_cases(
-        self, feature_name: str, expected_count: int
-    ) -> list[CaseSummary]:
-        return [
-            case
-            for case in self.cases.values()
-            if case.sample_count(feature_name) != expected_count
-        ]
-
-    # Whether this benchmark carries the feature at all, ex. a peak memory reading a host
-    # without /proc could never have produced
-    def measures(self, feature_name: str) -> bool:
-        return any(feature_name in case.features for case in self.cases.values())
 
     # Collects all data of a sweep of just one feature
     def sweep_features(
@@ -305,38 +272,25 @@ def load_results(
     return BenchmarkSummary(cases=cases)
 
 
-# The orchestrator records one row per process it launched, naming the file that holds
-# everything that process printed. Only a row that did not exit cleanly is worth opening
-def load_invocations(status_path: str, log_directory: str) -> list[CaseInvocation]:
+# The status file contains only whole timing/key-generation cases that ran out of memory.
+def load_out_of_memory_cases(status_path: str) -> list[OutOfMemoryCase]:
 
-    if not os.path.exists(status_path):
-        return []
-
-    invocations = []
+    cases = []
 
     with open(status_path, "r", encoding="utf-8") as file:
 
         for line in file:
             fields = line.split()
 
-            if not fields or fields[0].startswith("#") or len(fields) != 6:
+            if not fields or fields[0].startswith("#") or len(fields) != 4:
                 continue
 
-            operation, group, sweep_text, sample, exit_text, log_file = fields
-            exit_code = int(exit_text)
+            operation, group, sweep_text, out_of_memory = fields
 
-            invocations.append(
-                CaseInvocation(
-                    operation,
-                    group,
-                    int(sweep_text),
-                    int(sample),
-                    exit_code,
-                    _out_of_memory(exit_code, os.path.join(log_directory, log_file)),
-                )
-            )
+            if out_of_memory == "true":
+                cases.append(OutOfMemoryCase(operation, group, int(sweep_text)))
 
-    return invocations
+    return cases
 
 
 # Throttle flag of each given case, in the order the rows of a table are built. Returns
@@ -350,21 +304,6 @@ def throttle_flags(cases: list[CaseSummary | None]) -> list[bool] | None:
         return None
 
     return [case is not None and case.throttled for case in cases]
-
-
-# SIGKILL says it on its own. The Go runtime's allocation failure exits 2, the same code
-# an ordinary panic leaves behind, so there the printed text is the only thing that
-# tells the two apart
-def _out_of_memory(exit_code: int, log_path: str) -> bool:
-
-    if exit_code == OOM_KILLED_EXIT_CODE:
-        return True
-
-    if exit_code == 0 or not os.path.exists(log_path):
-        return False
-
-    with open(log_path, "r", encoding="utf-8", errors="replace") as file:
-        return RUNTIME_OUT_OF_MEMORY in file.read()
 
 
 # Builds a sort of ID for identifying one benchmark case,

@@ -22,7 +22,6 @@ RESULT_DIRECTORY = MICROBENCHMARK_DIRECTORY / "results" / "attribute-key-scaling
 OUTPUT_FILE = RESULT_DIRECTORY / "bench_output.txt"
 MEMORY_OUTPUT_FILE = RESULT_DIRECTORY / "memory_output.txt"
 STATUS_FILE = RESULT_DIRECTORY / "case_status.txt"
-LOG_DIRECTORY = RESULT_DIRECTORY / "case_logs"
 
 BENCHMARK_BINARY = str(BINARY_DIRECTORY / "benchmark-binary")
 PROVISION_BINARY = str(BINARY_DIRECTORY / "provision-binary")
@@ -83,21 +82,17 @@ def build_binaries():
 
 def prepare_output_directories():
 
-    # Start every benchmark suite from an empty fixture cache and clean log directory.
+    # Start every benchmark suite from an empty fixture cache.
     if CACHE_DIRECTORY.exists():
         shutil.rmtree(CACHE_DIRECTORY)
 
-    if LOG_DIRECTORY.exists():
-        shutil.rmtree(LOG_DIRECTORY)
-
     RESULT_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    LOG_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
     # Previous benchmark results must not leak into the new run.
     OUTPUT_FILE.write_text("")
     MEMORY_OUTPUT_FILE.write_text("")
 
-    STATUS_FILE.write_text("# operation group sweep_value sample exit_code log_file\n")
+    STATUS_FILE.write_text("# operation group sweep_value out_of_memory\n")
 
 
 # ---------------------------------------------------------------------------
@@ -105,23 +100,21 @@ def prepare_output_directories():
 # ---------------------------------------------------------------------------
 
 
-def record_status(operation, group, sweep_value, sample, exit_code, log_file):
+def is_out_of_memory(return_code, stderr):
 
-    # Python reports a child killed by a signal as a negative return code, where a shell
-    # and the reporting layer both spell that same death as 128 + signal. An OOM kill
-    # would otherwise be recorded as -9 and read back as an ordinary failure.
-    if exit_code < 0:
-        exit_code = 128 - exit_code
+    # Python reports a child killed by SIGKILL as -9. Normalize it to the shell's 137
+    # representation before applying the controlled OOM rules.
+    normalized_return_code = 128 - return_code if return_code < 0 else return_code
+
+    return normalized_return_code == 137 or (
+        return_code != 0 and "out of memory" in stderr
+    )
+
+
+def record_out_of_memory(operation, group, sweep_value):
 
     with STATUS_FILE.open("a") as status:
-        status.write(
-            f"{operation} "
-            f"{group} "
-            f"{sweep_value} "
-            f"{sample} "
-            f"{exit_code} "
-            f"{log_file}\n"
-        )
+        status.write(f"{operation} {group} {sweep_value} true\n")
 
 
 def run_benchmark(
@@ -132,19 +125,17 @@ def run_benchmark(
     output_file,
     bench_time,
     count,
+    record_oom=False,
 ):
     """
     Run one exact Go benchmark case in its own process.
 
-    Benchmark output is appended to the experiment output file.
-    Errors are kept separately so a failed or OOM-killed case can be
-    attributed to the exact operation and sweep point that produced it.
+    Benchmark output is appended to the experiment output file. Timing and key
+    generation cases capture stderr only long enough to detect whole-case OOM.
     """
 
-    log_file = f"{operation}-{group}-{sweep_value}-{sample}.log"
-    log_path = LOG_DIRECTORY / log_file
-
-    print(f"  {operation} {group}/{sweep_value} #{sample}")
+    sample_label = "" if sample is None else f" #{sample}"
+    print(f"  {operation} {group}/{sweep_value}{sample_label}")
 
     benchmark_name = (
         f"^BenchmarkAttributeKeyScaling{operation}$/" f"^{group}$/" f"^{sweep_value}$"
@@ -159,25 +150,18 @@ def run_benchmark(
         "-test.timeout=0",
     ]
 
-    # Give the child process the output files directly. This avoids holding
-    # potentially large benchmark output in Python memory.
+    # Give the child process the output file directly. Only timing/keygen stderr is
+    # held temporarily because that is where the Go runtime reports allocation failure.
     with output_file.open("a") as benchmark_output:
-        with log_path.open("w") as benchmark_log:
+        result = subprocess.run(
+            command,
+            stdout=benchmark_output,
+            stderr=subprocess.PIPE if record_oom else subprocess.DEVNULL,
+            text=True,
+        )
 
-            result = subprocess.run(
-                command,
-                stdout=benchmark_output,
-                stderr=benchmark_log,
-            )
-
-    record_status(
-        operation,
-        group,
-        sweep_value,
-        sample,
-        result.returncode,
-        log_file,
-    )
+    if record_oom and is_out_of_memory(result.returncode, result.stderr or ""):
+        record_out_of_memory(operation, group, sweep_value)
 
 
 def run_provision(group, sweep_value):
@@ -188,9 +172,6 @@ def run_provision(group, sweep_value):
     cannot contaminate the memory process that will later be measured.
     """
 
-    log_file = f"Provision-{group}-{sweep_value}-1.log"
-    log_path = LOG_DIRECTORY / log_file
-
     print(f"  Provision {group}/{sweep_value}")
 
     command = [
@@ -199,23 +180,10 @@ def run_provision(group, sweep_value):
         str(sweep_value),
     ]
 
-    # Provisioning has no benchmark output of its own, so both stdout and
-    # stderr are kept together in the case log.
-    with log_path.open("w") as provision_log:
-
-        result = subprocess.run(
-            command,
-            stdout=provision_log,
-            stderr=subprocess.STDOUT,
-        )
-
-    record_status(
-        "Provision",
-        group,
-        sweep_value,
-        1,
-        result.returncode,
-        log_file,
+    subprocess.run(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -268,20 +236,22 @@ def run_timing_benchmarks():
             "Encrypt",
             "CPABEAttributes",
             attribute_count,
-            1,
+            None,
             OUTPUT_FILE,
             "5s",
             BENCHMARK_RUNS,
+            record_oom=True,
         )
 
         run_benchmark(
             "Decrypt",
             "CPABEAttributes",
             attribute_count,
-            1,
+            None,
             OUTPUT_FILE,
             "5s",
             BENCHMARK_RUNS,
+            record_oom=True,
         )
 
     print("Phase 2 of 4 - RSA subscriber and key-size scaling")
@@ -293,10 +263,11 @@ def run_timing_benchmarks():
             "Encrypt",
             "RSASubscribers",
             subscriber_count,
-            1,
+            None,
             OUTPUT_FILE,
             "5s",
             BENCHMARK_RUNS,
+            record_oom=True,
         )
 
     for rsa_key_size in RSA_KEY_SIZES:
@@ -305,20 +276,22 @@ def run_timing_benchmarks():
             "Encrypt",
             "RSAKeyBits",
             rsa_key_size,
-            1,
+            None,
             OUTPUT_FILE,
             "5s",
             BENCHMARK_RUNS,
+            record_oom=True,
         )
 
         run_benchmark(
             "Decrypt",
             "RSAKeyBits",
             rsa_key_size,
-            1,
+            None,
             OUTPUT_FILE,
             "5s",
             BENCHMARK_RUNS,
+            record_oom=True,
         )
 
 
@@ -334,10 +307,11 @@ def run_key_generation_benchmarks():
             "KeyGen",
             "RSAKeyBits",
             rsa_key_size,
-            1,
+            None,
             OUTPUT_FILE,
             "1x",
             KEYGEN_RUNS,
+            record_oom=True,
         )
 
 

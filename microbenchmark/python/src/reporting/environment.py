@@ -10,7 +10,6 @@ TEMPLATE_DIR = str(Path(__file__).resolve().parents[2] / "template")
 BENCH_OUTPUT_NAME = "bench_output.txt"
 MEMORY_OUTPUT_NAME = "memory_output.txt"
 CASE_STATUS_NAME = "case_status.txt"
-CASE_LOG_DIR_NAME = "case_logs"
 REPORT_NAME = "report.html"
 
 
@@ -53,10 +52,9 @@ class Config:
 
         # Peak memory is a separate experiment from timing and keeps its own raw file,
         # so neither parser has to defend itself against the other's rows. The status
-        # file and the logs beside it are what the orchestrator recorded per process
+        # file contains only timing/key-generation cases that ran out of memory
         self.memory_output = os.path.join(self.result_dir, MEMORY_OUTPUT_NAME)
         self.case_status = os.path.join(self.result_dir, CASE_STATUS_NAME)
-        self.case_logs = os.path.join(self.result_dir, CASE_LOG_DIR_NAME)
 
         self.report = os.path.join(self.result_dir, REPORT_NAME)
         self.template = os.path.join(TEMPLATE_DIR, template_name)

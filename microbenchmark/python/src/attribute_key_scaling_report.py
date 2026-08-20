@@ -1,11 +1,10 @@
-import os
+import sys
 
 from reporting.benchmark import (
     CIPHERTEXT_BYTES,
     NS_PER_MICROSECOND,
     NS_PER_MILLISECOND,
     NS_PER_OP,
-    OOM_KILLED_EXIT_CODE,
     PEAK_RSS_BYTES,
     STORED_KEY_BYTES,
     TOTAL_CIPHERTEXT_BYTES,
@@ -13,7 +12,8 @@ from reporting.benchmark import (
     CaseSummary,
     FeatureSweep,
     Measurement,
-    load_invocations,
+    OutOfMemoryCase,
+    load_out_of_memory_cases,
     load_results,
     throttle_flags,
 )
@@ -41,8 +41,8 @@ from reporting.formatting import (
     format_mean_with_ci,
 )
 from reporting.html import (
-    build_html_failure_notice,
     build_html_generic_data,
+    build_html_out_of_memory_notice,
     build_html_report,
     build_html_table,
 )
@@ -77,15 +77,9 @@ RSA_KEY_BITS = "RSAKeyBits"
 ENCRYPT_DECRYPT = ["encrypt", "decrypt"]
 ENCRYPT_DECRYPT_KEYGEN = ["encrypt", "decrypt", "keygen"]
 
-# The orchestrator records an operation by the benchmark it filtered the process on.
-# Timing and memory are read from separate files, so each maps the invocation names it
-# owns onto the operations its own summary is keyed by
+# The status file names an operation by the benchmark filtered into the process, while
+# the parsed timing summary uses lowercase operation names.
 TIMING_OPERATIONS = {"Encrypt": "encrypt", "Decrypt": "decrypt", "KeyGen": "keygen"}
-MEMORY_OPERATIONS = {
-    "MemoryEncrypt": "encrypt",
-    "MemoryDecrypt": "decrypt",
-    "MemoryBaseline": "baseline",
-}
 
 # The runtime floor is measured by a case of its own that restores nothing and performs
 # nothing, so it sweeps neither a group nor a value
@@ -153,20 +147,11 @@ PEAK_MEMORY_FIGURE_SIZE = (14, 4.6)
 MINIMUM_FIT_POINTS = 3
 
 NOT_AVAILABLE = "&mdash;"
-NOT_COMPLETED = "FAILED"
-
-OOM_KILLED_DIAGNOSIS = "Killed by the kernel out-of-memory killer (SIGKILL)"
-RUNTIME_OOM_DIAGNOSIS = "Go runtime could not allocate"
-PROCESS_FAILED_DIAGNOSIS = "Process failed"
+OUT_OF_MEMORY = "Out of memory"
 
 MISSING_CASE_NOTE = (
-    '<p class="missing-note">Not available: a case this comparison rests on did not '
-    "complete. See Incomplete Cases at the top of the report.</p>"
-)
-NO_MEMORY_READING_NOTE = (
-    '<p class="missing-note">No peak memory reading is available for this run. The '
-    "kernel reports it through <code>/proc</code>, which a host outside Linux does not "
-    "provide.</p>"
+    '<p class="missing-note">Not available: a case this comparison rests on ran out '
+    "of memory. See Out of Memory at the top of the report.</p>"
 )
 
 
@@ -296,11 +281,7 @@ def fixed_rsa_decrypt(
 
 # The resident cost of the runtime with nothing restored and nothing performed, which is
 # the floor every case of the memory experiment was measured on top of
-def baseline_rss(memory: BenchmarkSummary) -> Measurement | None:
-
-    if not memory.has_case("baseline", BASELINE_GROUP, BASELINE_SWEEP_VALUE):
-        return None
-
+def baseline_rss(memory: BenchmarkSummary) -> Measurement:
     return (
         memory.get_case_summary("baseline", BASELINE_GROUP, BASELINE_SWEEP_VALUE)
         .get_feature(PEAK_RSS_BYTES)
@@ -451,9 +432,6 @@ def plot_sweep(
 # Peak resident memory of one isolated operation across the three sweeps. The panels
 # share a vertical axis so the three can be read against one another directly
 def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
-
-    if not memory.measures(PEAK_RSS_BYTES):
-        return False
 
     figure, axes = plt.subplots(1, 3, figsize=PEAK_MEMORY_FIGURE_SIZE, sharey=True)
     figure.suptitle("Peak Process Memory of a Single Operation", fontsize=13)
@@ -867,7 +845,7 @@ def build_latency_table(
         if not results.has_case(operation, sweep_name, sweep_value):
             cases.append(None)
             rows.append(
-                [str(sweep_value), NOT_COMPLETED]
+                [str(sweep_value), OUT_OF_MEMORY]
                 + [NOT_AVAILABLE] * (len(size_columns) + 1)
             )
             continue
@@ -916,7 +894,7 @@ def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
 
         if not results.has_case("keygen", RSA_KEY_BITS, rsa_key_bits):
             cases.append(None)
-            rows.append([str(rsa_key_bits), NOT_COMPLETED] + [NOT_AVAILABLE] * 5)
+            rows.append([str(rsa_key_bits), OUT_OF_MEMORY] + [NOT_AVAILABLE] * 5)
             continue
 
         case = results.get_case_summary("keygen", RSA_KEY_BITS, rsa_key_bits)
@@ -987,10 +965,6 @@ def build_peak_memory_table(
                         decrypt_reference.mean, decrypt_reference.ci
                     )
                 )
-                continue
-
-            if not memory.has_case(operation, group, sweep_value):
-                row.append(NOT_COMPLETED)
                 continue
 
             # Megabytes rather than the size the reading asks for, so that an interval can
@@ -1109,69 +1083,149 @@ def build_rsa_circle_visualization(
     }
 
 
-# The orchestrator's record of every process it launched, turned into the two things the
-# report needs of it: the cases it must forget, and the rows of the failure notice
-def apply_case_outcomes(
+# Count the parsed readings of one feature without requiring the case to exist.
+def measurement_count(
+    summary: BenchmarkSummary,
+    operation: str,
+    group: str,
+    sweep_value: int,
+    feature_name: str,
+) -> int:
+
+    if not summary.has_case(operation, group, sweep_value):
+        return 0
+
+    return summary.get_case_summary(operation, group, sweep_value).sample_count(
+        feature_name
+    )
+
+
+# A report is valid only when every configured measurement is present. The sole
+# exception is a timing/key-generation process explicitly recorded as a whole-case OOM.
+def validate_measurements(
     results: BenchmarkSummary,
     memory: BenchmarkSummary,
     config: Config,
+    out_of_memory_cases: list[OutOfMemoryCase],
+) -> list[str]:
+
+    errors = []
+    out_of_memory_ids = {
+        (case.operation, case.group, case.sweep_value) for case in out_of_memory_cases
+    }
+
+    def validate_timing_cases(
+        status_operation: str,
+        operation: str,
+        group: str,
+        sweep_values: list[int],
+        expected_count: int,
+    ) -> None:
+
+        for sweep_value in sweep_values:
+            if (status_operation, group, sweep_value) in out_of_memory_ids:
+                continue
+
+            actual_count = measurement_count(
+                results, operation, group, sweep_value, NS_PER_OP
+            )
+
+            if actual_count != expected_count:
+                errors.append(
+                    f"{status_operation} {group}/{sweep_value}: expected "
+                    f"{expected_count} ns/op measurements in bench_output.txt or an "
+                    f"explicit OOM record, found {actual_count}"
+                )
+
+    validate_timing_cases(
+        "Encrypt",
+        "encrypt",
+        CPABE_ATTRIBUTES,
+        config.integers("ATTRIBUTE_COUNT"),
+        config.runs,
+    )
+    validate_timing_cases(
+        "Decrypt",
+        "decrypt",
+        CPABE_ATTRIBUTES,
+        config.integers("ATTRIBUTE_COUNT"),
+        config.runs,
+    )
+    validate_timing_cases(
+        "Encrypt",
+        "encrypt",
+        RSA_SUBSCRIBERS,
+        config.integers("SUBSCRIBER_COUNT"),
+        config.runs,
+    )
+    validate_timing_cases(
+        "Encrypt",
+        "encrypt",
+        RSA_KEY_BITS,
+        config.integers("RSA_KEY_SIZES"),
+        config.runs,
+    )
+    validate_timing_cases(
+        "Decrypt",
+        "decrypt",
+        RSA_KEY_BITS,
+        config.integers("RSA_KEY_SIZES"),
+        config.runs,
+    )
+    validate_timing_cases(
+        "KeyGen",
+        "keygen",
+        RSA_KEY_BITS,
+        config.integers("RSA_KEY_SIZES"),
+        config.integer("KEYGEN_RUNS"),
+    )
+
+    memory_cases = [("MemoryBaseline", "baseline", BASELINE_GROUP, 0)]
+
+    for group, sweep in MEMORY_SWEEPS.items():
+        environment_name, _, _, _, operations = sweep
+
+        for operation in operations:
+            for sweep_value in config.integers(environment_name):
+                memory_cases.append(
+                    (f"Memory{operation.capitalize()}", operation, group, sweep_value)
+                )
+
+    for status_operation, operation, group, sweep_value in memory_cases:
+        actual_count = measurement_count(
+            memory, operation, group, sweep_value, PEAK_RSS_BYTES
+        )
+
+        if actual_count != config.runs:
+            errors.append(
+                f"{status_operation} {group}/{sweep_value}: expected exactly "
+                f"{config.runs} peak_rss_bytes measurements in memory_output.txt, "
+                f"found {actual_count}"
+            )
+
+    return errors
+
+
+# Remove every partial timing/key-generation batch that the orchestrator marked as OOM,
+# and build the rows shown in the report's OOM notice.
+def apply_out_of_memory_cases(
+    results: BenchmarkSummary,
+    out_of_memory_cases: list[OutOfMemoryCase],
 ) -> list[list[str]]:
-
-    def diagnose(exit_code: int, out_of_memory: bool) -> str:
-
-        if exit_code == OOM_KILLED_EXIT_CODE:
-            return OOM_KILLED_DIAGNOSIS
-
-        if out_of_memory:
-            return RUNTIME_OOM_DIAGNOSIS
-
-        return PROCESS_FAILED_DIAGNOSIS
 
     rows = []
 
-    for invocation in load_invocations(config.case_status, config.case_logs):
-
-        if invocation.completed:
-            continue
-
-        for summary, operations in (
-            (results, TIMING_OPERATIONS),
-            (memory, MEMORY_OPERATIONS),
-        ):
-            operation = operations.get(invocation.operation)
-
-            if operation is not None:
-                summary.drop_case(operation, invocation.group, invocation.sweep_value)
-
+    for case in out_of_memory_cases:
+        results.drop_case(
+            TIMING_OPERATIONS[case.operation], case.group, case.sweep_value
+        )
         rows.append(
             [
-                invocation.operation,
-                f"{invocation.group}/{invocation.sweep_value}",
-                str(invocation.sample),
-                str(invocation.exit_code),
-                diagnose(invocation.exit_code, invocation.out_of_memory),
+                case.operation,
+                f"{case.group}/{case.sweep_value}",
+                OUT_OF_MEMORY,
             ]
         )
-
-    # A memory case that exited cleanly without the readings the experiment asked for
-    # measured less than was configured. A confidence interval quietly computed from the
-    # rest would describe a smaller experiment than the one that was run
-    if memory.measures(PEAK_RSS_BYTES):
-
-        for case in memory.incomplete_cases(PEAK_RSS_BYTES, config.runs):
-
-            rows.append(
-                [
-                    f"Memory{case.operation.capitalize()}",
-                    f"{case.group}/{case.sweep_value}",
-                    NOT_AVAILABLE,
-                    "0",
-                    f"Only {case.sample_count(PEAK_RSS_BYTES)} of {config.runs} "
-                    "samples produced a peak reading",
-                ]
-            )
-
-            memory.drop_case(case.operation, case.group, case.sweep_value)
 
     return rows
 
@@ -1180,7 +1234,7 @@ def write_html_report(
     results: BenchmarkSummary,
     memory: BenchmarkSummary,
     config: Config,
-    failures: list[list[str]],
+    out_of_memory_rows: list[list[str]],
     frames: dict[str, str],
 ) -> None:
 
@@ -1298,25 +1352,17 @@ def write_html_report(
     memory_baseline = baseline_rss(memory)
 
     memory_tables = {
-        "PeakMemoryDeltas": "",
-        "PeakMemoryCpabeTable": "",
-        "PeakMemoryRsaSubscribersTable": "",
-        "PeakMemoryRsaKeyBitsTable": "",
+        "PeakMemoryDeltas": build_peak_memory_deltas(memory, config),
+        "PeakMemoryCpabeTable": build_peak_memory_table(
+            memory, config, CPABE_ATTRIBUTES, "Attributes"
+        ),
+        "PeakMemoryRsaSubscribersTable": build_peak_memory_table(
+            memory, config, RSA_SUBSCRIBERS, "Subscribers"
+        ),
+        "PeakMemoryRsaKeyBitsTable": build_peak_memory_table(
+            memory, config, RSA_KEY_BITS, "Key Bits"
+        ),
     }
-
-    if memory.measures(PEAK_RSS_BYTES):
-        memory_tables = {
-            "PeakMemoryDeltas": build_peak_memory_deltas(memory, config),
-            "PeakMemoryCpabeTable": build_peak_memory_table(
-                memory, config, CPABE_ATTRIBUTES, "Attributes"
-            ),
-            "PeakMemoryRsaSubscribersTable": build_peak_memory_table(
-                memory, config, RSA_SUBSCRIBERS, "Subscribers"
-            ),
-            "PeakMemoryRsaKeyBitsTable": build_peak_memory_table(
-                memory, config, RSA_KEY_BITS, "Key Bits"
-            ),
-        }
 
     placeholders = {
         **build_html_generic_data(
@@ -1325,12 +1371,8 @@ def write_html_report(
         **build_rsa_circle_visualization(results, config),
         **frames,
         **memory_tables,
-        "OutOfMemoryNotice": build_html_failure_notice(failures),
-        "BaselineRss": (
-            NOT_AVAILABLE
-            if memory_baseline is None
-            else f"{format_mean_with_ci(memory_baseline.mean, memory_baseline.ci)} MB"
-        ),
+        "OutOfMemoryNotice": build_html_out_of_memory_notice(out_of_memory_rows),
+        "BaselineRss": f"{format_mean_with_ci(memory_baseline.mean, memory_baseline.ci)} MB",
         "CpabeEncryptTable": table(
             CPABE_ATTRIBUTES,
             attribute_counts,
@@ -1415,15 +1457,20 @@ def main() -> None:
     config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
 
     results = load_results(config.bench_output, BENCHMARK_PREFIX)
+    memory = load_results(config.memory_output, MEMORY_PREFIX)
+    out_of_memory_cases = load_out_of_memory_cases(config.case_status)
 
-    # A result set produced before the memory experiment existed simply has no such file
-    memory = (
-        load_results(config.memory_output, MEMORY_PREFIX)
-        if os.path.exists(config.memory_output)
-        else BenchmarkSummary({})
+    validation_errors = validate_measurements(
+        results, memory, config, out_of_memory_cases
     )
 
-    failures = apply_case_outcomes(results, memory, config)
+    if validation_errors:
+        for error in validation_errors:
+            print(f"Invalid benchmark result: {error}", file=sys.stderr)
+
+        raise SystemExit(1)
+
+    out_of_memory_rows = apply_out_of_memory_cases(results, out_of_memory_cases)
 
     plot_sweep(
         results,
@@ -1481,11 +1528,10 @@ def main() -> None:
         "PeakMemoryFrame": plot_frame(
             plot_peak_memory(memory, config),
             PEAK_MEMORY_PLOT,
-            NO_MEMORY_READING_NOTE,
         ),
     }
 
-    write_html_report(results, memory, config, failures, frames)
+    write_html_report(results, memory, config, out_of_memory_rows, frames)
 
 
 if __name__ == "__main__":
