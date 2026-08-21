@@ -4,7 +4,6 @@ from pathlib import Path
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
-from template_builder.color import *
 
 from model.benchmark_summary import *
 from model.measurement import *
@@ -19,10 +18,6 @@ HTML_TEMPLATE_NAME = "payload_scaling_template.html"
 
 LATENCY_PLOT = "plot.png"
 THROUGHPUT_PLOT = "throughput.png"
-
-SCHEMES = ["PSK", "RSA", "CPABE"]
-OPERATIONS = ["Encrypt", "Decrypt"]
-SCHEME_COLORS = {"PSK": TEAL, "RSA": VIOLET, "CPABE": CRIMSON}
 
 BENCHMARK_PREFIX = "BenchmarkPayloadScaling"
 
@@ -44,145 +39,14 @@ def scheme_overhead_bytes(
     return mean(values)
 
 
-def plot_latency(
-    results: BenchmarkSummary,
-    payload_sizes: list[int],
-    output_path: str,
-) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size", fontsize=13)
-
-    for axis, operation in zip(axes, OPERATIONS):
-        drawn = []
-
-        for scheme_name in SCHEMES:
-            aggregations = [
-                results.find_aggregation(operation, scheme_name, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
-            draw_summary(
-                axis,
-                payload_sizes,
-                means,
-                confidence_intervals,
-                scheme_name,
-                SCHEME_COLORS[scheme_name],
-                with_ci=True,
-            )
-            drawn.append((scheme_name, means, confidence_intervals))
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
-        axis.legend(fontsize=10, loc="upper left")
-
-        if operation == "Encrypt":
-            zoom_axis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])  # type: ignore
-            zoomed = [entry for entry in drawn if entry[0] != "CPABE"]
-
-            for scheme_name, means, confidence_intervals in zoomed:
-                draw_summary(
-                    zoom_axis,
-                    payload_sizes,
-                    means,
-                    confidence_intervals,
-                    scheme_name,
-                    SCHEME_COLORS[scheme_name],
-                    linewidth=1.6,
-                    markersize=4,
-                    capsize=3,
-                )
-
-            zoom_axis.set_ylim(
-                0.0,
-                max(
-                    calculate_axis_top(means, confidence_intervals)
-                    for _, means, confidence_intervals in zoomed
-                )
-                * 1.10,
-            )
-            zoom_axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
-            zoom_axis.set_xticks([])
-            zoom_axis.set_title("PSK + RSA Zoom", fontsize=9)
-            zoom_axis.set_ylabel("µs", fontsize=8)
-            zoom_axis.tick_params(axis="both", labelsize=8)
-            apply_value_grid(zoom_axis, linewidth=0.4)
-            zoom_axis.legend(fontsize=8, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-
-def plot_throughput(
-    results: BenchmarkSummary,
-    payload_sizes: list[int],
-    output_path: str,
-) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size", fontsize=13)
-
-    for axis, operation in zip(axes, OPERATIONS):
-        for scheme_name in SCHEMES:
-            aggregations = [
-                results.find_aggregation(operation, scheme_name, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            draw_summary(
-                axis,
-                payload_sizes,
-                [
-                    aggregation.mean(MB_PER_SECOND)
-                    for aggregation in aggregations
-                    if aggregation is not None
-                ],
-                [
-                    aggregation.confidence_interval(MB_PER_SECOND)
-                    for aggregation in aggregations
-                    if aggregation is not None
-                ],
-                scheme_name,
-                SCHEME_COLORS[scheme_name],
-                with_ci=True,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
-        axis.legend(fontsize=10, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-
 def build_table(
     results: BenchmarkSummary,
     payload_sizes: list[int],
     runs: int,
     operation: str,
     scheme_name: str,
+    overhead_by_payload: dict[int, tuple[int, float]],
 ) -> str:
-    overhead_bytes = int(
-        round(scheme_overhead_bytes(results, payload_sizes, scheme_name))
-    )
     rows = []
 
     for payload_size in payload_sizes:
@@ -191,7 +55,7 @@ def build_table(
 
         latency_mean = aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
         latency_ci = aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-        overhead_percent = overhead_bytes / payload_size * 100.0
+        wire_size, overhead_percent = overhead_by_payload[payload_size]
 
         rows.append(
             [
@@ -202,7 +66,7 @@ def build_table(
                     aggregation.confidence_interval(MB_PER_SECOND),
                     decimals=1,
                 ),
-                format_byte_size(payload_size + overhead_bytes),
+                format_byte_size(wire_size),
                 f"{overhead_percent:.2f}%" if overhead_percent >= 0.01 else "&lt;0.01%",
                 f"{aggregation.iterations:,}",
             ]
@@ -229,21 +93,90 @@ def write_html_report(
     template_path: str,
     report_path: str,
 ) -> None:
+    psk_overhead_bytes = int(
+        round(scheme_overhead_bytes(results, payload_sizes, "PSK"))
+    )
+    rsa_overhead_bytes = int(
+        round(scheme_overhead_bytes(results, payload_sizes, "RSA"))
+    )
+    cpabe_overhead_bytes = int(
+        round(scheme_overhead_bytes(results, payload_sizes, "CPABE"))
+    )
+
+    psk_overhead_by_payload = {
+        payload_size: (
+            payload_size + psk_overhead_bytes,
+            psk_overhead_bytes / payload_size * 100.0,
+        )
+        for payload_size in payload_sizes
+    }
+    rsa_overhead_by_payload = {
+        payload_size: (
+            payload_size + rsa_overhead_bytes,
+            rsa_overhead_bytes / payload_size * 100.0,
+        )
+        for payload_size in payload_sizes
+    }
+    cpabe_overhead_by_payload = {
+        payload_size: (
+            payload_size + cpabe_overhead_bytes,
+            cpabe_overhead_bytes / payload_size * 100.0,
+        )
+        for payload_size in payload_sizes
+    }
+
     placeholders = {
         **build_html_generic_data(
             runs,
-            get_student_t_critical_95(runs - 1),
             sum(aggregation.iterations for aggregation in results.aggregations),
         ),
-        "EncryptPskTable": build_table(results, payload_sizes, runs, "Encrypt", "PSK"),
-        "EncryptRsaTable": build_table(results, payload_sizes, runs, "Encrypt", "RSA"),
-        "EncryptCpabeTable": build_table(
-            results, payload_sizes, runs, "Encrypt", "CPABE"
+        "EncryptPskTable": build_table(
+            results,
+            payload_sizes,
+            runs,
+            "Encrypt",
+            "PSK",
+            psk_overhead_by_payload,
         ),
-        "DecryptPskTable": build_table(results, payload_sizes, runs, "Decrypt", "PSK"),
-        "DecryptRsaTable": build_table(results, payload_sizes, runs, "Decrypt", "RSA"),
+        "EncryptRsaTable": build_table(
+            results,
+            payload_sizes,
+            runs,
+            "Encrypt",
+            "RSA",
+            rsa_overhead_by_payload,
+        ),
+        "EncryptCpabeTable": build_table(
+            results,
+            payload_sizes,
+            runs,
+            "Encrypt",
+            "CPABE",
+            cpabe_overhead_by_payload,
+        ),
+        "DecryptPskTable": build_table(
+            results,
+            payload_sizes,
+            runs,
+            "Decrypt",
+            "PSK",
+            psk_overhead_by_payload,
+        ),
+        "DecryptRsaTable": build_table(
+            results,
+            payload_sizes,
+            runs,
+            "Decrypt",
+            "RSA",
+            rsa_overhead_by_payload,
+        ),
         "DecryptCpabeTable": build_table(
-            results, payload_sizes, runs, "Decrypt", "CPABE"
+            results,
+            payload_sizes,
+            runs,
+            "Decrypt",
+            "CPABE",
+            cpabe_overhead_by_payload,
         ),
         "LatencyPlot": LATENCY_PLOT,
         "ThroughputPlot": THROUGHPUT_PLOT,
@@ -268,8 +201,10 @@ def main() -> None:
     results = BenchmarkSummary()
     load_results(results, str(bench_output), BENCHMARK_PREFIX, "B")
 
-    plot_latency(results, payload_sizes, str(result_dir / LATENCY_PLOT))
-    plot_throughput(results, payload_sizes, str(result_dir / THROUGHPUT_PLOT))
+    plot_payload_scaling_latency(results, payload_sizes, str(result_dir / LATENCY_PLOT))
+    plot_payload_scaling_throughput(
+        results, payload_sizes, str(result_dir / THROUGHPUT_PLOT)
+    )
 
     write_html_report(
         results, payload_sizes, runs, str(template_path), str(report_path)

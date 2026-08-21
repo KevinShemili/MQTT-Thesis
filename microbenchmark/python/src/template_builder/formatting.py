@@ -36,3 +36,10 @@ def format_mean_with_ci(
 ) -> str:
     grouping = "," if thousands else ""
     return f"{mean_value:{grouping}.{decimals}f} ± {ci_half:{grouping}.{decimals}f}"
+
+
+def format_attribute_label(attribute_count: int) -> str:
+    if attribute_count == 1:
+        return "1 ATTRIBUTE"
+
+    return f"{attribute_count} ATTRIBUTES"

@@ -1,6 +1,6 @@
 from __future__ import annotations
-from case_aggregation import CaseAggregation
-from measurement import THROTTLED
+from model.case_aggregation import CaseAggregation
+from model.measurement import THROTTLED
 
 
 # Groups together all aggregations for a given benchmark scenario
@@ -25,18 +25,6 @@ class BenchmarkSummary:
                 return aggregation
 
         return None
-
-    # Find all aggregations that match a specific operation & parameter
-    def find_aggregations(
-        self,
-        operation: str,
-        parameter: str,
-    ) -> list[CaseAggregation]:
-        return [
-            aggregation
-            for aggregation in self.aggregations
-            if aggregation.operation == operation and aggregation.parameter == parameter
-        ]
 
     # Given a list of parameter values, return a list of booleans indicating whether each aggregation experienced throttling
     def get_throttle_flags(

@@ -4,21 +4,17 @@ from pathlib import Path
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
-from template_builder.color import *
 
 from model.benchmark_summary import *
 from model.case_aggregation import *
-from model.case import *
 from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
 
-from statistics_tbd.summary import *
 from statistics_tbd.linear_regression import *
 
 NS_PER_MILLISECOND = 1000000.0
-NO_MEASUREMENT = float("nan")
 
 SCENARIO = "attribute-key-scaling"
 BENCHMARK_PREFIX = "BenchmarkAttributeKeyScaling"
@@ -37,19 +33,10 @@ CPABE_ATTRIBUTES = "CPABEAttributes"
 RSA_SUBSCRIBERS = "RSASubscribers"
 RSA_KEY_BITS = "RSAKeyBits"
 
-ENCRYPT_DECRYPT = ["Encrypt", "Decrypt"]
-
-OPERATION_COLORS = {"Encrypt": AMBER, "Decrypt": VIOLET}
-TOTAL_CIPHERTEXT_COLOR = TEAL
-
-RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
-
 CIPHERTEXT_COLUMN = ("CIPHERTEXT", CIPHERTEXT_BYTES)
 
 FANOUT_LARGEST_DIAMETER_PX = 168.0
 FANOUT_SMALLEST_DIAMETER_PX = 22.0
-
-CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 
 MINIMUM_FIT_POINTS = 3
 
@@ -60,50 +47,6 @@ MISSING_CASE_NOTE = (
     '<p class="missing-note">Not available: a case this comparison rests on ran out '
     "of memory. See Out of Memory at the top of the report.</p>"
 )
-
-
-def format_attribute_label(attribute_count: int) -> str:
-    if attribute_count == 1:
-        return "1 ATTRIBUTE"
-
-    return f"{attribute_count} ATTRIBUTES"
-
-
-def find_measured_aggregation(
-    results: BenchmarkSummary,
-    operation: str,
-    group: str,
-    sweep_value: int,
-) -> CaseAggregation | None:
-    aggregation = results.find_aggregation(operation, group, sweep_value)
-
-    if aggregation is None or aggregation.out_of_memory:
-        return None
-
-    return aggregation
-
-
-# Whether every case these operations need at these sweep values survived.
-def measured(
-    results: BenchmarkSummary,
-    operations: list[str],
-    group: str,
-    sweep_values: list[int],
-) -> bool:
-
-    return all(
-        find_measured_aggregation(results, operation, group, sweep_value) is not None
-        for operation in operations
-        for sweep_value in sweep_values
-    )
-
-
-def plot_frame(drawn: bool, filename: str, note: str = MISSING_CASE_NOTE) -> str:
-
-    if not drawn:
-        return note
-
-    return f'<img src="{filename}">'
 
 
 def fit_measurement(
@@ -118,9 +61,9 @@ def fit_measurement(
     measured_y = []
 
     for sweep_value in sweep_values:
-        aggregation = find_measured_aggregation(results, operation, group, sweep_value)
+        aggregation = results.find_aggregation(operation, group, sweep_value)
 
-        if aggregation is None:
+        if aggregation is None or aggregation.out_of_memory:
             continue
 
         measured_x.append(sweep_value)
@@ -130,19 +73,6 @@ def fit_measurement(
         return None
 
     return fit_linear_regression(measured_x, measured_y)
-
-
-def cpabe_micros(
-    results: BenchmarkSummary,
-    operation: str,
-    attribute_count: int,
-) -> float:
-
-    aggregation = find_measured_aggregation(
-        results, operation, CPABE_ATTRIBUTES, attribute_count
-    )
-    assert aggregation is not None
-    return aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
 
 
 # Decrypt does not depend on how many subscribers there are, a subscriber only ever
@@ -155,918 +85,16 @@ def find_fixed_rsa_aggregation(
     fixed_rsa_key_bits: int,
     feature_name: str,
 ) -> CaseAggregation | None:
-    aggregation = find_measured_aggregation(
-        summary, operation, RSA_KEY_BITS, fixed_rsa_key_bits
-    )
+    aggregation = summary.find_aggregation(operation, RSA_KEY_BITS, fixed_rsa_key_bits)
 
-    if aggregation is None or not aggregation.has_measurement(feature_name):
+    if (
+        aggregation is None
+        or aggregation.out_of_memory
+        or not aggregation.has_measurement(feature_name)
+    ):
         return None
 
     return aggregation
-
-
-def cpabe_ciphertext_bytes(results: BenchmarkSummary, attribute_count: int) -> float:
-    aggregation = find_measured_aggregation(
-        results, "Encrypt", CPABE_ATTRIBUTES, attribute_count
-    )
-    assert aggregation is not None
-    return aggregation.mean(CIPHERTEXT_BYTES)
-
-
-# One wrapped session key is the same size at every subscriber count, and RSA's total
-# ciphertext grows by exactly that much per additional subscriber
-def rsa_bytes_per_subscriber(
-    results: BenchmarkSummary, subscriber_counts: list[int]
-) -> float:
-    aggregation = find_measured_aggregation(
-        results, "Encrypt", RSA_SUBSCRIBERS, subscriber_counts[0]
-    )
-    assert aggregation is not None
-    return aggregation.mean(CIPHERTEXT_BYTES)
-
-
-def plot_cpabe_attribute_sweep(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    output_path: str,
-) -> None:
-    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=(13, 5))
-    figure.suptitle("CP-ABE Scaling with Policy Attribute Count", fontsize=13)
-
-    for operation in ENCRYPT_DECRYPT:
-        aggregations = [
-            results.find_aggregation(operation, CPABE_ATTRIBUTES, attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        means = [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in aggregations
-        ]
-        confidence_intervals = [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in aggregations
-        ]
-
-        draw_summary(
-            latency_axis,
-            attribute_counts,
-            means,
-            confidence_intervals,
-            operation,
-            OPERATION_COLORS[operation],
-            with_ci=True,
-        )
-
-    for operation, measurement_name, label, color in (
-        ("Encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER),
-        ("Decrypt", STORED_KEY_BYTES, "Private Key", CRIMSON),
-    ):
-        aggregations = [
-            results.find_aggregation(operation, CPABE_ATTRIBUTES, attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        draw_summary(
-            size_axis,
-            attribute_counts,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
-            label,
-            color,
-        )
-
-    latency_axis.set_title("Latency", fontsize=11)
-    latency_axis.set_ylabel("Latency (µs) ± 95% CI")
-    latency_axis.set_ylim(bottom=0)
-    latency_axis.set_xticks(attribute_counts)
-    latency_axis.set_xlabel("Policy Attributes")
-    apply_value_grid(latency_axis)
-    latency_axis.legend(fontsize=10)
-
-    size_axis.set_title("Sizes", fontsize=11)
-    size_axis.set_ylabel("Size (bytes)")
-    size_axis.set_xticks(attribute_counts)
-    size_axis.set_xlabel("Policy Attributes")
-    size_axis.set_ylim(bottom=0)
-    apply_value_grid(size_axis)
-    size_axis.legend(fontsize=10)
-
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
-    save_figure(figure, output_path)
-
-
-def plot_rsa_subscriber_sweep(
-    results: BenchmarkSummary,
-    subscriber_counts: list[int],
-    fixed_rsa_key_bits: int,
-    output_path: str,
-) -> None:
-    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=(13, 5))
-    figure.suptitle(
-        f"RSA Scaling with Subscriber Count (Fixed Key: {fixed_rsa_key_bits} bits)",
-        fontsize=13,
-    )
-
-    encrypt_aggregations = [
-        results.find_aggregation("Encrypt", RSA_SUBSCRIBERS, subscriber_count)
-        for subscriber_count in subscriber_counts
-    ]
-    draw_summary(
-        latency_axis,
-        subscriber_counts,
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in encrypt_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in encrypt_aggregations
-        ],
-        "Encrypt",
-        AMBER,
-        with_ci=True,
-    )
-
-    decrypt_reference = find_fixed_rsa_aggregation(
-        results, "Decrypt", fixed_rsa_key_bits, NS_PER_OP
-    )
-    if decrypt_reference is not None:
-        draw_constant(
-            latency_axis,
-            decrypt_reference.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-            subscriber_counts,
-            f"Decrypt (RSA-{fixed_rsa_key_bits}, Constant)",
-            VIOLET,
-        )
-
-    for measurement_name, label, color in (
-        (CIPHERTEXT_BYTES, "Ciphertext", AMBER),
-        (TOTAL_CIPHERTEXT_BYTES, "Ciphertext (TOTAL)", TOTAL_CIPHERTEXT_COLOR),
-    ):
-        draw_summary(
-            size_axis,
-            subscriber_counts,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(measurement_name)
-                )
-                for aggregation in encrypt_aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(measurement_name)
-                )
-                for aggregation in encrypt_aggregations
-            ],
-            label,
-            color,
-        )
-
-    latency_axis.set_title("Latency", fontsize=11)
-    latency_axis.set_ylabel("Latency (µs) ± 95% CI")
-    latency_axis.set_ylim(bottom=0)
-    latency_axis.set_xticks(subscriber_counts)
-    latency_axis.set_xlabel("Subscribers")
-    apply_value_grid(latency_axis)
-    latency_axis.legend(fontsize=10)
-
-    size_axis.set_title("Sizes", fontsize=11)
-    size_axis.set_ylabel("Size (bytes)")
-    size_axis.set_xticks(subscriber_counts)
-    size_axis.set_xlabel("Subscribers")
-    size_axis.set_ylim(bottom=0)
-    apply_value_grid(size_axis)
-    size_axis.legend(fontsize=10)
-
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
-    save_figure(figure, output_path)
-
-
-def plot_rsa_key_size_sweep(
-    results: BenchmarkSummary,
-    rsa_key_sizes: list[int],
-    output_path: str,
-) -> None:
-    figure = plt.figure(figsize=(13, 7))
-    grid_spec = figure.add_gridspec(
-        2,
-        2,
-        width_ratios=[1.0, 1.0],
-        height_ratios=[1.0, 1.0],
-        hspace=0.34,
-    )
-    keygen_latency_axis = figure.add_subplot(grid_spec[0, 0])
-    latency_axis = figure.add_subplot(grid_spec[1, 0], sharex=keygen_latency_axis)
-    size_axis = figure.add_subplot(grid_spec[:, 1])
-    figure.suptitle("RSA Scaling with Key Size (1 Subscriber)", fontsize=13)
-
-    keygen_aggregations = [
-        results.find_aggregation("KeyGen", RSA_KEY_BITS, rsa_key_bits)
-        for rsa_key_bits in rsa_key_sizes
-    ]
-    draw_distribution(
-        keygen_latency_axis,
-        rsa_key_sizes,
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.median(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.minimum(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.maximum(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.first_quartile(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.third_quartile(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        "Keygen",
-        CRIMSON,
-    )
-
-    for operation in ENCRYPT_DECRYPT:
-        aggregations = [
-            results.find_aggregation(operation, RSA_KEY_BITS, rsa_key_bits)
-            for rsa_key_bits in rsa_key_sizes
-        ]
-        draw_summary(
-            latency_axis,
-            rsa_key_sizes,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                )
-                for aggregation in aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                )
-                for aggregation in aggregations
-            ],
-            operation,
-            OPERATION_COLORS[operation],
-            with_ci=True,
-        )
-
-    for aggregations, measurement_name, label, color in (
-        (
-            [
-                results.find_aggregation("Encrypt", RSA_KEY_BITS, rsa_key_bits)
-                for rsa_key_bits in rsa_key_sizes
-            ],
-            CIPHERTEXT_BYTES,
-            "Ciphertext",
-            AMBER,
-        ),
-        (keygen_aggregations, STORED_KEY_BYTES, "Private Key", CRIMSON),
-    ):
-        draw_summary(
-            size_axis,
-            rsa_key_sizes,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
-            label,
-            color,
-        )
-
-    keygen_latency_axis.set_title("Key Generation Latency", fontsize=11)
-    keygen_latency_axis.set_ylabel("Latency (ms), Median + IQR + Min-Max")
-    keygen_latency_axis.set_ylim(bottom=0)
-    keygen_latency_axis.set_xticks(rsa_key_sizes)
-    keygen_latency_axis.tick_params(axis="x", labelbottom=True)
-    keygen_latency_axis.set_xlabel("RSA Key Bits")
-    apply_value_grid(keygen_latency_axis)
-    keygen_latency_axis.legend(fontsize=10)
-
-    latency_axis.set_title("Encrypt + Decrypt Latency", fontsize=11)
-    latency_axis.set_ylabel("Latency (µs) ± 95% CI")
-    latency_axis.set_ylim(bottom=0)
-    latency_axis.set_xticks(rsa_key_sizes)
-    latency_axis.set_xlabel("RSA Key Bits")
-    apply_value_grid(latency_axis)
-    latency_axis.legend(fontsize=10)
-
-    size_axis.set_title("Sizes", fontsize=11)
-    size_axis.set_ylabel("Size (bytes)")
-    size_axis.set_xticks(rsa_key_sizes)
-    size_axis.set_xlabel("RSA Key Bits")
-    size_axis.set_ylim(bottom=0)
-    apply_value_grid(size_axis)
-    size_axis.legend(fontsize=10)
-
-    figure.subplots_adjust(top=0.92)
-    save_figure(figure, output_path)
-
-
-# Peak resident memory of one isolated operation across the three sweeps. The panels
-# share a vertical axis so the three can be read against one another directly
-def plot_peak_memory(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-    fixed_rsa_key_bits: int,
-    output_path: str,
-) -> bool:
-    figure, axes = plt.subplots(1, 3, figsize=(14, 4.6), sharey=True)
-    figure.suptitle("Peak Process Memory of a Single Operation", fontsize=13)
-
-    cpabe_axis, subscriber_axis, key_size_axis = axes
-
-    for operation, label, color in (
-        ("MemoryEncrypt", "Encrypt", AMBER),
-        ("MemoryDecrypt", "Decrypt", VIOLET),
-    ):
-        aggregations = [
-            results.find_aggregation(operation, CPABE_ATTRIBUTES, attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        assert all(aggregation is not None for aggregation in aggregations)
-        draw_summary(
-            cpabe_axis,
-            attribute_counts,
-            [
-                aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
-            [
-                aggregation.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
-            label,
-            color,
-            with_ci=True,
-        )
-
-    subscriber_encrypt_aggregations = [
-        results.find_aggregation("MemoryEncrypt", RSA_SUBSCRIBERS, subscriber_count)
-        for subscriber_count in subscriber_counts
-    ]
-    assert all(
-        aggregation is not None for aggregation in subscriber_encrypt_aggregations
-    )
-    draw_summary(
-        subscriber_axis,
-        subscriber_counts,
-        [
-            aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
-            for aggregation in subscriber_encrypt_aggregations
-            if aggregation is not None
-        ],
-        [
-            aggregation.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
-            for aggregation in subscriber_encrypt_aggregations
-            if aggregation is not None
-        ],
-        "Encrypt",
-        AMBER,
-        with_ci=True,
-    )
-
-    # Subscriber count does not move decrypt, so quote the fixed-key measurement from
-    # the RSA key-size sweep rather than presenting an empty half-panel.
-    decrypt_reference = find_fixed_rsa_aggregation(
-        results, "MemoryDecrypt", fixed_rsa_key_bits, PEAK_RSS_BYTES
-    )
-    if decrypt_reference is not None:
-        draw_constant(
-            subscriber_axis,
-            decrypt_reference.mean(PEAK_RSS_BYTES) / MEGABYTE,
-            subscriber_counts,
-            f"Decrypt (RSA-{fixed_rsa_key_bits})",
-            VIOLET,
-        )
-
-    for operation, label, color in (
-        ("MemoryEncrypt", "Encrypt", AMBER),
-        ("MemoryDecrypt", "Decrypt", VIOLET),
-    ):
-        aggregations = [
-            results.find_aggregation(operation, RSA_KEY_BITS, rsa_key_bits)
-            for rsa_key_bits in rsa_key_sizes
-        ]
-        assert all(aggregation is not None for aggregation in aggregations)
-        draw_summary(
-            key_size_axis,
-            rsa_key_sizes,
-            [
-                aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
-            [
-                aggregation.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
-            label,
-            color,
-            with_ci=True,
-        )
-
-    cpabe_axis.set_title("CP-ABE", fontsize=11)
-    cpabe_axis.set_xlabel("Policy Attributes")
-    cpabe_axis.set_xticks(attribute_counts)
-
-    subscriber_axis.set_title("RSA Subscribers", fontsize=11)
-    subscriber_axis.set_xlabel("Subscribers")
-    subscriber_axis.set_xticks(subscriber_counts)
-
-    key_size_axis.set_title("RSA Key Size", fontsize=11)
-    key_size_axis.set_xlabel("RSA Key Bits")
-    key_size_axis.set_xticks(rsa_key_sizes)
-
-    for axis in axes:
-        apply_value_grid(axis)
-        axis.legend(fontsize=9)
-
-    # The only axis in this report not anchored at zero. Peak RSS is measured against a
-    # runtime floor of several megabytes that no operation can go below, so zero is not a
-    # reference the differences can be read against. The shared axis keeps the three
-    # panels comparable with one another instead
-    axes[0].set_ylabel("Peak RSS (MB) ± 95% CI")
-
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
-    save_figure(figure, output_path)
-
-    return True
-
-
-# Where RSA's per-subscriber ciphertext growth overtakes CP-ABE's fixed ciphertext
-def plot_ciphertext_size_crossover(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    output_path: str,
-) -> bool:
-    if not measured(
-        results, ["Encrypt"], RSA_SUBSCRIBERS, [subscriber_counts[0]]
-    ) or not measured(
-        results,
-        ["Encrypt"],
-        CPABE_ATTRIBUTES,
-        [attribute_counts[0], attribute_counts[-1]],
-    ):
-        return False
-
-    bytes_per_subscriber = rsa_bytes_per_subscriber(results, subscriber_counts)
-    x_limit = subscriber_counts[-1]
-
-    figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
-
-    rsa_aggregations = [
-        find_measured_aggregation(results, "Encrypt", RSA_SUBSCRIBERS, count)
-        for count in subscriber_counts
-    ]
-
-    draw_summary(
-        axis,
-        subscriber_counts,
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None
-                else aggregation.mean(TOTAL_CIPHERTEXT_BYTES)
-            )
-            for aggregation in rsa_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None
-                else aggregation.confidence_interval(TOTAL_CIPHERTEXT_BYTES)
-            )
-            for aggregation in rsa_aggregations
-        ],
-        "RSA Scaling Subs",
-        TOTAL_CIPHERTEXT_COLOR,
-    )
-
-    for attribute_count, color in (
-        (attribute_counts[0], AMBER),
-        (attribute_counts[-1], CRIMSON),
-    ):
-        level = cpabe_ciphertext_bytes(results, attribute_count)
-
-        axis.hlines(
-            level,
-            1,
-            x_limit,
-            color=color,
-            linewidth=1.8,
-            label=f"CP-ABE, {format_attribute_label(attribute_count)}",
-        )
-
-        # Subscriber count at which RSA's wrapped keys add up to CP-ABE's one ciphertext
-        crossover = level / bytes_per_subscriber
-
-        mark_crossover(axis, crossover, level, f"≈{crossover:,.1f}")
-
-    linear_tick_values = [subscriber_counts[0]] + [
-        count for count in subscriber_counts if count >= 8
-    ]
-
-    axis.set_xticks(linear_tick_values)
-    axis.set_xlim(0.0, float(x_limit) * AXIS_HEADROOM)
-    axis.set_xlabel("Subscribers")
-    axis.set_ylabel("Ciphertext Bytes")
-    axis.set_ylim(bottom=0.0)
-    apply_value_grid(axis)
-    axis.legend(fontsize=9, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-    return True
-
-
-# Where RSA's per-subscriber encrypt cost overtakes CP-ABE's fixed encrypt cost
-def plot_encrypt_latency_crossover(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    output_path: str,
-) -> bool:
-    encrypt_fit = fit_measurement(
-        results,
-        "Encrypt",
-        RSA_SUBSCRIBERS,
-        subscriber_counts,
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
-    )
-
-    if encrypt_fit is None or not measured(
-        results,
-        ["Encrypt"],
-        CPABE_ATTRIBUTES,
-        [attribute_counts[0], attribute_counts[-1]],
-    ):
-        return False
-
-    # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
-    x_limit = (
-        encrypt_fit.solve_x_for_y(
-            cpabe_micros(results, "Encrypt", attribute_counts[-1])
-        )
-        * 1.15
-    )
-
-    figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
-
-    projection_start_subscribers = float(subscriber_counts[-1])
-    projection_end_micros = encrypt_fit.calculate_y_based_on_x(x_limit)
-
-    axis.plot(
-        [projection_start_subscribers, x_limit],
-        [
-            encrypt_fit.calculate_y_based_on_x(projection_start_subscribers),
-            projection_end_micros,
-        ],
-        color=TOTAL_CIPHERTEXT_COLOR,
-        linewidth=1.8,
-        linestyle=":",
-        label="RSA Linear Fit (Projected Beyond Sample)",
-    )
-
-    rsa_aggregations = [
-        find_measured_aggregation(results, "Encrypt", RSA_SUBSCRIBERS, count)
-        for count in subscriber_counts
-    ]
-    rsa_statistics = [
-        (
-            (NO_MEASUREMENT, NO_MEASUREMENT)
-            if aggregation is None
-            else (
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND,
-            )
-        )
-        for aggregation in rsa_aggregations
-    ]
-
-    draw_summary(
-        axis,
-        subscriber_counts,
-        [mean_value for mean_value, _ in rsa_statistics],
-        [ci for _, ci in rsa_statistics],
-        "RSA Scaling Subs (Measured)",
-        TOTAL_CIPHERTEXT_COLOR,
-        linewidth=2.6,
-    )
-
-    largest_value = projection_end_micros
-
-    for attribute_count, color in (
-        (attribute_counts[0], AMBER),
-        (attribute_counts[-1], CRIMSON),
-    ):
-        level = cpabe_micros(results, "Encrypt", attribute_count)
-
-        axis.hlines(
-            level,
-            0.0,
-            x_limit,
-            color=color,
-            linewidth=1.8,
-            label=f"CP-ABE, {format_attribute_label(attribute_count)}",
-        )
-
-        crossover = encrypt_fit.solve_x_for_y(level)
-
-        mark_crossover(axis, crossover, level, f"≈{crossover:,.0f}")
-
-        largest_value = max(largest_value, level)
-
-    axis.set_xlim(0.0, x_limit)
-    axis.set_ylim(0.0, largest_value * 1.12)
-    axis.set_xlabel("Subscribers")
-    axis.set_ylabel("Publisher Encrypt Latency (µs)")
-    apply_value_grid(axis)
-    axis.legend(fontsize=9, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-    return True
-
-
-def plot_decrypt_latency_crossover(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    rsa_key_sizes: list[int],
-    output_path: str,
-) -> bool:
-    rsa_key_bits_values = [
-        rsa_key_bits
-        for rsa_key_bits in rsa_key_sizes
-        if find_measured_aggregation(results, "Decrypt", RSA_KEY_BITS, rsa_key_bits)
-        is not None
-    ]
-
-    cpabe_aggregations = [
-        find_measured_aggregation(results, "Decrypt", CPABE_ATTRIBUTES, attribute_count)
-        for attribute_count in attribute_counts
-    ]
-
-    if not rsa_key_bits_values or not any(cpabe_aggregations):
-        return False
-
-    cpabe_statistics = [
-        (
-            (NO_MEASUREMENT, NO_MEASUREMENT)
-            if aggregation is None
-            else (
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND,
-            )
-        )
-        for aggregation in cpabe_aggregations
-    ]
-    cpabe_means = [mean_value for mean_value, _ in cpabe_statistics]
-    cpabe_cis = [ci for _, ci in cpabe_statistics]
-
-    figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
-
-    draw_summary(
-        axis,
-        attribute_counts,
-        cpabe_means,
-        cpabe_cis,
-        "CP-ABE",
-        VIOLET,
-        with_ci=True,
-        linewidth=2.0,
-    )
-
-    largest_value = calculate_axis_top(cpabe_means, cpabe_cis)
-
-    for index, rsa_key_bits in enumerate(rsa_key_bits_values):
-
-        rsa_aggregation = find_measured_aggregation(
-            results, "Decrypt", RSA_KEY_BITS, rsa_key_bits
-        )
-        assert rsa_aggregation is not None
-        rsa_mean = rsa_aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-        rsa_ci = rsa_aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-
-        rsa_color = RSA_KEY_BITS_COLORS[index % len(RSA_KEY_BITS_COLORS)]
-
-        axis.hlines(
-            rsa_mean,
-            attribute_counts[0],
-            attribute_counts[-1],
-            color=rsa_color,
-            linestyle="--",
-            linewidth=1.6,
-            label=f"RSA-{rsa_key_bits}",
-        )
-
-        axis.errorbar(
-            [attribute_counts[-1]],
-            [rsa_mean],
-            yerr=[rsa_ci],
-            color=rsa_color,
-            fmt="none",
-            capsize=4,
-        )
-
-        largest_value = max(largest_value, rsa_mean + rsa_ci)
-
-    axis.set_xticks(attribute_counts)
-    axis.set_xlim(0.0, float(attribute_counts[-1]) * AXIS_HEADROOM)
-    axis.set_ylim(0.0, largest_value * 1.15)
-    axis.set_xlabel("Policy Attributes")
-    axis.set_ylabel("Decrypt Latency (µs) ± 95% CI")
-    apply_value_grid(axis)
-    axis.legend(fontsize=9, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-    return True
-
-
-def plot_encrypt_decrypt_asymmetry(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    fixed_rsa_key_bits: int,
-    output_path: str,
-) -> bool:
-    min_attributes = attribute_counts[0]
-
-    if not measured(
-        results, ENCRYPT_DECRYPT, RSA_KEY_BITS, [fixed_rsa_key_bits]
-    ) or not measured(results, ENCRYPT_DECRYPT, CPABE_ATTRIBUTES, [min_attributes]):
-        return False
-
-    def rsa_micros(operation: str) -> float:
-        aggregation = find_measured_aggregation(
-            results, operation, RSA_KEY_BITS, fixed_rsa_key_bits
-        )
-        assert aggregation is not None
-        return aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-
-    scheme_labels = [
-        f"RSA-{fixed_rsa_key_bits}",
-        f"CP-ABE ({format_attribute_label(min_attributes)})",
-    ]
-    encrypt_values = [
-        rsa_micros("Encrypt"),
-        cpabe_micros(results, "Encrypt", min_attributes),
-    ]
-    decrypt_values = [
-        rsa_micros("Decrypt"),
-        cpabe_micros(results, "Decrypt", min_attributes),
-    ]
-
-    figure, axis = plt.subplots(figsize=(9, 5.5))
-
-    positions = [0.0, 1.25]
-    bar_width = 0.34
-
-    encrypt_positions = [position - bar_width / 2.0 for position in positions]
-    decrypt_positions = [position + bar_width / 2.0 for position in positions]
-
-    axis.bar(
-        encrypt_positions, encrypt_values, width=bar_width, color=AMBER, label="Encrypt"
-    )
-    axis.bar(
-        decrypt_positions,
-        decrypt_values,
-        width=bar_width,
-        color=VIOLET,
-        label="Decrypt",
-    )
-
-    largest_value = max(max(encrypt_values), max(decrypt_values))
-
-    for index, position in enumerate(positions):
-
-        for bar_position, value in (
-            (encrypt_positions[index], encrypt_values[index]),
-            (decrypt_positions[index], decrypt_values[index]),
-        ):
-            axis.annotate(
-                f"{value:,.1f} µs",
-                (bar_position, value),
-                textcoords="offset points",
-                xytext=(0, 5),
-                ha="center",
-                fontsize=9,
-            )
-
-        if encrypt_values[index] >= decrypt_values[index]:
-            ratio_text = f"Encrypt is {encrypt_values[index] / decrypt_values[index]:.0f}× Slower"
-        else:
-            ratio_text = f"Decrypt is {decrypt_values[index] / encrypt_values[index]:.0f}× Slower"
-
-        tallest_value = max(encrypt_values[index], decrypt_values[index])
-
-        axis.text(
-            position,
-            tallest_value + largest_value * 0.10,
-            ratio_text,
-            ha="center",
-            fontsize=10,
-            fontweight="bold",
-        )
-
-    axis.set_ylim(0.0, largest_value * 1.24)
-    axis.set_xticks(positions)
-    axis.set_xticklabels(scheme_labels)
-    axis.set_ylabel("Latency (µs)")
-    axis.set_title("Encrypt vs Decrypt Asymmetry", fontsize=12)
-    axis.grid(False)
-    axis.spines["top"].set_visible(False)
-    axis.spines["right"].set_visible(False)
-    axis.legend(loc="upper center", ncol=2, frameon=False, fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-    return True
 
 
 def build_latency_table(
@@ -1284,19 +312,16 @@ def build_peak_memory_deltas(
     # The ends are the ones the experiment was configured with. If either did not complete
     # there is no such change, and the ends that did survive are not a substitute for it
     def endpoints_change(group: str, operation: str, sweep_values: list[int]) -> str:
+        first_aggregation = results.find_aggregation(operation, group, sweep_values[0])
+        last_aggregation = results.find_aggregation(operation, group, sweep_values[-1])
 
-        if not measured(
-            results, [operation], group, [sweep_values[0], sweep_values[-1]]
+        if (
+            first_aggregation is None
+            or first_aggregation.out_of_memory
+            or last_aggregation is None
+            or last_aggregation.out_of_memory
         ):
             return NOT_AVAILABLE
-
-        first_aggregation = find_measured_aggregation(
-            results, operation, group, sweep_values[0]
-        )
-        last_aggregation = find_measured_aggregation(
-            results, operation, group, sweep_values[-1]
-        )
-        assert first_aggregation is not None and last_aggregation is not None
 
         first = first_aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
         last = last_aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
@@ -1332,16 +357,19 @@ def build_peak_memory_deltas(
 def build_rsa_circle_visualization(
     results: BenchmarkSummary,
     subscriber_counts: list[int],
+    bytes_per_subscriber: float | None,
 ) -> dict[str, str]:
 
     def circle_style(diameter_px: float) -> str:
         return f'style="width:{diameter_px:.0f}px;height:{diameter_px:.0f}px;"'
 
-    if not measured(
-        results,
-        ["Encrypt"],
-        RSA_SUBSCRIBERS,
-        [subscriber_counts[0], subscriber_counts[-1]],
+    largest_aggregation = results.find_aggregation(
+        "Encrypt", RSA_SUBSCRIBERS, subscriber_counts[-1]
+    )
+    if (
+        bytes_per_subscriber is None
+        or largest_aggregation is None
+        or largest_aggregation.out_of_memory
     ):
         return {
             "FanoutSingleBytes": NOT_AVAILABLE,
@@ -1351,11 +379,7 @@ def build_rsa_circle_visualization(
             "FanoutTotalStyle": circle_style(FANOUT_SMALLEST_DIAMETER_PX),
         }
 
-    single_bytes = rsa_bytes_per_subscriber(results, subscriber_counts)
-    largest_aggregation = find_measured_aggregation(
-        results, "Encrypt", RSA_SUBSCRIBERS, subscriber_counts[-1]
-    )
-    assert largest_aggregation is not None
+    single_bytes = bytes_per_subscriber
     total_bytes = largest_aggregation.mean(TOTAL_CIPHERTEXT_BYTES)
 
     single_diameter_px = max(
@@ -1391,6 +415,12 @@ def write_html_report(
     subscriber_counts: list[int],
     rsa_key_sizes: list[int],
     fixed_rsa_key_bits: int,
+    encrypt_fit: LinearRegression | None,
+    bytes_per_subscriber: float | None,
+    bytes_crossover_low: float | None,
+    bytes_crossover_high: float | None,
+    latency_crossover_low: float | None,
+    latency_crossover_high: float | None,
     frames: dict[str, str],
     template_path: str,
     report_path: str,
@@ -1398,14 +428,6 @@ def write_html_report(
     min_attributes = attribute_counts[0]
     max_attributes = attribute_counts[-1]
 
-    encrypt_fit = fit_measurement(
-        results,
-        "Encrypt",
-        RSA_SUBSCRIBERS,
-        subscriber_counts,
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
-    )
     cpabe_encrypt = fit_measurement(
         results,
         "Encrypt",
@@ -1429,16 +451,6 @@ def write_html_report(
         results, "Decrypt", CPABE_ATTRIBUTES, attribute_counts, STORED_KEY_BYTES
     )
 
-    cpabe_encrypt_measured = measured(
-        results, ["Encrypt"], CPABE_ATTRIBUTES, [min_attributes, max_attributes]
-    )
-    bytes_measured = cpabe_encrypt_measured and measured(
-        results, ["Encrypt"], RSA_SUBSCRIBERS, [subscriber_counts[0]]
-    )
-    decrypt_penalty_measured = measured(
-        results, ["Decrypt"], CPABE_ATTRIBUTES, [min_attributes, max_attributes]
-    ) and measured(results, ["Decrypt"], RSA_KEY_BITS, [fixed_rsa_key_bits])
-
     def micros_slope(fit: LinearRegression | None) -> str:
         if fit is None:
             return NOT_AVAILABLE
@@ -1457,36 +469,26 @@ def write_html_report(
 
         return f"{fit.r_squared:.6f}"
 
-    # Subscriber count at which RSA's wrapped keys add up to CP-ABE's one ciphertext
-    def bytes_crossover(attribute_count: int) -> float | None:
-        if not bytes_measured:
-            return None
-
-        return cpabe_ciphertext_bytes(
-            results, attribute_count
-        ) / rsa_bytes_per_subscriber(results, subscriber_counts)
-
-    # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
-    def latency_crossover(attribute_count: int) -> float | None:
-        if encrypt_fit is None or not cpabe_encrypt_measured:
-            return None
-
-        return encrypt_fit.solve_x_for_y(
-            cpabe_micros(results, "Encrypt", attribute_count)
-        )
-
     # How much more decrypt latency CP-ABE asks of the subscriber than RSA does
     def decrypt_penalty(attribute_count: int) -> float | None:
-        if not decrypt_penalty_measured:
+        cpabe_decrypt = results.find_aggregation(
+            "Decrypt", CPABE_ATTRIBUTES, attribute_count
+        )
+        rsa_decrypt = results.find_aggregation(
+            "Decrypt", RSA_KEY_BITS, fixed_rsa_key_bits
+        )
+        if (
+            cpabe_decrypt is None
+            or cpabe_decrypt.out_of_memory
+            or rsa_decrypt is None
+            or rsa_decrypt.out_of_memory
+        ):
             return None
 
-        rsa_decrypt = find_measured_aggregation(
-            results, "Decrypt", RSA_KEY_BITS, fixed_rsa_key_bits
-        )
-        assert rsa_decrypt is not None
         rsa_decrypt_micros = rsa_decrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND
+        cpabe_decrypt_micros = cpabe_decrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND
 
-        return cpabe_micros(results, "Decrypt", attribute_count) / rsa_decrypt_micros
+        return cpabe_decrypt_micros / rsa_decrypt_micros
 
     # A crossover the report could not compute reads as absent rather than as a zero
     def rounded(value: float | None, decimals: int = 0) -> str:
@@ -1504,8 +506,8 @@ def write_html_report(
 
     # The runtime with nothing restored or performed is the floor every memory case was
     # measured on top of.
-    memory_baseline = find_measured_aggregation(results, "MemoryBaseline", "Runtime", 0)
-    assert memory_baseline is not None
+    memory_baseline = results.find_aggregation("MemoryBaseline", "Runtime", 0)
+    assert memory_baseline is not None and not memory_baseline.out_of_memory
     baseline_mean = memory_baseline.mean(PEAK_RSS_BYTES) / MEGABYTE
     baseline_ci = memory_baseline.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
 
@@ -1519,10 +521,11 @@ def write_html_report(
     placeholders = {
         **build_html_generic_data(
             timing_runs,
-            get_student_t_critical_95(timing_runs - 1),
             timing_iterations,
         ),
-        **build_rsa_circle_visualization(results, subscriber_counts),
+        **build_rsa_circle_visualization(
+            results, subscriber_counts, bytes_per_subscriber
+        ),
         **frames,
         "PeakMemoryDeltas": build_peak_memory_deltas(
             results, attribute_counts, subscriber_counts, rsa_key_sizes
@@ -1614,17 +617,17 @@ def write_html_report(
         "RsaSubscriberEncryptRSquared": fit_quality(encrypt_fit),
         "RsaSubscriberTotalCiphertextSlope": (
             NOT_AVAILABLE
-            if not bytes_measured
-            else f"+{rsa_bytes_per_subscriber(results, subscriber_counts):.0f} B"
+            if bytes_per_subscriber is None
+            else f"+{bytes_per_subscriber:.0f} B"
         ),
-        "BytesCrossoverLow": rounded(bytes_crossover(min_attributes), 1),
-        "BytesCrossoverHigh": rounded(bytes_crossover(max_attributes), 1),
-        "BytesRsaThroughMin": truncated(bytes_crossover(min_attributes)),
-        "BytesRsaThroughMax": truncated(bytes_crossover(max_attributes)),
-        "EncryptCpuCrossoverLow": rounded(latency_crossover(min_attributes)),
-        "EncryptCpuCrossoverHigh": rounded(latency_crossover(max_attributes)),
-        "CpuRsaThroughMin": truncated(latency_crossover(min_attributes)),
-        "CpuRsaThroughMax": truncated(latency_crossover(max_attributes)),
+        "BytesCrossoverLow": rounded(bytes_crossover_low, 1),
+        "BytesCrossoverHigh": rounded(bytes_crossover_high, 1),
+        "BytesRsaThroughMin": truncated(bytes_crossover_low),
+        "BytesRsaThroughMax": truncated(bytes_crossover_high),
+        "EncryptCpuCrossoverLow": rounded(latency_crossover_low),
+        "EncryptCpuCrossoverHigh": rounded(latency_crossover_high),
+        "CpuRsaThroughMin": truncated(latency_crossover_low),
+        "CpuRsaThroughMax": truncated(latency_crossover_high),
         "DecryptPenaltyMin": rounded(decrypt_penalty(min_attributes), 1),
         "DecryptPenaltyMax": rounded(decrypt_penalty(max_attributes), 1),
     }
@@ -1655,6 +658,60 @@ def main() -> None:
     load_results(results, str(memory_output), BENCHMARK_PREFIX)
     load_out_of_memory_status(results, str(case_status))
 
+    min_attributes = attribute_counts[0]
+    max_attributes = attribute_counts[-1]
+
+    rsa_subscriber_reference = results.find_aggregation(
+        "Encrypt", RSA_SUBSCRIBERS, subscriber_counts[0]
+    )
+    if rsa_subscriber_reference is None or rsa_subscriber_reference.out_of_memory:
+        bytes_per_subscriber = None
+    else:
+        bytes_per_subscriber = rsa_subscriber_reference.mean(CIPHERTEXT_BYTES)
+
+    cpabe_low_encrypt = results.find_aggregation(
+        "Encrypt", CPABE_ATTRIBUTES, min_attributes
+    )
+    cpabe_high_encrypt = results.find_aggregation(
+        "Encrypt", CPABE_ATTRIBUTES, max_attributes
+    )
+    cpabe_encrypt_endpoints_available = all(
+        aggregation is not None and not aggregation.out_of_memory
+        for aggregation in (cpabe_low_encrypt, cpabe_high_encrypt)
+    )
+
+    if bytes_per_subscriber is not None and cpabe_encrypt_endpoints_available:
+        assert cpabe_low_encrypt is not None and cpabe_high_encrypt is not None
+        bytes_crossover_low = (
+            cpabe_low_encrypt.mean(CIPHERTEXT_BYTES) / bytes_per_subscriber
+        )
+        bytes_crossover_high = (
+            cpabe_high_encrypt.mean(CIPHERTEXT_BYTES) / bytes_per_subscriber
+        )
+    else:
+        bytes_crossover_low = None
+        bytes_crossover_high = None
+
+    encrypt_fit = fit_measurement(
+        results,
+        "Encrypt",
+        RSA_SUBSCRIBERS,
+        subscriber_counts,
+        NS_PER_OP,
+        NS_PER_MICROSECOND,
+    )
+    if encrypt_fit is not None and cpabe_encrypt_endpoints_available:
+        assert cpabe_low_encrypt is not None and cpabe_high_encrypt is not None
+        latency_crossover_low = encrypt_fit.solve_x_for_y(
+            cpabe_low_encrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND
+        )
+        latency_crossover_high = encrypt_fit.solve_x_for_y(
+            cpabe_high_encrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND
+        )
+    else:
+        latency_crossover_low = None
+        latency_crossover_high = None
+
     plot_cpabe_attribute_sweep(
         results,
         attribute_counts,
@@ -1674,54 +731,99 @@ def main() -> None:
         str(result_dir / RSA_KEY_BITS_PLOT),
     )
 
+    if bytes_crossover_low is not None and bytes_crossover_high is not None:
+        plot_ciphertext_size_crossover(
+            results,
+            attribute_counts,
+            subscriber_counts,
+            bytes_crossover_low,
+            bytes_crossover_high,
+            str(result_dir / CIPHERTEXT_SIZE_CROSSOVER_PLOT),
+        )
+        bandwidth_crossover_frame = f'<img src="{CIPHERTEXT_SIZE_CROSSOVER_PLOT}">'
+    else:
+        bandwidth_crossover_frame = MISSING_CASE_NOTE
+
+    if (
+        encrypt_fit is not None
+        and latency_crossover_low is not None
+        and latency_crossover_high is not None
+    ):
+        plot_encrypt_latency_crossover(
+            results,
+            attribute_counts,
+            subscriber_counts,
+            encrypt_fit,
+            latency_crossover_low,
+            latency_crossover_high,
+            str(result_dir / ENCRYPT_LATENCY_CROSSOVER_PLOT),
+        )
+        encrypt_crossover_frame = f'<img src="{ENCRYPT_LATENCY_CROSSOVER_PLOT}">'
+    else:
+        encrypt_crossover_frame = MISSING_CASE_NOTE
+
+    rsa_decrypt_aggregations = [
+        results.find_aggregation("Decrypt", RSA_KEY_BITS, rsa_key_bits)
+        for rsa_key_bits in rsa_key_sizes
+    ]
+    cpabe_decrypt_aggregations = [
+        results.find_aggregation("Decrypt", CPABE_ATTRIBUTES, attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    decrypt_crossover_available = any(
+        aggregation is not None and not aggregation.out_of_memory
+        for aggregation in rsa_decrypt_aggregations
+    ) and any(
+        aggregation is not None and not aggregation.out_of_memory
+        for aggregation in cpabe_decrypt_aggregations
+    )
+    if decrypt_crossover_available:
+        plot_decrypt_latency_crossover(
+            results,
+            attribute_counts,
+            rsa_key_sizes,
+            str(result_dir / DECRYPT_LATENCY_CROSSOVER_PLOT),
+        )
+        decrypt_crossover_frame = f'<img src="{DECRYPT_LATENCY_CROSSOVER_PLOT}">'
+    else:
+        decrypt_crossover_frame = MISSING_CASE_NOTE
+
+    asymmetry_aggregations = [
+        results.find_aggregation("Encrypt", RSA_KEY_BITS, fixed_rsa_key_bits),
+        results.find_aggregation("Decrypt", RSA_KEY_BITS, fixed_rsa_key_bits),
+        results.find_aggregation("Encrypt", CPABE_ATTRIBUTES, min_attributes),
+        results.find_aggregation("Decrypt", CPABE_ATTRIBUTES, min_attributes),
+    ]
+    asymmetry_available = all(
+        aggregation is not None and not aggregation.out_of_memory
+        for aggregation in asymmetry_aggregations
+    )
+    if asymmetry_available:
+        plot_encrypt_decrypt_asymmetry(
+            results,
+            attribute_counts,
+            fixed_rsa_key_bits,
+            str(result_dir / ASYMMETRY_PLOT),
+        )
+        asymmetry_frame = f'<img src="{ASYMMETRY_PLOT}">'
+    else:
+        asymmetry_frame = MISSING_CASE_NOTE
+
+    plot_peak_memory(
+        results,
+        attribute_counts,
+        subscriber_counts,
+        rsa_key_sizes,
+        fixed_rsa_key_bits,
+        str(result_dir / PEAK_MEMORY_PLOT),
+    )
+
     frames = {
-        "BandwidthCrossoverFrame": plot_frame(
-            plot_ciphertext_size_crossover(
-                results,
-                attribute_counts,
-                subscriber_counts,
-                str(result_dir / CIPHERTEXT_SIZE_CROSSOVER_PLOT),
-            ),
-            CIPHERTEXT_SIZE_CROSSOVER_PLOT,
-        ),
-        "EncryptCpuCrossoverFrame": plot_frame(
-            plot_encrypt_latency_crossover(
-                results,
-                attribute_counts,
-                subscriber_counts,
-                str(result_dir / ENCRYPT_LATENCY_CROSSOVER_PLOT),
-            ),
-            ENCRYPT_LATENCY_CROSSOVER_PLOT,
-        ),
-        "DecryptCpuCrossoverFrame": plot_frame(
-            plot_decrypt_latency_crossover(
-                results,
-                attribute_counts,
-                rsa_key_sizes,
-                str(result_dir / DECRYPT_LATENCY_CROSSOVER_PLOT),
-            ),
-            DECRYPT_LATENCY_CROSSOVER_PLOT,
-        ),
-        "AsymmetryFrame": plot_frame(
-            plot_encrypt_decrypt_asymmetry(
-                results,
-                attribute_counts,
-                fixed_rsa_key_bits,
-                str(result_dir / ASYMMETRY_PLOT),
-            ),
-            ASYMMETRY_PLOT,
-        ),
-        "PeakMemoryFrame": plot_frame(
-            plot_peak_memory(
-                results,
-                attribute_counts,
-                subscriber_counts,
-                rsa_key_sizes,
-                fixed_rsa_key_bits,
-                str(result_dir / PEAK_MEMORY_PLOT),
-            ),
-            PEAK_MEMORY_PLOT,
-        ),
+        "BandwidthCrossoverFrame": bandwidth_crossover_frame,
+        "EncryptCpuCrossoverFrame": encrypt_crossover_frame,
+        "DecryptCpuCrossoverFrame": decrypt_crossover_frame,
+        "AsymmetryFrame": asymmetry_frame,
+        "PeakMemoryFrame": f'<img src="{PEAK_MEMORY_PLOT}">',
     }
 
     write_html_report(
@@ -1731,6 +833,12 @@ def main() -> None:
         subscriber_counts,
         rsa_key_sizes,
         fixed_rsa_key_bits,
+        encrypt_fit,
+        bytes_per_subscriber,
+        bytes_crossover_low,
+        bytes_crossover_high,
+        latency_crossover_low,
+        latency_crossover_high,
         frames,
         str(template_path),
         str(report_path),

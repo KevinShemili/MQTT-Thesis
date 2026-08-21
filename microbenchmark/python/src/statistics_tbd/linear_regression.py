@@ -1,6 +1,6 @@
 import math
 
-import summary
+from statistics_tbd import summary
 
 
 # Result of fitting straight line to measured benchmark data

@@ -1,7 +1,7 @@
-from benchmark_summary import BenchmarkSummary
-from case_aggregation import CaseAggregation
-from case import Case
-from measurement import Measurement
+from model.benchmark_summary import BenchmarkSummary
+from model.case_aggregation import CaseAggregation
+from model.case import Case
+from model.measurement import Measurement
 
 
 # Populate a BenchmarkSummary from a Go benchmark output file
@@ -60,7 +60,6 @@ def load_results(
             # Create full object graph
             aggregation.cases.append(
                 Case(
-                    sample=len(aggregation.cases) + 1,
                     iterations=int(fields[1]),
                     measurements=measurements,
                 )

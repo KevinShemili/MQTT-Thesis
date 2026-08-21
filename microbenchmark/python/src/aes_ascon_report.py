@@ -4,7 +4,6 @@ from pathlib import Path
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
-from template_builder.color import *
 
 from model.benchmark_summary import *
 from model.measurement import *
@@ -12,71 +11,13 @@ from model.populate_model import *
 
 from config.environment import *
 
-from statistics_tbd.summary import *
-
 SCENARIO = "aes-ascon"
 HTML_TEMPLATE_NAME = "aes_ascon_template.html"
 
 LATENCY_PLOT = "plot.png"
 THROUGHPUT_PLOT = "throughput.png"
 
-ALGORITHMS = ["AES-GCM", "ASCON"]
-OPERATIONS = ["Encrypt", "Decrypt"]
-ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
-
 BENCHMARK_PREFIX = "BenchmarkAESASCON"
-
-
-def plot_metric(
-    summary: BenchmarkSummary,
-    payload_sizes: list[int],
-    measurement_name: str,
-    divisor: float,
-    title: str,
-    y_label: str,
-    output_path: str,
-) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(title, fontsize=13)
-
-    for axis, operation in zip(axes, OPERATIONS):
-        for algorithm in ALGORITHMS:
-            aggregations = [
-                summary.find_aggregation(operation, algorithm, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(measurement_name) / divisor
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(measurement_name) / divisor
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
-            draw_summary(
-                axis,
-                payload_sizes,
-                means,
-                confidence_intervals,
-                algorithm,
-                ALGORITHM_COLORS[algorithm],
-                with_ci=True,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel(y_label)
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 16 * KILOBYTE)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
 
 
 def build_table(
@@ -132,7 +73,6 @@ def write_html_report(
     placeholders = {
         **build_html_generic_data(
             runs,
-            get_student_t_critical_95(runs - 1),
             sum(aggregation.iterations for aggregation in results.aggregations),
         ),
         "EncryptAesTable": build_table(
@@ -169,24 +109,8 @@ def main() -> None:
     results = BenchmarkSummary()
     load_results(results, str(bench_output), BENCHMARK_PREFIX, "B")
 
-    plot_metric(
-        results,
-        payload_sizes,
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
-        "AES-GCM vs. ASCON: Latency vs. Payload Size",
-        "Latency (µs) ± 95% CI",
-        str(result_dir / LATENCY_PLOT),
-    )
-    plot_metric(
-        results,
-        payload_sizes,
-        MB_PER_SECOND,
-        1.0,
-        "AES-GCM vs. ASCON: Throughput vs. Payload Size",
-        "Throughput (MB/s) ± 95% CI",
-        str(result_dir / THROUGHPUT_PLOT),
-    )
+    plot_aes_ascon_latency(results, payload_sizes, str(result_dir / LATENCY_PLOT))
+    plot_aes_ascon_throughput(results, payload_sizes, str(result_dir / THROUGHPUT_PLOT))
 
     write_html_report(
         results, payload_sizes, runs, str(template_path), str(report_path)

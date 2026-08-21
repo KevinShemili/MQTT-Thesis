@@ -1,5 +1,5 @@
 from __future__ import annotations
-from measurement import Measurement
+from model.measurement import Measurement
 
 
 # Single repetition (1 out of N in -test.count = N)
@@ -7,11 +7,9 @@ class Case:
 
     def __init__(
         self,
-        sample: int,  # Preserve sample order
         iterations: int,  # Total iterations
         measurements: list[Measurement],  # List of measured values
     ) -> None:
-        self.sample = sample
         self.iterations = iterations
         self.measurements = measurements
 

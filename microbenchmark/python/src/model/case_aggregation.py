@@ -1,7 +1,7 @@
 from __future__ import annotations
-from case import Case
+from model.case import Case
 from statistics_tbd import summary
-from measurement import THROTTLED
+from model.measurement import THROTTLED
 
 
 # Aggregates multiple cases across independent runs
@@ -20,18 +20,6 @@ class CaseAggregation:
         self.parameter_value = parameter_value
         self.out_of_memory = is_out_of_memory
         self.cases = [] if cases is None else cases
-
-    # Across all cases, return all values for a given measurement name
-    def get_all_measurement_values(self, name: str) -> list[float]:
-
-        values = []
-
-        for case in self.cases:
-            measurement = case.find_measurement(name)
-            if measurement is not None:
-                values.append(measurement.value)
-
-        return values
 
     # Check if any case has a measurement with the given name
     def has_measurement(self, name: str) -> bool:
@@ -99,7 +87,14 @@ class CaseAggregation:
         if self.out_of_memory:
             self._reject_statistical_access()
 
-        return self.get_all_measurement_values(name)
+        values = []
+
+        for case in self.cases:
+            measurement = case.find_measurement(name)
+            if measurement is not None:
+                values.append(measurement.value)
+
+        return values
 
     def _reject_statistical_access(self) -> None:
         raise ValueError(

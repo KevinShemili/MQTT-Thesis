@@ -4,7 +4,6 @@ from pathlib import Path
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
-from template_builder.color import *
 
 from model.benchmark_summary import *
 from model.measurement import *
@@ -12,147 +11,13 @@ from model.populate_model import *
 
 from config.environment import *
 
-from statistics_tbd.summary import *
-
 SCENARIO = "json-cbor"
 HTML_TEMPLATE_NAME = "json_cbor_template.html"
 
 LATENCY_PLOT = "plot.png"
 SIZE_PLOT = "size.png"
 
-FORMATS = ["JSON", "CBOR", "CBORKeyAsInt"]
-OPERATIONS = ["Serialize", "Deserialize"]
-
-FORMAT_COLORS = {"JSON": AMBER, "CBOR": VIOLET, "CBORKeyAsInt": TEAL}
-FORMAT_LABELS = {"CBORKeyAsInt": "CBOR (int keys)"}
-
 BENCHMARK_PREFIX = "BenchmarkEnvelope"
-
-
-def configure_attribute_axis(attribute_counts: list[int], axis: Axes) -> None:
-    axis.set_xticks(attribute_counts)
-    apply_mesh_grid(axis)
-
-
-def plot_latency(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    output_path: str,
-) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(
-        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
-        fontsize=13,
-    )
-
-    for axis, operation in zip(axes, OPERATIONS):
-        for format_name in FORMATS:
-            aggregations = [
-                results.find_aggregation(operation, format_name, attribute_count)
-                for attribute_count in attribute_counts
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
-            draw_summary(
-                axis,
-                attribute_counts,
-                means,
-                confidence_intervals,
-                FORMAT_LABELS.get(format_name, format_name),
-                FORMAT_COLORS[format_name],
-                with_ci=True,
-            )
-
-        axis.set_title(operation.capitalize(), fontsize=11)
-        axis.set_xlabel("Attribute Count")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_attribute_axis(attribute_counts, axis)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-
-def plot_size(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    output_path: str,
-) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(
-        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Attribute Count",
-        fontsize=13,
-    )
-
-    for format_name in FORMATS:
-        label = FORMAT_LABELS.get(format_name, format_name)
-        color = FORMAT_COLORS[format_name]
-        aggregations = [
-            results.find_aggregation("Serialize", format_name, attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        assert all(aggregation is not None for aggregation in aggregations)
-
-        envelope_means = [
-            aggregation.mean(ENVELOPE_BYTES)
-            for aggregation in aggregations
-            if aggregation is not None
-        ]
-        envelope_cis = [
-            aggregation.confidence_interval(ENVELOPE_BYTES)
-            for aggregation in aggregations
-            if aggregation is not None
-        ]
-        raw_means = [
-            aggregation.mean(RAW_BYTES)
-            for aggregation in aggregations
-            if aggregation is not None
-        ]
-
-        draw_summary(
-            axes[0],
-            attribute_counts,
-            envelope_means,
-            envelope_cis,
-            label,
-            color,
-        )
-
-        axes[1].plot(
-            attribute_counts,
-            [envelope - raw for envelope, raw in zip(envelope_means, raw_means)],
-            label=label,
-            color=color,
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
-
-    for axis, title, y_label in (
-        (axes[0], "Absolute Size", "Envelope size (bytes)"),
-        (axes[1], "Format Tax", "Bytes added over raw payload"),
-    ):
-        axis.set_title(title, fontsize=11)
-        axis.set_xlabel("Attribute Count")
-        axis.set_ylabel(y_label)
-        axis.set_ylim(bottom=0)
-        configure_attribute_axis(attribute_counts, axis)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
 
 
 def build_table(
@@ -210,7 +75,6 @@ def write_html_report(
     placeholders = {
         **build_html_generic_data(
             runs,
-            get_student_t_critical_95(runs - 1),
             sum(aggregation.iterations for aggregation in results.aggregations),
         ),
         "SerializeJsonTable": build_table(
@@ -252,8 +116,8 @@ def main() -> None:
     results = BenchmarkSummary()
     load_results(results, str(bench_output), BENCHMARK_PREFIX, "Attrs")
 
-    plot_latency(results, attribute_counts, str(result_dir / LATENCY_PLOT))
-    plot_size(results, attribute_counts, str(result_dir / SIZE_PLOT))
+    plot_json_cbor_latency(results, attribute_counts, str(result_dir / LATENCY_PLOT))
+    plot_json_cbor_size(results, attribute_counts, str(result_dir / SIZE_PLOT))
     write_html_report(
         results, attribute_counts, runs, str(template_path), str(report_path)
     )

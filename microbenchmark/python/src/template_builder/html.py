@@ -1,5 +1,7 @@
 from typing import Sequence
 
+from statistics_tbd.summary import get_student_t_critical_95
+
 CONFIDENCE_LEVEL = "95%"
 
 # A row is marked where the Raspberry Pi firmware throttled the clock while that case was
@@ -101,14 +103,13 @@ def build_html_out_of_memory_notice(rows: Sequence[Sequence[str]]) -> str:
 # 3. iteration_total
 def build_html_generic_data(
     runs: int,
-    t_critical: float,
     iteration_total: int,
 ) -> dict[str, str]:
 
     return {
         "RunCount": str(runs),
         "ConfidenceLevel": CONFIDENCE_LEVEL,
-        "TMultiplier": str(t_critical),
+        "TMultiplier": str(get_student_t_critical_95(runs - 1)),
         "TotalIterations": f"{iteration_total:,}",
     }
 
