@@ -1,62 +1,29 @@
+import os
 import sys
+from pathlib import Path
 
-from reporting.benchmark import (
-    CIPHERTEXT_BYTES,
-    NS_PER_MICROSECOND,
-    NS_PER_MILLISECOND,
-    NS_PER_OP,
-    PEAK_RSS_BYTES,
-    STORED_KEY_BYTES,
-    TOTAL_CIPHERTEXT_BYTES,
-    BenchmarkSummary,
-    CaseSummary,
-    FeatureSweep,
-    Measurement,
-    OutOfMemoryCase,
-    load_out_of_memory_cases,
-    load_results,
-    throttle_flags,
-)
-from reporting.charts import (
-    AMBER,
-    AXIS_HEADROOM,
-    BLUE,
-    CRIMSON,
-    TEAL,
-    VIOLET,
-    Series,
-    mark_crossover,
-    apply_value_grid,
-    draw_constant,
-    draw_distribution,
-    draw_summary,
-    plt,
-    save_figure,
-    calculate_axis_top,
-)
-from reporting.environment import Config
-from reporting.formatting import (
-    MEGABYTE,
-    format_byte_size,
-    format_mean_with_ci,
-)
-from reporting.html import (
-    build_html_generic_data,
-    build_html_out_of_memory_notice,
-    build_html_report,
-    build_html_table,
-)
-from reporting.statistics import LinearFit, fit_linear_regression
+from template_builder.chart import *
+from template_builder.formatting import *
+from template_builder.html import *
+from template_builder.color import *
+
+from model.benchmark_summary import *
+from model.case_aggregation import *
+from model.case import *
+from model.measurement import *
+from model.populate_model import *
+
+from config.environment import *
+
+from statistics_tbd.summary import *
+from statistics_tbd.linear_regression import *
+
+NS_PER_MILLISECOND = 1000000.0
+NO_MEASUREMENT = float("nan")
 
 SCENARIO = "attribute-key-scaling"
-ENV_PREFIX = "ATTRIBUTE_KEY_SCALING"
 BENCHMARK_PREFIX = "BenchmarkAttributeKeyScaling"
 TEMPLATE_NAME = "attribute_key_scaling_template.html"
-
-# Peak memory is a separate experiment in a separate file, and its benchmarks are named
-# so that stripping this longer prefix leaves the same plain operations the timing
-# summary is keyed by
-MEMORY_PREFIX = BENCHMARK_PREFIX + "Memory"
 
 CPABE_PLOT = "cpabe_attributes.png"
 RSA_SUBSCRIBERS_PLOT = "rsa_subscribers.png"
@@ -71,66 +38,37 @@ CPABE_ATTRIBUTES = "CPABEAttributes"
 RSA_SUBSCRIBERS = "RSASubscribers"
 RSA_KEY_BITS = "RSAKeyBits"
 
-# CP-ABE key issuance is deliberately not measured by the benchmark, it is paid by the
-# trusted attribute authority and never by the constrained device, so only the RSA key
-# size sweep carries a key generation operation
-ENCRYPT_DECRYPT = ["encrypt", "decrypt"]
-ENCRYPT_DECRYPT_KEYGEN = ["encrypt", "decrypt", "keygen"]
+ENCRYPT_DECRYPT = ["Encrypt", "Decrypt"]
+ENCRYPT_DECRYPT_KEYGEN = ["Encrypt", "Decrypt", "KeyGen"]
 
-# The status file names an operation by the benchmark filtered into the process, while
-# the parsed timing summary uses lowercase operation names.
-TIMING_OPERATIONS = {"Encrypt": "encrypt", "Decrypt": "decrypt", "KeyGen": "keygen"}
-
-# The runtime floor is measured by a case of its own that restores nothing and performs
-# nothing, so it sweeps neither a group nor a value
 BASELINE_GROUP = "Runtime"
 BASELINE_SWEEP_VALUE = 0
 
-# The three sweeps the memory experiment covers, keyed by the group Go names them with:
-# the environment variable holding the values, the panel title, the axis label, the noun
-# its two ends are quoted in, and the operations that sweep actually measures.
-#
-# The subscriber sweep measures encrypt alone. Decrypt is the publisher's fan-out turned
-# around: a subscriber only ever unwraps its own session key, so there is nothing there
-# for a subscriber count to move
 MEMORY_SWEEPS = {
     CPABE_ATTRIBUTES: (
-        "ATTRIBUTE_COUNT",
         "CP-ABE",
         "Policy Attributes",
         "attributes",
-        ENCRYPT_DECRYPT,
+        ["MemoryEncrypt", "MemoryDecrypt"],
     ),
     RSA_SUBSCRIBERS: (
-        "SUBSCRIBER_COUNT",
         "RSA Subscribers",
         "Subscribers",
         "subscribers",
-        ["encrypt"],
+        ["MemoryEncrypt"],
     ),
     RSA_KEY_BITS: (
-        "RSA_KEY_SIZES",
         "RSA Key Size",
         "RSA Key Bits",
         "key bits",
-        ENCRYPT_DECRYPT,
+        ["MemoryEncrypt", "MemoryDecrypt"],
     ),
 }
 
-OPERATION_COLORS = {"encrypt": AMBER, "decrypt": VIOLET, "keygen": CRIMSON}
+OPERATION_COLORS = {"Encrypt": AMBER, "Decrypt": VIOLET, "KeyGen": CRIMSON}
 TOTAL_CIPHERTEXT_COLOR = TEAL
 
 RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
-
-CIPHERTEXT_SERIES = Series("encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER)
-TOTAL_CIPHERTEXT_SERIES = Series(
-    "encrypt", TOTAL_CIPHERTEXT_BYTES, "Ciphertext (TOTAL)", TOTAL_CIPHERTEXT_COLOR
-)
-
-# CP-ABE's stored key size is reported by the decrypt benchmark since its issuance is
-# not timed, whereas RSA's is reported by the key generation benchmark
-CPABE_STORED_KEY_SERIES = Series("decrypt", STORED_KEY_BYTES, "Private Key", CRIMSON)
-RSA_STORED_KEY_SERIES = Series("keygen", STORED_KEY_BYTES, "Private Key", CRIMSON)
 
 CIPHERTEXT_COLUMN = ("CIPHERTEXT", CIPHERTEXT_BYTES)
 TOTAL_CIPHERTEXT_COLUMN = ("CIPHERTEXT (TOTAL)", TOTAL_CIPHERTEXT_BYTES)
@@ -143,7 +81,6 @@ CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 ASYMMETRY_FIGURE_SIZE = (9, 5.5)
 PEAK_MEMORY_FIGURE_SIZE = (14, 4.6)
 
-# A straight line needs three points before its slope carries a confidence interval
 MINIMUM_FIT_POINTS = 3
 
 NOT_AVAILABLE = "&mdash;"
@@ -162,8 +99,21 @@ def format_attribute_label(attribute_count: int) -> str:
     return f"{attribute_count} ATTRIBUTES"
 
 
-# Whether every case these operations need at these sweep values survived. A comparison
-# resting on a case that did not is not a comparison
+def find_measured_aggregation(
+    results: BenchmarkSummary,
+    operation: str,
+    group: str,
+    sweep_value: int,
+) -> CaseAggregation | None:
+    aggregation = results.find_aggregation(operation, group, sweep_value)
+
+    if aggregation is None or aggregation.out_of_memory:
+        return None
+
+    return aggregation
+
+
+# Whether every case these operations need at these sweep values survived.
 def measured(
     results: BenchmarkSummary,
     operations: list[str],
@@ -172,7 +122,7 @@ def measured(
 ) -> bool:
 
     return all(
-        results.has_case(operation, group, sweep_value)
+        find_measured_aggregation(results, operation, group, sweep_value) is not None
         for operation in operations
         for sweep_value in sweep_values
     )
@@ -188,58 +138,88 @@ def plot_frame(drawn: bool, filename: str, note: str = MISSING_CASE_NOTE) -> str
     return f'<img src="{filename}">'
 
 
-# A line fitted through the points that were measured, or nothing where too few of them
-# survived to say anything about a trend
-def fit_sweep(series: FeatureSweep) -> LinearFit | None:
+def mean_with_confidence_interval(values: list[float]) -> tuple[float, float]:
+    if len(values) == 1:
+        return values[0], 0.0
 
-    measured_series = series.without_gaps()
+    return mean_and_confidence_interval(
+        values, get_student_t_critical_95(len(values) - 1)
+    )
 
-    if len(measured_series.sweep_values) < MINIMUM_FIT_POINTS:
+
+def scaled_values(
+    aggregation: CaseAggregation, measurement_name: str, divisor: float
+) -> list[float]:
+    return [
+        value / divisor
+        for value in aggregation.get_all_measurement_values(measurement_name)
+    ]
+
+
+def scaled_mean_and_ci(
+    aggregation: CaseAggregation, measurement_name: str, divisor: float
+) -> tuple[float, float]:
+    return mean_with_confidence_interval(
+        scaled_values(aggregation, measurement_name, divisor)
+    )
+
+
+def fit_measurement(
+    results: BenchmarkSummary,
+    operation: str,
+    group: str,
+    sweep_values: list[int],
+    measurement_name: str,
+    divisor: float = 1.0,
+) -> LinearRegression | None:
+    measured_x = []
+    measured_y = []
+
+    for sweep_value in sweep_values:
+        aggregation = find_measured_aggregation(results, operation, group, sweep_value)
+
+        if aggregation is None:
+            continue
+
+        measured_x.append(sweep_value)
+        measured_y.append(mean(scaled_values(aggregation, measurement_name, divisor)))
+
+    if len(measured_x) < MINIMUM_FIT_POINTS:
         return None
 
-    return fit_linear_regression(measured_series.sweep_values, measured_series.means)
+    return fit_linear_regression(measured_x, measured_y)
 
 
 # CP-ABE's cost as a straight line in the policy attribute count
 def fit_cpabe_slope(
     results: BenchmarkSummary,
-    config: Config,
+    attribute_counts: list[int],
     operation: str,
-    unit: str,
+    measurement_name: str,
     divisor: float = 1.0,
-) -> LinearFit | None:
-
-    return fit_sweep(
-        results.sweep_features(
-            operation,
-            CPABE_ATTRIBUTES,
-            config.integers("ATTRIBUTE_COUNT"),
-            unit,
-            divisor,
-        )
-    )
-
-
-def sweep_rsa_encrypt_micros(
-    results: BenchmarkSummary,
-    config: Config,
-) -> FeatureSweep:
-
-    return results.sweep_features(
-        "encrypt",
-        RSA_SUBSCRIBERS,
-        config.integers("SUBSCRIBER_COUNT"),
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
+) -> LinearRegression | None:
+    return fit_measurement(
+        results,
+        operation,
+        CPABE_ATTRIBUTES,
+        attribute_counts,
+        measurement_name,
+        divisor,
     )
 
 
 # RSA's publisher cost as a straight line in the subscriber count
 def fit_rsa_encrypt_slope(
-    results: BenchmarkSummary, config: Config
-) -> LinearFit | None:
-
-    return fit_sweep(sweep_rsa_encrypt_micros(results, config))
+    results: BenchmarkSummary, subscriber_counts: list[int]
+) -> LinearRegression | None:
+    return fit_measurement(
+        results,
+        "Encrypt",
+        RSA_SUBSCRIBERS,
+        subscriber_counts,
+        NS_PER_OP,
+        NS_PER_MICROSECOND,
+    )
 
 
 def cpabe_micros(
@@ -248,11 +228,11 @@ def cpabe_micros(
     attribute_count: int,
 ) -> float:
 
-    return (
-        results.get_case_summary(operation, CPABE_ATTRIBUTES, attribute_count)
-        .latency()
-        .mean
+    aggregation = find_measured_aggregation(
+        results, operation, CPABE_ATTRIBUTES, attribute_count
     )
+    assert aggregation is not None
+    return mean(scaled_values(aggregation, NS_PER_OP, NS_PER_MICROSECOND))
 
 
 # Decrypt does not depend on how many subscribers there are, a subscriber only ever
@@ -261,52 +241,48 @@ def cpabe_micros(
 # fixed key size, which is the same operation on the same key actually performed
 def fixed_rsa_decrypt(
     summary: BenchmarkSummary,
-    config: Config,
+    operation: str,
+    fixed_rsa_key_bits: int,
     feature_name: str,
-    divisor: float = 1.0,
-) -> Measurement | None:
+) -> CaseAggregation | None:
+    aggregation = find_measured_aggregation(
+        summary, operation, RSA_KEY_BITS, fixed_rsa_key_bits
+    )
 
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
-
-    if not summary.has_case("decrypt", RSA_KEY_BITS, fixed_rsa_key_bits):
+    if aggregation is None or not aggregation.has_measurement(feature_name):
         return None
 
-    case = summary.get_case_summary("decrypt", RSA_KEY_BITS, fixed_rsa_key_bits)
-
-    if feature_name not in case.features:
-        return None
-
-    return case.get_feature(feature_name).scale_unit(divisor)
+    return aggregation
 
 
 # The resident cost of the runtime with nothing restored and nothing performed, which is
 # the floor every case of the memory experiment was measured on top of
-def baseline_rss(memory: BenchmarkSummary) -> Measurement:
-    return (
-        memory.get_case_summary("baseline", BASELINE_GROUP, BASELINE_SWEEP_VALUE)
-        .get_feature(PEAK_RSS_BYTES)
-        .scale_unit(MEGABYTE)
+def baseline_rss(results: BenchmarkSummary) -> CaseAggregation:
+    aggregation = find_measured_aggregation(
+        results, "MemoryBaseline", BASELINE_GROUP, BASELINE_SWEEP_VALUE
     )
+    assert aggregation is not None
+    return aggregation
 
 
 def cpabe_ciphertext_bytes(results: BenchmarkSummary, attribute_count: int) -> float:
-    return (
-        results.get_case_summary("encrypt", CPABE_ATTRIBUTES, attribute_count)
-        .get_feature(CIPHERTEXT_BYTES)
-        .mean
+    aggregation = find_measured_aggregation(
+        results, "Encrypt", CPABE_ATTRIBUTES, attribute_count
     )
+    assert aggregation is not None
+    return aggregation.mean(CIPHERTEXT_BYTES)
 
 
 # One wrapped session key is the same size at every subscriber count, and RSA's total
 # ciphertext grows by exactly that much per additional subscriber
-def rsa_bytes_per_subscriber(results: BenchmarkSummary, config: Config) -> float:
-    return (
-        results.get_case_summary(
-            "encrypt", RSA_SUBSCRIBERS, config.integers("SUBSCRIBER_COUNT")[0]
-        )
-        .get_feature(CIPHERTEXT_BYTES)
-        .mean
+def rsa_bytes_per_subscriber(
+    results: BenchmarkSummary, subscriber_counts: list[int]
+) -> float:
+    aggregation = find_measured_aggregation(
+        results, "Encrypt", RSA_SUBSCRIBERS, subscriber_counts[0]
     )
+    assert aggregation is not None
+    return aggregation.mean(CIPHERTEXT_BYTES)
 
 
 def plot_sweep(
@@ -314,17 +290,16 @@ def plot_sweep(
     sweep_name: str,
     sweep_values: list[int],
     sweep_operations: list[str],
-    size_series: tuple[Series, ...],
     x_label: str,
     figure_title: str,
     output_path: str,
-    reference_latency: Measurement | None = None,
+    reference_latency: CaseAggregation | None = None,
     reference_label: str = "",
 ) -> None:
 
     # Key generation is orders of magnitude slower than encrypt and decrypt, so it gets
     # its own panel wherever the sweep measures it
-    keygen_on_own_axis = "keygen" in sweep_operations
+    keygen_on_own_axis = "KeyGen" in sweep_operations
 
     if keygen_on_own_axis:
         figure = plt.figure(figsize=(13, 7))
@@ -355,22 +330,67 @@ def plot_sweep(
         # Key generation is a probabilistic prime search, so its samples are skewed with
         # a long right tail and a mean would hide it. It is drawn as a distribution, in
         # milliseconds because it is far slower than the operations it sits above
-        if operation == "keygen":
+        aggregations = [
+            results.find_aggregation(operation, sweep_name, sweep_value)
+            for sweep_value in sweep_values
+        ]
+
+        if operation == "KeyGen":
+            medians = []
+            minimums = []
+            maximums = []
+            first_quartiles = []
+            third_quartiles = []
+
+            for aggregation in aggregations:
+                if aggregation is None or aggregation.out_of_memory:
+                    medians.append(NO_MEASUREMENT)
+                    minimums.append(NO_MEASUREMENT)
+                    maximums.append(NO_MEASUREMENT)
+                    first_quartiles.append(NO_MEASUREMENT)
+                    third_quartiles.append(NO_MEASUREMENT)
+                    continue
+
+                values = scaled_values(aggregation, NS_PER_OP, NS_PER_MILLISECOND)
+                medians.append(median(values))
+                minimums.append(min(values))
+                maximums.append(max(values))
+                first_quartiles.append(percentile(values, 0.25))
+                third_quartiles.append(percentile(values, 0.75))
+
             draw_distribution(
                 keygen_latency_axis,
-                results.sweep_features(
-                    operation, sweep_name, sweep_values, NS_PER_OP, NS_PER_MILLISECOND
-                ),
+                sweep_values,
+                medians,
+                minimums,
+                maximums,
+                first_quartiles,
+                third_quartiles,
                 "Keygen",
                 OPERATION_COLORS[operation],
             )
             continue
 
+        means = []
+        confidence_intervals = []
+
+        for aggregation in aggregations:
+            if aggregation is None or aggregation.out_of_memory:
+                means.append(NO_MEASUREMENT)
+                confidence_intervals.append(NO_MEASUREMENT)
+                continue
+
+            mean_value, ci = scaled_mean_and_ci(
+                aggregation, NS_PER_OP, NS_PER_MICROSECOND
+            )
+            means.append(mean_value)
+            confidence_intervals.append(ci)
+
         draw_summary(
             latency_axis,
-            results.sweep_features(
-                operation, sweep_name, sweep_values, NS_PER_OP, NS_PER_MICROSECOND
-            ),
+            sweep_values,
+            means,
+            confidence_intervals,
             operation.capitalize(),
             OPERATION_COLORS[operation],
             with_ci=True,
@@ -378,12 +398,15 @@ def plot_sweep(
 
     # An operation this sweep does not move, quoted from where it was measured
     if reference_latency is not None:
+        reference_mean, _ = scaled_mean_and_ci(
+            reference_latency, NS_PER_OP, NS_PER_MICROSECOND
+        )
         draw_constant(
             latency_axis,
-            reference_latency.mean,
+            reference_mean,
             sweep_values,
             reference_label,
-            OPERATION_COLORS["decrypt"],
+            OPERATION_COLORS["Decrypt"],
         )
 
     if keygen_on_own_axis:
@@ -410,8 +433,56 @@ def plot_sweep(
     apply_value_grid(latency_axis)
     latency_axis.legend(fontsize=10)
 
-    for size in size_series:
-        size.draw(size_axis, results, sweep_name, sweep_values)
+    if sweep_name == CPABE_ATTRIBUTES:
+        size_measurements = (
+            ("Encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER),
+            ("Decrypt", STORED_KEY_BYTES, "Private Key", CRIMSON),
+        )
+    elif sweep_name == RSA_SUBSCRIBERS:
+        size_measurements = (
+            ("Encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER),
+            (
+                "Encrypt",
+                TOTAL_CIPHERTEXT_BYTES,
+                "Ciphertext (TOTAL)",
+                TOTAL_CIPHERTEXT_COLOR,
+            ),
+        )
+    else:
+        size_measurements = (
+            ("Encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER),
+            ("KeyGen", STORED_KEY_BYTES, "Private Key", CRIMSON),
+        )
+
+    for operation, measurement_name, label, color in size_measurements:
+        aggregations = [
+            results.find_aggregation(operation, sweep_name, sweep_value)
+            for sweep_value in sweep_values
+        ]
+        means = [
+            (
+                NO_MEASUREMENT
+                if aggregation is None or aggregation.out_of_memory
+                else aggregation.mean(measurement_name)
+            )
+            for aggregation in aggregations
+        ]
+        confidence_intervals = [
+            (
+                NO_MEASUREMENT
+                if aggregation is None or aggregation.out_of_memory
+                else aggregation.confidence_interval(measurement_name)
+            )
+            for aggregation in aggregations
+        ]
+        draw_summary(
+            size_axis,
+            sweep_values,
+            means,
+            confidence_intervals,
+            label,
+            color,
+        )
 
     size_axis.set_title("Sizes", fontsize=11)
     size_axis.set_ylabel("Size (bytes)")
@@ -431,26 +502,47 @@ def plot_sweep(
 
 # Peak resident memory of one isolated operation across the three sweeps. The panels
 # share a vertical axis so the three can be read against one another directly
-def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
-
+def plot_peak_memory(
+    results: BenchmarkSummary,
+    attribute_counts: list[int],
+    subscriber_counts: list[int],
+    rsa_key_sizes: list[int],
+    fixed_rsa_key_bits: int,
+    output_path: str,
+) -> bool:
     figure, axes = plt.subplots(1, 3, figsize=PEAK_MEMORY_FIGURE_SIZE, sharey=True)
     figure.suptitle("Peak Process Memory of a Single Operation", fontsize=13)
 
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
-
     for axis, (group, sweep) in zip(axes, MEMORY_SWEEPS.items()):
+        panel_title, x_label, _, operations = sweep
 
-        environment_name, panel_title, x_label, _, operations = sweep
-        sweep_values = config.integers(environment_name)
+        if group == CPABE_ATTRIBUTES:
+            sweep_values = attribute_counts
+        elif group == RSA_SUBSCRIBERS:
+            sweep_values = subscriber_counts
+        else:
+            sweep_values = rsa_key_sizes
 
         for operation in operations:
+            aggregations = [
+                results.find_aggregation(operation, group, sweep_value)
+                for sweep_value in sweep_values
+            ]
+            statistics = [
+                scaled_mean_and_ci(aggregation, PEAK_RSS_BYTES, MEGABYTE)
+                for aggregation in aggregations
+                if aggregation is not None
+            ]
+            label = operation.removeprefix("Memory")
+            color = AMBER if operation == "MemoryEncrypt" else VIOLET
+
             draw_summary(
                 axis,
-                memory.sweep_features(
-                    operation, group, sweep_values, PEAK_RSS_BYTES, MEGABYTE
-                ),
-                operation.capitalize(),
-                OPERATION_COLORS[operation],
+                sweep_values,
+                [mean_value for mean_value, _ in statistics],
+                [ci for _, ci in statistics],
+                label,
+                color,
                 with_ci=True,
             )
 
@@ -458,17 +550,22 @@ def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
         # the reading of the operation it did not sweep rather than an empty half-panel
         decrypt_reference = (
             None
-            if "decrypt" in operations
-            else fixed_rsa_decrypt(memory, config, PEAK_RSS_BYTES, MEGABYTE)
+            if "MemoryDecrypt" in operations
+            else fixed_rsa_decrypt(
+                results, "MemoryDecrypt", fixed_rsa_key_bits, PEAK_RSS_BYTES
+            )
         )
 
         if decrypt_reference is not None:
+            reference_mean, _ = scaled_mean_and_ci(
+                decrypt_reference, PEAK_RSS_BYTES, MEGABYTE
+            )
             draw_constant(
                 axis,
-                decrypt_reference.mean,
+                reference_mean,
                 sweep_values,
                 f"Decrypt (RSA-{fixed_rsa_key_bits})",
-                OPERATION_COLORS["decrypt"],
+                VIOLET,
             )
 
         axis.set_title(panel_title, fontsize=11)
@@ -484,7 +581,7 @@ def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
     axes[0].set_ylabel("Peak RSS (MB) ± 95% CI")
 
     figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
-    save_figure(figure, config.figure(PEAK_MEMORY_PLOT))
+    save_figure(figure, output_path)
 
     return True
 
@@ -492,35 +589,49 @@ def plot_peak_memory(memory: BenchmarkSummary, config: Config) -> bool:
 # Where RSA's per-subscriber ciphertext growth overtakes CP-ABE's fixed ciphertext
 def plot_ciphertext_size_crossover(
     results: BenchmarkSummary,
-    config: Config,
+    attribute_counts: list[int],
+    subscriber_counts: list[int],
+    output_path: str,
 ) -> bool:
-
-    attribute_counts = config.integers("ATTRIBUTE_COUNT")
-    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
-
     if not measured(
-        results, ["encrypt"], RSA_SUBSCRIBERS, [subscriber_counts[0]]
+        results, ["Encrypt"], RSA_SUBSCRIBERS, [subscriber_counts[0]]
     ) or not measured(
         results,
-        ["encrypt"],
+        ["Encrypt"],
         CPABE_ATTRIBUTES,
         [attribute_counts[0], attribute_counts[-1]],
     ):
         return False
 
-    bytes_per_subscriber = rsa_bytes_per_subscriber(results, config)
+    bytes_per_subscriber = rsa_bytes_per_subscriber(results, subscriber_counts)
     x_limit = subscriber_counts[-1]
 
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
+    rsa_aggregations = [
+        find_measured_aggregation(results, "Encrypt", RSA_SUBSCRIBERS, count)
+        for count in subscriber_counts
+    ]
+
     draw_summary(
         axis,
-        results.sweep_features(
-            "encrypt",
-            RSA_SUBSCRIBERS,
-            subscriber_counts,
-            TOTAL_CIPHERTEXT_BYTES,
-        ),
+        subscriber_counts,
+        [
+            (
+                NO_MEASUREMENT
+                if aggregation is None
+                else aggregation.mean(TOTAL_CIPHERTEXT_BYTES)
+            )
+            for aggregation in rsa_aggregations
+        ],
+        [
+            (
+                NO_MEASUREMENT
+                if aggregation is None
+                else aggregation.confidence_interval(TOTAL_CIPHERTEXT_BYTES)
+            )
+            for aggregation in rsa_aggregations
+        ],
         "RSA Scaling Subs",
         TOTAL_CIPHERTEXT_COLOR,
     )
@@ -558,7 +669,7 @@ def plot_ciphertext_size_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.figure(CIPHERTEXT_SIZE_CROSSOVER_PLOT))
+    save_figure(figure, output_path)
 
     return True
 
@@ -566,17 +677,15 @@ def plot_ciphertext_size_crossover(
 # Where RSA's per-subscriber encrypt cost overtakes CP-ABE's fixed encrypt cost
 def plot_encrypt_latency_crossover(
     results: BenchmarkSummary,
-    config: Config,
+    attribute_counts: list[int],
+    subscriber_counts: list[int],
+    output_path: str,
 ) -> bool:
-
-    attribute_counts = config.integers("ATTRIBUTE_COUNT")
-    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
-
-    encrypt_fit = fit_rsa_encrypt_slope(results, config)
+    encrypt_fit = fit_rsa_encrypt_slope(results, subscriber_counts)
 
     if encrypt_fit is None or not measured(
         results,
-        ["encrypt"],
+        ["Encrypt"],
         CPABE_ATTRIBUTES,
         [attribute_counts[0], attribute_counts[-1]],
     ):
@@ -585,7 +694,7 @@ def plot_encrypt_latency_crossover(
     # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
     x_limit = (
         encrypt_fit.solve_x_for_y(
-            cpabe_micros(results, "encrypt", attribute_counts[-1])
+            cpabe_micros(results, "Encrypt", attribute_counts[-1])
         )
         * 1.15
     )
@@ -607,9 +716,24 @@ def plot_encrypt_latency_crossover(
         label="RSA Linear Fit (Projected Beyond Sample)",
     )
 
+    rsa_aggregations = [
+        find_measured_aggregation(results, "Encrypt", RSA_SUBSCRIBERS, count)
+        for count in subscriber_counts
+    ]
+    rsa_statistics = [
+        (
+            (NO_MEASUREMENT, NO_MEASUREMENT)
+            if aggregation is None
+            else scaled_mean_and_ci(aggregation, NS_PER_OP, NS_PER_MICROSECOND)
+        )
+        for aggregation in rsa_aggregations
+    ]
+
     draw_summary(
         axis,
-        sweep_rsa_encrypt_micros(results, config),
+        subscriber_counts,
+        [mean_value for mean_value, _ in rsa_statistics],
+        [ci for _, ci in rsa_statistics],
         "RSA Scaling Subs (Measured)",
         TOTAL_CIPHERTEXT_COLOR,
         linewidth=2.6,
@@ -621,7 +745,7 @@ def plot_encrypt_latency_crossover(
         (attribute_counts[0], AMBER),
         (attribute_counts[-1], CRIMSON),
     ):
-        level = cpabe_micros(results, "encrypt", attribute_count)
+        level = cpabe_micros(results, "Encrypt", attribute_count)
 
         axis.hlines(
             level,
@@ -646,50 +770,72 @@ def plot_encrypt_latency_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.figure(ENCRYPT_LATENCY_CROSSOVER_PLOT))
+    save_figure(figure, output_path)
 
     return True
 
 
 def plot_decrypt_latency_crossover(
     results: BenchmarkSummary,
-    config: Config,
+    attribute_counts: list[int],
+    rsa_key_sizes: list[int],
+    output_path: str,
 ) -> bool:
-
-    attribute_counts = config.integers("ATTRIBUTE_COUNT")
     rsa_key_bits_values = [
         rsa_key_bits
-        for rsa_key_bits in config.integers("RSA_KEY_SIZES")
-        if results.has_case("decrypt", RSA_KEY_BITS, rsa_key_bits)
+        for rsa_key_bits in rsa_key_sizes
+        if find_measured_aggregation(results, "Decrypt", RSA_KEY_BITS, rsa_key_bits)
+        is not None
     ]
 
-    cpabe_series = results.sweep_features(
-        "decrypt",
-        CPABE_ATTRIBUTES,
-        attribute_counts,
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
-    )
+    cpabe_aggregations = [
+        find_measured_aggregation(results, "Decrypt", CPABE_ATTRIBUTES, attribute_count)
+        for attribute_count in attribute_counts
+    ]
 
-    if not rsa_key_bits_values or not cpabe_series.without_gaps().sweep_values:
+    if not rsa_key_bits_values or not any(cpabe_aggregations):
         return False
+
+    cpabe_statistics = [
+        (
+            (NO_MEASUREMENT, NO_MEASUREMENT)
+            if aggregation is None
+            else scaled_mean_and_ci(aggregation, NS_PER_OP, NS_PER_MICROSECOND)
+        )
+        for aggregation in cpabe_aggregations
+    ]
+    cpabe_means = [mean_value for mean_value, _ in cpabe_statistics]
+    cpabe_cis = [ci for _, ci in cpabe_statistics]
 
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
-    draw_summary(axis, cpabe_series, "CP-ABE", VIOLET, with_ci=True, linewidth=2.0)
+    draw_summary(
+        axis,
+        attribute_counts,
+        cpabe_means,
+        cpabe_cis,
+        "CP-ABE",
+        VIOLET,
+        with_ci=True,
+        linewidth=2.0,
+    )
 
-    largest_value = calculate_axis_top([cpabe_series])
+    largest_value = calculate_axis_top(cpabe_means, cpabe_cis)
 
     for index, rsa_key_bits in enumerate(rsa_key_bits_values):
 
-        rsa_latency = results.get_case_summary(
-            "decrypt", RSA_KEY_BITS, rsa_key_bits
-        ).latency()
+        rsa_aggregation = find_measured_aggregation(
+            results, "Decrypt", RSA_KEY_BITS, rsa_key_bits
+        )
+        assert rsa_aggregation is not None
+        rsa_mean, rsa_ci = scaled_mean_and_ci(
+            rsa_aggregation, NS_PER_OP, NS_PER_MICROSECOND
+        )
 
         rsa_color = RSA_KEY_BITS_COLORS[index % len(RSA_KEY_BITS_COLORS)]
 
         axis.hlines(
-            rsa_latency.mean,
+            rsa_mean,
             attribute_counts[0],
             attribute_counts[-1],
             color=rsa_color,
@@ -700,14 +846,14 @@ def plot_decrypt_latency_crossover(
 
         axis.errorbar(
             [attribute_counts[-1]],
-            [rsa_latency.mean],
-            yerr=[rsa_latency.ci],
+            [rsa_mean],
+            yerr=[rsa_ci],
             color=rsa_color,
             fmt="none",
             capsize=4,
         )
 
-        largest_value = max(largest_value, rsa_latency.mean + rsa_latency.ci)
+        largest_value = max(largest_value, rsa_mean + rsa_ci)
 
     axis.set_xticks(attribute_counts)
     axis.set_xlim(0.0, float(attribute_counts[-1]) * AXIS_HEADROOM)
@@ -718,18 +864,18 @@ def plot_decrypt_latency_crossover(
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
-    save_figure(figure, config.figure(DECRYPT_LATENCY_CROSSOVER_PLOT))
+    save_figure(figure, output_path)
 
     return True
 
 
 def plot_encrypt_decrypt_asymmetry(
     results: BenchmarkSummary,
-    config: Config,
+    attribute_counts: list[int],
+    fixed_rsa_key_bits: int,
+    output_path: str,
 ) -> bool:
-
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
-    min_attributes = config.integers("ATTRIBUTE_COUNT")[0]
+    min_attributes = attribute_counts[0]
 
     if not measured(
         results, ENCRYPT_DECRYPT, RSA_KEY_BITS, [fixed_rsa_key_bits]
@@ -737,23 +883,23 @@ def plot_encrypt_decrypt_asymmetry(
         return False
 
     def rsa_micros(operation: str) -> float:
-        return (
-            results.get_case_summary(operation, RSA_KEY_BITS, fixed_rsa_key_bits)
-            .latency()
-            .mean
+        aggregation = find_measured_aggregation(
+            results, operation, RSA_KEY_BITS, fixed_rsa_key_bits
         )
+        assert aggregation is not None
+        return mean(scaled_values(aggregation, NS_PER_OP, NS_PER_MICROSECOND))
 
     scheme_labels = [
         f"RSA-{fixed_rsa_key_bits}",
         f"CP-ABE ({format_attribute_label(min_attributes)})",
     ]
     encrypt_values = [
-        rsa_micros("encrypt"),
-        cpabe_micros(results, "encrypt", min_attributes),
+        rsa_micros("Encrypt"),
+        cpabe_micros(results, "Encrypt", min_attributes),
     ]
     decrypt_values = [
-        rsa_micros("decrypt"),
-        cpabe_micros(results, "decrypt", min_attributes),
+        rsa_micros("Decrypt"),
+        cpabe_micros(results, "Decrypt", min_attributes),
     ]
 
     figure, axis = plt.subplots(figsize=ASYMMETRY_FIGURE_SIZE)
@@ -819,14 +965,14 @@ def plot_encrypt_decrypt_asymmetry(
     axis.legend(loc="upper center", ncol=2, frameon=False, fontsize=10)
 
     figure.tight_layout()
-    save_figure(figure, config.figure(ASYMMETRY_PLOT))
+    save_figure(figure, output_path)
 
     return True
 
 
 def build_latency_table(
     results: BenchmarkSummary,
-    config: Config,
+    runs: int,
     sweep_name: str,
     sweep_values: list[int],
     operation: str,
@@ -836,34 +982,33 @@ def build_latency_table(
 ) -> str:
 
     rows = []
-    cases: list[CaseSummary | None] = []
 
     for sweep_value in sweep_values:
 
         # The sweep value was configured and attempted, so it keeps its row. What the
         # process managed to print before it died is not a measurement of it
-        if not results.has_case(operation, sweep_name, sweep_value):
-            cases.append(None)
+        aggregation = results.find_aggregation(operation, sweep_name, sweep_value)
+
+        if aggregation is None or aggregation.out_of_memory:
             rows.append(
                 [str(sweep_value), OUT_OF_MEMORY]
                 + [NOT_AVAILABLE] * (len(size_columns) + 1)
             )
             continue
 
-        case = results.get_case_summary(operation, sweep_name, sweep_value)
-        cases.append(case)
-
-        latency = case.latency()
+        latency_mean, latency_ci = scaled_mean_and_ci(
+            aggregation, NS_PER_OP, NS_PER_MICROSECOND
+        )
 
         rows.append(
             [
                 str(sweep_value),
-                format_mean_with_ci(latency.mean, latency.ci),
+                format_mean_with_ci(latency_mean, latency_ci),
                 *[
-                    format_byte_size(round(case.get_feature(unit).mean))
-                    for _, unit in size_columns
+                    format_byte_size(round(aggregation.mean(measurement_name)))
+                    for _, measurement_name in size_columns
                 ],
-                f"{case.iterations:,}",
+                f"{aggregation.iterations:,}",
             ]
         )
 
@@ -872,10 +1017,10 @@ def build_latency_table(
             value_header.upper(),
             "LATENCY (µs/op)",
             *[header for header, _ in size_columns],
-            f"ITERS (Σ{config.runs} RUNS)",
+            f"ITERS (Σ{runs} RUNS)",
         ],
         rows,
-        throttle_flags(cases),
+        results.get_throttle_flags(operation, sweep_name, sweep_values),
         thermal_header="THERMAL",
         highlighted=[sweep_value == highlight_value for sweep_value in sweep_values],
     )
@@ -885,32 +1030,30 @@ def build_latency_table(
 # generation, so each run contributes one sample and the column n is that sample count.
 # The spread between min and max is the point, a single averaged figure would not be
 # representative of a probabilistic prime search
-def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
+def build_keygen_table(results: BenchmarkSummary, rsa_key_sizes: list[int]) -> str:
 
     rows = []
-    cases: list[CaseSummary | None] = []
 
-    for rsa_key_bits in config.integers("RSA_KEY_SIZES"):
+    for rsa_key_bits in rsa_key_sizes:
+        aggregation = results.find_aggregation("KeyGen", RSA_KEY_BITS, rsa_key_bits)
 
-        if not results.has_case("keygen", RSA_KEY_BITS, rsa_key_bits):
-            cases.append(None)
+        if aggregation is None or aggregation.out_of_memory:
             rows.append([str(rsa_key_bits), OUT_OF_MEMORY] + [NOT_AVAILABLE] * 5)
             continue
 
-        case = results.get_case_summary("keygen", RSA_KEY_BITS, rsa_key_bits)
-        cases.append(case)
-
-        latency = case.latency(NS_PER_MILLISECOND)
+        latency = scaled_values(aggregation, NS_PER_OP, NS_PER_MILLISECOND)
+        first_quartile = percentile(latency, 0.25)
+        third_quartile = percentile(latency, 0.75)
 
         rows.append(
             [
                 str(rsa_key_bits),
-                f"{latency.median:,.2f}",
-                f"{latency.minimum:,.2f}",
-                f"{latency.maximum:,.2f}",
-                f"{latency.iqr:,.2f}",
-                format_byte_size(round(case.get_feature(STORED_KEY_BYTES).mean)),
-                str(latency.count),
+                f"{median(latency):,.2f}",
+                f"{min(latency):,.2f}",
+                f"{max(latency):,.2f}",
+                f"{third_quartile - first_quartile:,.2f}",
+                format_byte_size(round(aggregation.mean(STORED_KEY_BYTES))),
+                str(len(latency)),
             ]
         )
 
@@ -925,7 +1068,7 @@ def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
             "n",
         ],
         rows,
-        throttle_flags(cases),
+        results.get_throttle_flags("KeyGen", RSA_KEY_BITS, rsa_key_sizes),
         thermal_header="THERMAL",
     )
 
@@ -934,51 +1077,57 @@ def build_keygen_table(results: BenchmarkSummary, config: Config) -> str:
 # keep the same columns so they can be read against one another, and the column a sweep
 # did not measure carries the reading of that operation from where it was measured
 def build_peak_memory_table(
-    memory: BenchmarkSummary,
-    config: Config,
+    results: BenchmarkSummary,
     group: str,
+    sweep_values: list[int],
+    fixed_rsa_key_bits: int,
     value_header: str,
 ) -> str:
-
-    environment_name, _, _, _, operations = MEMORY_SWEEPS[group]
+    _, _, _, operations = MEMORY_SWEEPS[group]
 
     decrypt_reference = (
         None
-        if "decrypt" in operations
-        else fixed_rsa_decrypt(memory, config, PEAK_RSS_BYTES, MEGABYTE)
+        if "MemoryDecrypt" in operations
+        else fixed_rsa_decrypt(
+            results, "MemoryDecrypt", fixed_rsa_key_bits, PEAK_RSS_BYTES
+        )
     )
 
     rows = []
 
-    for sweep_value in config.integers(environment_name):
+    for sweep_value in sweep_values:
 
         row = [str(sweep_value)]
         sample_count = NOT_AVAILABLE
 
         for operation in ENCRYPT_DECRYPT:
+            memory_operation = f"Memory{operation}"
 
-            if operation not in operations:
+            if memory_operation not in operations:
+                reference_statistics = (
+                    None
+                    if decrypt_reference is None
+                    else scaled_mean_and_ci(decrypt_reference, PEAK_RSS_BYTES, MEGABYTE)
+                )
                 row.append(
                     NOT_AVAILABLE
-                    if decrypt_reference is None
+                    if reference_statistics is None
                     else format_mean_with_ci(
-                        decrypt_reference.mean, decrypt_reference.ci
+                        reference_statistics[0], reference_statistics[1]
                     )
                 )
                 continue
 
-            # Megabytes rather than the size the reading asks for, so that an interval can
-            # be quoted beside a figure in the same unit
-            peak = (
-                memory.get_case_summary(operation, group, sweep_value)
-                .get_feature(PEAK_RSS_BYTES)
-                .scale_unit(MEGABYTE)
+            aggregation = results.find_aggregation(memory_operation, group, sweep_value)
+            assert aggregation is not None
+            peak_mean, peak_ci = scaled_mean_and_ci(
+                aggregation, PEAK_RSS_BYTES, MEGABYTE
             )
 
-            row.append(format_mean_with_ci(peak.mean, peak.ci))
+            row.append(format_mean_with_ci(peak_mean, peak_ci))
 
             # Counted from what this sweep measured, never from a borrowed reading
-            sample_count = str(peak.count)
+            sample_count = str(aggregation.get_sample_count(PEAK_RSS_BYTES))
 
         rows.append(row + [sample_count])
 
@@ -990,22 +1139,24 @@ def build_peak_memory_table(
 # The change across the two ends of each sweep. Peak memory is a runtime floor plus
 # whatever an operation had to touch, not a quantity that follows a slope, so the two ends
 # are quoted as they were measured and nothing is fitted through what lies between them
-def build_peak_memory_deltas(memory: BenchmarkSummary, config: Config) -> str:
+def build_peak_memory_deltas(
+    results: BenchmarkSummary,
+    attribute_counts: list[int],
+    subscriber_counts: list[int],
+    rsa_key_sizes: list[int],
+) -> str:
 
     def peak_megabytes(group: str, operation: str, sweep_value: int) -> float:
-        return (
-            memory.get_case_summary(operation, group, sweep_value)
-            .get_feature(PEAK_RSS_BYTES)
-            .scale_unit(MEGABYTE)
-            .mean
-        )
+        aggregation = find_measured_aggregation(results, operation, group, sweep_value)
+        assert aggregation is not None
+        return mean(scaled_values(aggregation, PEAK_RSS_BYTES, MEGABYTE))
 
     # The ends are the ones the experiment was configured with. If either did not complete
     # there is no such change, and the ends that did survive are not a substitute for it
     def endpoints_change(group: str, operation: str, sweep_values: list[int]) -> str:
 
         if not measured(
-            memory, [operation], group, [sweep_values[0], sweep_values[-1]]
+            results, [operation], group, [sweep_values[0], sweep_values[-1]]
         ):
             return NOT_AVAILABLE
 
@@ -1021,8 +1172,14 @@ def build_peak_memory_deltas(memory: BenchmarkSummary, config: Config) -> str:
 
     for group, sweep in MEMORY_SWEEPS.items():
 
-        environment_name, panel_title, _, unit_label, operations = sweep
-        sweep_values = config.integers(environment_name)
+        panel_title, _, unit_label, operations = sweep
+
+        if group == CPABE_ATTRIBUTES:
+            sweep_values = attribute_counts
+        elif group == RSA_SUBSCRIBERS:
+            sweep_values = subscriber_counts
+        else:
+            sweep_values = rsa_key_sizes
 
         # Only what this sweep moved. An operation it holds fixed has no change of its own,
         # and a borrowed reading quoted here would read as a measured one
@@ -1030,7 +1187,7 @@ def build_peak_memory_deltas(memory: BenchmarkSummary, config: Config) -> str:
 
             items.append(
                 f'<span class="delta-item"><strong>{panel_title} '
-                f"{operation.capitalize()}</strong> {sweep_values[0]} &rarr; "
+                f"{operation.removeprefix('Memory')}</strong> {sweep_values[0]} &rarr; "
                 f"{sweep_values[-1]} {unit_label} &middot; "
                 f"{endpoints_change(group, operation, sweep_values)}</span>"
             )
@@ -1040,17 +1197,15 @@ def build_peak_memory_deltas(memory: BenchmarkSummary, config: Config) -> str:
 
 def build_rsa_circle_visualization(
     results: BenchmarkSummary,
-    config: Config,
+    subscriber_counts: list[int],
 ) -> dict[str, str]:
-
-    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
 
     def circle_style(diameter_px: float) -> str:
         return f'style="width:{diameter_px:.0f}px;height:{diameter_px:.0f}px;"'
 
     if not measured(
         results,
-        ["encrypt"],
+        ["Encrypt"],
         RSA_SUBSCRIBERS,
         [subscriber_counts[0], subscriber_counts[-1]],
     ):
@@ -1062,12 +1217,12 @@ def build_rsa_circle_visualization(
             "FanoutTotalStyle": circle_style(FANOUT_SMALLEST_DIAMETER_PX),
         }
 
-    single_bytes = rsa_bytes_per_subscriber(results, config)
-    total_bytes = (
-        results.get_case_summary("encrypt", RSA_SUBSCRIBERS, subscriber_counts[-1])
-        .get_feature(TOTAL_CIPHERTEXT_BYTES)
-        .mean
+    single_bytes = rsa_bytes_per_subscriber(results, subscriber_counts)
+    largest_aggregation = find_measured_aggregation(
+        results, "Encrypt", RSA_SUBSCRIBERS, subscriber_counts[-1]
     )
+    assert largest_aggregation is not None
+    total_bytes = largest_aggregation.mean(TOTAL_CIPHERTEXT_BYTES)
 
     single_diameter_px = max(
         FANOUT_SMALLEST_DIAMETER_PX,
@@ -1092,38 +1247,36 @@ def measurement_count(
     feature_name: str,
 ) -> int:
 
-    if not summary.has_case(operation, group, sweep_value):
+    aggregation = summary.find_aggregation(operation, group, sweep_value)
+
+    if aggregation is None:
         return 0
 
-    return summary.get_case_summary(operation, group, sweep_value).sample_count(
-        feature_name
-    )
+    return len(aggregation.get_all_measurement_values(feature_name))
 
 
 # A report is valid only when every configured measurement is present. The sole
 # exception is a timing/key-generation process explicitly recorded as a whole-case OOM.
 def validate_measurements(
     results: BenchmarkSummary,
-    memory: BenchmarkSummary,
-    config: Config,
-    out_of_memory_cases: list[OutOfMemoryCase],
+    timing_runs: int,
+    keygen_runs: int,
+    attribute_counts: list[int],
+    subscriber_counts: list[int],
+    rsa_key_sizes: list[int],
 ) -> list[str]:
-
     errors = []
-    out_of_memory_ids = {
-        (case.operation, case.group, case.sweep_value) for case in out_of_memory_cases
-    }
 
     def validate_timing_cases(
-        status_operation: str,
         operation: str,
         group: str,
         sweep_values: list[int],
         expected_count: int,
     ) -> None:
-
         for sweep_value in sweep_values:
-            if (status_operation, group, sweep_value) in out_of_memory_ids:
+            aggregation = results.find_aggregation(operation, group, sweep_value)
+
+            if aggregation is not None and aggregation.out_of_memory:
                 continue
 
             actual_count = measurement_count(
@@ -1132,154 +1285,143 @@ def validate_measurements(
 
             if actual_count != expected_count:
                 errors.append(
-                    f"{status_operation} {group}/{sweep_value}: expected "
+                    f"{operation} {group}/{sweep_value}: expected "
                     f"{expected_count} ns/op measurements in bench_output.txt or an "
                     f"explicit OOM record, found {actual_count}"
                 )
 
     validate_timing_cases(
         "Encrypt",
-        "encrypt",
         CPABE_ATTRIBUTES,
-        config.integers("ATTRIBUTE_COUNT"),
-        config.runs,
+        attribute_counts,
+        timing_runs,
     )
     validate_timing_cases(
         "Decrypt",
-        "decrypt",
         CPABE_ATTRIBUTES,
-        config.integers("ATTRIBUTE_COUNT"),
-        config.runs,
+        attribute_counts,
+        timing_runs,
     )
     validate_timing_cases(
         "Encrypt",
-        "encrypt",
         RSA_SUBSCRIBERS,
-        config.integers("SUBSCRIBER_COUNT"),
-        config.runs,
+        subscriber_counts,
+        timing_runs,
     )
     validate_timing_cases(
         "Encrypt",
-        "encrypt",
         RSA_KEY_BITS,
-        config.integers("RSA_KEY_SIZES"),
-        config.runs,
+        rsa_key_sizes,
+        timing_runs,
     )
     validate_timing_cases(
         "Decrypt",
-        "decrypt",
         RSA_KEY_BITS,
-        config.integers("RSA_KEY_SIZES"),
-        config.runs,
+        rsa_key_sizes,
+        timing_runs,
     )
     validate_timing_cases(
         "KeyGen",
-        "keygen",
         RSA_KEY_BITS,
-        config.integers("RSA_KEY_SIZES"),
-        config.integer("KEYGEN_RUNS"),
+        rsa_key_sizes,
+        keygen_runs,
     )
 
-    memory_cases = [("MemoryBaseline", "baseline", BASELINE_GROUP, 0)]
+    memory_cases = [("MemoryBaseline", BASELINE_GROUP, 0)]
 
     for group, sweep in MEMORY_SWEEPS.items():
-        environment_name, _, _, _, operations = sweep
+        _, _, _, operations = sweep
+
+        if group == CPABE_ATTRIBUTES:
+            sweep_values = attribute_counts
+        elif group == RSA_SUBSCRIBERS:
+            sweep_values = subscriber_counts
+        else:
+            sweep_values = rsa_key_sizes
 
         for operation in operations:
-            for sweep_value in config.integers(environment_name):
-                memory_cases.append(
-                    (f"Memory{operation.capitalize()}", operation, group, sweep_value)
-                )
+            for sweep_value in sweep_values:
+                memory_cases.append((operation, group, sweep_value))
 
-    for status_operation, operation, group, sweep_value in memory_cases:
+    for operation, group, sweep_value in memory_cases:
         actual_count = measurement_count(
-            memory, operation, group, sweep_value, PEAK_RSS_BYTES
+            results, operation, group, sweep_value, PEAK_RSS_BYTES
         )
 
-        if actual_count != config.runs:
+        if actual_count != timing_runs:
             errors.append(
-                f"{status_operation} {group}/{sweep_value}: expected exactly "
-                f"{config.runs} peak_rss_bytes measurements in memory_output.txt, "
+                f"{operation} {group}/{sweep_value}: expected exactly "
+                f"{timing_runs} peak_rss_bytes measurements in memory_output.txt, "
                 f"found {actual_count}"
             )
 
     return errors
 
 
-# Remove every partial timing/key-generation batch that the orchestrator marked as OOM,
-# and build the rows shown in the report's OOM notice.
-def apply_out_of_memory_cases(
-    results: BenchmarkSummary,
-    out_of_memory_cases: list[OutOfMemoryCase],
-) -> list[list[str]]:
-
-    rows = []
-
-    for case in out_of_memory_cases:
-        results.drop_case(
-            TIMING_OPERATIONS[case.operation], case.group, case.sweep_value
-        )
-        rows.append(
-            [
-                case.operation,
-                f"{case.group}/{case.sweep_value}",
-                OUT_OF_MEMORY,
-            ]
-        )
-
-    return rows
+def out_of_memory_rows(results: BenchmarkSummary) -> list[list[str]]:
+    return [
+        [
+            aggregation.operation,
+            f"{aggregation.parameter}/{aggregation.parameter_value}",
+            OUT_OF_MEMORY,
+        ]
+        for aggregation in results.aggregations
+        if aggregation.out_of_memory
+    ]
 
 
 def write_html_report(
     results: BenchmarkSummary,
-    memory: BenchmarkSummary,
-    config: Config,
-    out_of_memory_rows: list[list[str]],
+    timing_runs: int,
+    attribute_counts: list[int],
+    subscriber_counts: list[int],
+    rsa_key_sizes: list[int],
+    fixed_rsa_key_bits: int,
     frames: dict[str, str],
+    template_path: str,
+    report_path: str,
 ) -> None:
-
-    attribute_counts = config.integers("ATTRIBUTE_COUNT")
-    subscriber_counts = config.integers("SUBSCRIBER_COUNT")
-    rsa_key_bits = config.integers("RSA_KEY_SIZES")
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
-
     min_attributes = attribute_counts[0]
     max_attributes = attribute_counts[-1]
 
-    encrypt_fit = fit_rsa_encrypt_slope(results, config)
+    encrypt_fit = fit_rsa_encrypt_slope(results, subscriber_counts)
 
     cpabe_encrypt = fit_cpabe_slope(
-        results, config, "encrypt", NS_PER_OP, NS_PER_MICROSECOND
+        results, attribute_counts, "Encrypt", NS_PER_OP, NS_PER_MICROSECOND
     )
     cpabe_decrypt = fit_cpabe_slope(
-        results, config, "decrypt", NS_PER_OP, NS_PER_MICROSECOND
+        results, attribute_counts, "Decrypt", NS_PER_OP, NS_PER_MICROSECOND
     )
-    cpabe_ciphertext = fit_cpabe_slope(results, config, "encrypt", CIPHERTEXT_BYTES)
-    cpabe_stored_key = fit_cpabe_slope(results, config, "decrypt", STORED_KEY_BYTES)
+    cpabe_ciphertext = fit_cpabe_slope(
+        results, attribute_counts, "Encrypt", CIPHERTEXT_BYTES
+    )
+    cpabe_stored_key = fit_cpabe_slope(
+        results, attribute_counts, "Decrypt", STORED_KEY_BYTES
+    )
 
     cpabe_encrypt_measured = measured(
-        results, ["encrypt"], CPABE_ATTRIBUTES, [min_attributes, max_attributes]
+        results, ["Encrypt"], CPABE_ATTRIBUTES, [min_attributes, max_attributes]
     )
     bytes_measured = cpabe_encrypt_measured and measured(
-        results, ["encrypt"], RSA_SUBSCRIBERS, [subscriber_counts[0]]
+        results, ["Encrypt"], RSA_SUBSCRIBERS, [subscriber_counts[0]]
     )
     decrypt_penalty_measured = measured(
-        results, ["decrypt"], CPABE_ATTRIBUTES, [min_attributes, max_attributes]
-    ) and measured(results, ["decrypt"], RSA_KEY_BITS, [fixed_rsa_key_bits])
+        results, ["Decrypt"], CPABE_ATTRIBUTES, [min_attributes, max_attributes]
+    ) and measured(results, ["Decrypt"], RSA_KEY_BITS, [fixed_rsa_key_bits])
 
-    def micros_slope(fit: LinearFit | None) -> str:
+    def micros_slope(fit: LinearRegression | None) -> str:
         if fit is None:
             return NOT_AVAILABLE
 
         return f"+{format_mean_with_ci(fit.slope, fit.slope_ci, decimals=0)} µs"
 
-    def bytes_slope(fit: LinearFit | None) -> str:
+    def bytes_slope(fit: LinearRegression | None) -> str:
         if fit is None:
             return NOT_AVAILABLE
 
         return f"+{format_mean_with_ci(fit.slope, fit.slope_ci, decimals=0, thousands=False)} B"
 
-    def fit_quality(fit: LinearFit | None) -> str:
+    def fit_quality(fit: LinearRegression | None) -> str:
         if fit is None:
             return NOT_AVAILABLE
 
@@ -1292,7 +1434,7 @@ def write_html_report(
 
         return cpabe_ciphertext_bytes(
             results, attribute_count
-        ) / rsa_bytes_per_subscriber(results, config)
+        ) / rsa_bytes_per_subscriber(results, subscriber_counts)
 
     # Subscriber count at which RSA's fitted encrypt line reaches CP-ABE's fixed cost
     def latency_crossover(attribute_count: int) -> float | None:
@@ -1300,7 +1442,7 @@ def write_html_report(
             return None
 
         return encrypt_fit.solve_x_for_y(
-            cpabe_micros(results, "encrypt", attribute_count)
+            cpabe_micros(results, "Encrypt", attribute_count)
         )
 
     # How much more decrypt latency CP-ABE asks of the subscriber than RSA does
@@ -1308,13 +1450,15 @@ def write_html_report(
         if not decrypt_penalty_measured:
             return None
 
-        rsa_decrypt_micros = (
-            results.get_case_summary("decrypt", RSA_KEY_BITS, fixed_rsa_key_bits)
-            .latency()
-            .mean
+        rsa_decrypt = find_measured_aggregation(
+            results, "Decrypt", RSA_KEY_BITS, fixed_rsa_key_bits
+        )
+        assert rsa_decrypt is not None
+        rsa_decrypt_micros = mean(
+            scaled_values(rsa_decrypt, NS_PER_OP, NS_PER_MICROSECOND)
         )
 
-        return cpabe_micros(results, "decrypt", attribute_count) / rsa_decrypt_micros
+        return cpabe_micros(results, "Decrypt", attribute_count) / rsa_decrypt_micros
 
     # A crossover the report could not compute reads as absent rather than as a zero
     def rounded(value: float | None, decimals: int = 0) -> str:
@@ -1340,7 +1484,7 @@ def write_html_report(
     ) -> str:
         return build_latency_table(
             results,
-            config,
+            timing_runs,
             sweep_name,
             sweep_values,
             operation,
@@ -1349,56 +1493,84 @@ def write_html_report(
             highlight_value,
         )
 
-    memory_baseline = baseline_rss(memory)
+    memory_baseline = baseline_rss(results)
+    baseline_mean, baseline_ci = scaled_mean_and_ci(
+        memory_baseline, PEAK_RSS_BYTES, MEGABYTE
+    )
 
     memory_tables = {
-        "PeakMemoryDeltas": build_peak_memory_deltas(memory, config),
+        "PeakMemoryDeltas": build_peak_memory_deltas(
+            results, attribute_counts, subscriber_counts, rsa_key_sizes
+        ),
         "PeakMemoryCpabeTable": build_peak_memory_table(
-            memory, config, CPABE_ATTRIBUTES, "Attributes"
+            results,
+            CPABE_ATTRIBUTES,
+            attribute_counts,
+            fixed_rsa_key_bits,
+            "Attributes",
         ),
         "PeakMemoryRsaSubscribersTable": build_peak_memory_table(
-            memory, config, RSA_SUBSCRIBERS, "Subscribers"
+            results,
+            RSA_SUBSCRIBERS,
+            subscriber_counts,
+            fixed_rsa_key_bits,
+            "Subscribers",
         ),
         "PeakMemoryRsaKeyBitsTable": build_peak_memory_table(
-            memory, config, RSA_KEY_BITS, "Key Bits"
+            results,
+            RSA_KEY_BITS,
+            rsa_key_sizes,
+            fixed_rsa_key_bits,
+            "Key Bits",
         ),
     }
 
+    timing_iterations = sum(
+        aggregation.iterations
+        for aggregation in results.aggregations
+        if aggregation.operation in ENCRYPT_DECRYPT_KEYGEN
+        and not aggregation.out_of_memory
+    )
+
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, results.total_iterations
+            timing_runs,
+            get_student_t_critical_95(timing_runs - 1),
+            timing_iterations,
         ),
-        **build_rsa_circle_visualization(results, config),
+        **build_rsa_circle_visualization(results, subscriber_counts),
         **frames,
         **memory_tables,
-        "OutOfMemoryNotice": build_html_out_of_memory_notice(out_of_memory_rows),
-        "BaselineRss": f"{format_mean_with_ci(memory_baseline.mean, memory_baseline.ci)} MB",
+        "OutOfMemoryNotice": build_html_out_of_memory_notice(
+            out_of_memory_rows(results)
+        ),
+        "BaselineRss": f"{format_mean_with_ci(baseline_mean, baseline_ci)} MB",
         "CpabeEncryptTable": table(
             CPABE_ATTRIBUTES,
             attribute_counts,
-            "encrypt",
+            "Encrypt",
             "Attributes",
             CIPHERTEXT_COLUMN,
         ),
         "CpabeDecryptTable": table(
             CPABE_ATTRIBUTES,
             attribute_counts,
-            "decrypt",
+            "Decrypt",
             "Attributes",
             STORED_KEY_COLUMN,
         ),
         "RsaSubscribersEncryptTable": table(
             RSA_SUBSCRIBERS,
             subscriber_counts,
-            "encrypt",
+            "Encrypt",
             "Subscribers",
             CIPHERTEXT_COLUMN,
             TOTAL_CIPHERTEXT_COLUMN,
         ),
         "RsaKeyBitsEncryptTable": table(
             RSA_KEY_BITS,
-            rsa_key_bits,
-            "encrypt",
+            rsa_key_sizes,
+            "Encrypt",
             "Key Bits",
             CIPHERTEXT_COLUMN,
         ),
@@ -1406,12 +1578,12 @@ def write_html_report(
         # against, marked so it can be found among the key sizes around it
         "RsaKeyBitsDecryptTable": table(
             RSA_KEY_BITS,
-            rsa_key_bits,
-            "decrypt",
+            rsa_key_sizes,
+            "Decrypt",
             "Key Bits",
             highlight_value=fixed_rsa_key_bits,
         ),
-        "RsaKeyBitsKeygenTable": build_keygen_table(results, config),
+        "RsaKeyBitsKeygenTable": build_keygen_table(results, rsa_key_sizes),
         "MinAttributeLabel": format_attribute_label(min_attributes),
         "MaxAttributeLabel": format_attribute_label(max_attributes),
         "MaxSubscriberCount": str(subscriber_counts[-1]),
@@ -1436,7 +1608,7 @@ def write_html_report(
         "RsaSubscriberTotalCiphertextSlope": (
             NOT_AVAILABLE
             if not bytes_measured
-            else f"+{rsa_bytes_per_subscriber(results, config):.0f} B"
+            else f"+{rsa_bytes_per_subscriber(results, subscriber_counts):.0f} B"
         ),
         "BytesCrossoverLow": rounded(bytes_crossover(min_attributes), 1),
         "BytesCrossoverHigh": rounded(bytes_crossover(max_attributes), 1),
@@ -1450,18 +1622,40 @@ def write_html_report(
         "DecryptPenaltyMax": rounded(decrypt_penalty(max_attributes), 1),
     }
 
-    build_html_report(config.template, config.report, placeholders)
+    build_html_report(template_path, report_path, placeholders)
 
 
 def main() -> None:
-    config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
+    timing_runs = parse_int_env("ATTRIBUTE_KEY_SCALING_RUNS")
+    keygen_runs = parse_int_env("ATTRIBUTE_KEY_SCALING_KEYGEN_RUNS")
+    attribute_counts = parse_int_list_env("ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT")
+    subscriber_counts = parse_int_list_env("ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT")
+    rsa_key_sizes = parse_int_list_env("ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES")
+    fixed_rsa_key_bits = parse_int_env("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
 
-    results = load_results(config.bench_output, BENCHMARK_PREFIX)
-    memory = load_results(config.memory_output, MEMORY_PREFIX)
-    out_of_memory_cases = load_out_of_memory_cases(config.case_status)
+    result_dir = Path(
+        os.environ.get(
+            "ATTRIBUTE_KEY_SCALING_RESULT_DIR", f"{DEFAULT_RESULT_ROOT}/{SCENARIO}"
+        )
+    )
+    bench_output = result_dir / BENCH_OUTPUT_NAME
+    memory_output = result_dir / MEMORY_OUTPUT_NAME
+    case_status = result_dir / CASE_STATUS_NAME
+    template_path = Path(TEMPLATE_DIR) / TEMPLATE_NAME
+    report_path = result_dir / REPORT_NAME
+
+    results = BenchmarkSummary()
+    load_results(results, str(bench_output), BENCHMARK_PREFIX)
+    load_results(results, str(memory_output), BENCHMARK_PREFIX)
+    load_out_of_memory_status(results, str(case_status))
 
     validation_errors = validate_measurements(
-        results, memory, config, out_of_memory_cases
+        results,
+        timing_runs,
+        keygen_runs,
+        attribute_counts,
+        subscriber_counts,
+        rsa_key_sizes,
     )
 
     if validation_errors:
@@ -1470,68 +1664,99 @@ def main() -> None:
 
         raise SystemExit(1)
 
-    out_of_memory_rows = apply_out_of_memory_cases(results, out_of_memory_cases)
-
     plot_sweep(
         results,
         CPABE_ATTRIBUTES,
-        config.integers("ATTRIBUTE_COUNT"),
+        attribute_counts,
         ENCRYPT_DECRYPT,
-        (CIPHERTEXT_SERIES, CPABE_STORED_KEY_SERIES),
         "Policy Attributes",
         "CP-ABE Scaling with Policy Attribute Count",
-        config.figure(CPABE_PLOT),
+        str(result_dir / CPABE_PLOT),
     )
-
-    fixed_rsa_key_bits = config.integer("FIXED_RSA_KEY_SIZE")
 
     plot_sweep(
         results,
         RSA_SUBSCRIBERS,
-        config.integers("SUBSCRIBER_COUNT"),
-        ["encrypt"],
-        (CIPHERTEXT_SERIES, TOTAL_CIPHERTEXT_SERIES),
+        subscriber_counts,
+        ["Encrypt"],
         "Subscribers",
         f"RSA Scaling with Subscriber Count (Fixed Key: {fixed_rsa_key_bits} bits)",
-        config.figure(RSA_SUBSCRIBERS_PLOT),
-        fixed_rsa_decrypt(results, config, NS_PER_OP, NS_PER_MICROSECOND),
+        str(result_dir / RSA_SUBSCRIBERS_PLOT),
+        fixed_rsa_decrypt(results, "Decrypt", fixed_rsa_key_bits, NS_PER_OP),
         f"Decrypt (RSA-{fixed_rsa_key_bits}, Constant)",
     )
 
     plot_sweep(
         results,
         RSA_KEY_BITS,
-        config.integers("RSA_KEY_SIZES"),
+        rsa_key_sizes,
         ENCRYPT_DECRYPT_KEYGEN,
-        (CIPHERTEXT_SERIES, RSA_STORED_KEY_SERIES),
         "RSA Key Bits",
         "RSA Scaling with Key Size (1 Subscriber)",
-        config.figure(RSA_KEY_BITS_PLOT),
+        str(result_dir / RSA_KEY_BITS_PLOT),
     )
 
     frames = {
         "BandwidthCrossoverFrame": plot_frame(
-            plot_ciphertext_size_crossover(results, config),
+            plot_ciphertext_size_crossover(
+                results,
+                attribute_counts,
+                subscriber_counts,
+                str(result_dir / CIPHERTEXT_SIZE_CROSSOVER_PLOT),
+            ),
             CIPHERTEXT_SIZE_CROSSOVER_PLOT,
         ),
         "EncryptCpuCrossoverFrame": plot_frame(
-            plot_encrypt_latency_crossover(results, config),
+            plot_encrypt_latency_crossover(
+                results,
+                attribute_counts,
+                subscriber_counts,
+                str(result_dir / ENCRYPT_LATENCY_CROSSOVER_PLOT),
+            ),
             ENCRYPT_LATENCY_CROSSOVER_PLOT,
         ),
         "DecryptCpuCrossoverFrame": plot_frame(
-            plot_decrypt_latency_crossover(results, config),
+            plot_decrypt_latency_crossover(
+                results,
+                attribute_counts,
+                rsa_key_sizes,
+                str(result_dir / DECRYPT_LATENCY_CROSSOVER_PLOT),
+            ),
             DECRYPT_LATENCY_CROSSOVER_PLOT,
         ),
         "AsymmetryFrame": plot_frame(
-            plot_encrypt_decrypt_asymmetry(results, config), ASYMMETRY_PLOT
+            plot_encrypt_decrypt_asymmetry(
+                results,
+                attribute_counts,
+                fixed_rsa_key_bits,
+                str(result_dir / ASYMMETRY_PLOT),
+            ),
+            ASYMMETRY_PLOT,
         ),
         "PeakMemoryFrame": plot_frame(
-            plot_peak_memory(memory, config),
+            plot_peak_memory(
+                results,
+                attribute_counts,
+                subscriber_counts,
+                rsa_key_sizes,
+                fixed_rsa_key_bits,
+                str(result_dir / PEAK_MEMORY_PLOT),
+            ),
             PEAK_MEMORY_PLOT,
         ),
     }
 
-    write_html_report(results, memory, config, out_of_memory_rows, frames)
+    write_html_report(
+        results,
+        timing_runs,
+        attribute_counts,
+        subscriber_counts,
+        rsa_key_sizes,
+        fixed_rsa_key_bits,
+        frames,
+        str(template_path),
+        str(report_path),
+    )
 
 
 if __name__ == "__main__":

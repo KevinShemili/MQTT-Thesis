@@ -1,105 +1,126 @@
-from reporting.benchmark import (
-    MB_PER_SECOND,
-    NS_PER_MICROSECOND,
-    NS_PER_OP,
-    WIRE_OVERHEAD_BYTES,
-    BenchmarkSummary,
-    FeatureSweep,
-    load_results,
-    throttle_flags,
-)
-from reporting.charts import (
-    AMBER,
-    VIOLET,
-    Axes,
-    configure_byte_axis,
-    draw_two_panel_figure,
-)
-from reporting.environment import Config
-from reporting.formatting import (
-    KILOBYTE,
-    format_byte_size,
-    format_mean_with_ci,
-)
-from reporting.html import build_html_generic_data, build_html_report, build_html_table
+import os
+from pathlib import Path
+
+from template_builder.chart import *
+from template_builder.formatting import *
+from template_builder.html import *
+from template_builder.color import *
+
+from model.benchmark_summary import *
+from model.case_aggregation import *
+from model.case import *
+from model.measurement import *
+from model.populate_model import *
+
+from config.environment import *
+
+from statistics_tbd.summary import *
+from statistics_tbd.linear_regression import *
 
 SCENARIO = "aes-ascon"
-ENV_PREFIX = "AES_ASCON"
-TEMPLATE_NAME = "aes_ascon_template.html"
+HTML_TEMPLATE_NAME = "aes_ascon_template.html"
 
 LATENCY_PLOT = "plot.png"
 THROUGHPUT_PLOT = "throughput.png"
 
 ALGORITHMS = ["AES-GCM", "ASCON"]
-OPERATIONS = ["encrypt", "decrypt"]
-
+OPERATIONS = ["Encrypt", "Decrypt"]
 ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
 
 BENCHMARK_PREFIX = "BenchmarkAESASCON"
 AXIS_TICK_STEP = 16 * KILOBYTE
 
 
-def configure_payload_axis(config: Config, axis: Axes) -> None:
-    configure_byte_axis(axis, config.integers("PAYLOAD_SIZES")[-1], AXIS_TICK_STEP)
+def configure_payload_axis(payload_sizes: list[int], axis: Axes) -> None:
+    configure_byte_axis(axis, payload_sizes[-1], AXIS_TICK_STEP)
+
+
+def scaled_mean_and_ci(
+    aggregation: CaseAggregation, measurement_name: str, divisor: float
+) -> tuple[float, float]:
+    values = [
+        value / divisor
+        for value in aggregation.get_all_measurement_values(measurement_name)
+    ]
+    return mean_and_confidence_interval(
+        values, get_student_t_critical_95(len(values) - 1)
+    )
 
 
 def plot_metric(
     summary: BenchmarkSummary,
-    config: Config,
-    feature_name: str,
+    payload_sizes: list[int],
+    measurement_name: str,
     divisor: float,
     title: str,
     y_label: str,
     output_path: str,
 ) -> None:
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
 
-    def collect(operation: str, algorithm: str) -> FeatureSweep:
-        return summary.sweep_features(
-            operation,
-            algorithm,
-            config.integers("PAYLOAD_SIZES"),
-            feature_name,
-            divisor,
-        )
+    for axis, operation in zip(axes, OPERATIONS):
+        for algorithm in ALGORITHMS:
+            aggregations = [
+                summary.find_aggregation(operation, algorithm, payload_size)
+                for payload_size in payload_sizes
+            ]
+            assert all(aggregation is not None for aggregation in aggregations)
 
-    draw_two_panel_figure(
-        OPERATIONS,
-        ALGORITHMS,
-        collect,
-        title=title,
-        x_label="Payload size",
-        y_label=y_label,
-        colors=ALGORITHM_COLORS,
-        configure_axis=lambda axis: configure_payload_axis(config, axis),
-        output_path=output_path,
-    )
+            statistics = [
+                scaled_mean_and_ci(aggregation, measurement_name, divisor)
+                for aggregation in aggregations
+                if aggregation is not None
+            ]
+
+            draw_summary(
+                axis,
+                payload_sizes,
+                [mean for mean, _ in statistics],
+                [ci for _, ci in statistics],
+                algorithm,
+                ALGORITHM_COLORS[algorithm],
+                with_ci=True,
+            )
+
+        axis.set_title(operation.capitalize(), fontsize=11)
+        axis.set_xlabel("Payload size")
+        axis.set_ylabel(y_label)
+        axis.set_ylim(bottom=0)
+        configure_payload_axis(payload_sizes, axis)
+        axis.legend(fontsize=10)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
 
 
 def build_table(
     summary: BenchmarkSummary,
-    config: Config,
+    payload_sizes: list[int],
+    runs: int,
     operation: str,
     algorithm: str,
 ) -> str:
-
     rows = []
-    cases = []
 
-    for payload_size in config.integers("PAYLOAD_SIZES"):
-
-        case = summary.get_case_summary(operation, algorithm, payload_size)
-        cases.append(case)
-
-        latency = case.get_feature(NS_PER_OP)
-        throughput = case.get_feature(MB_PER_SECOND)
+    for payload_size in payload_sizes:
+        aggregation = summary.find_aggregation(operation, algorithm, payload_size)
+        assert aggregation is not None
 
         rows.append(
             [
                 format_byte_size(payload_size, compact=True),
-                format_mean_with_ci(latency.mean, latency.ci),
-                format_mean_with_ci(throughput.mean, throughput.ci, decimals=1),
-                f"{case.get_feature(WIRE_OVERHEAD_BYTES).mean:.0f}",
-                f"{case.iterations:,}",
+                format_mean_with_ci(
+                    aggregation.mean(NS_PER_OP),
+                    aggregation.confidence_interval(NS_PER_OP),
+                ),
+                format_mean_with_ci(
+                    aggregation.mean(MB_PER_SECOND),
+                    aggregation.confidence_interval(MB_PER_SECOND),
+                    decimals=1,
+                ),
+                f"{aggregation.mean(WIRE_OVERHEAD_BYTES):.0f}",
+                f"{aggregation.iterations:,}",
             ]
         )
 
@@ -109,56 +130,82 @@ def build_table(
             "Latency (ns/op)",
             "Throughput (MB/s)",
             "Tag + Nonce (B)",
-            f"Iters (Σ{config.runs} runs)",
+            f"Iters (Σ{runs} runs)",
         ],
         rows,
-        throttle_flags(cases),
+        summary.get_throttle_flags(operation, algorithm, payload_sizes),
     )
 
 
-def write_html_report(results: BenchmarkSummary, config: Config) -> None:
-
+def write_html_report(
+    results: BenchmarkSummary,
+    payload_sizes: list[int],
+    runs: int,
+    template_path: str,
+    report_path: str,
+) -> None:
     placeholders = {
         **build_html_generic_data(
-            config.runs, config.t_critical, results.total_iterations
+            runs,
+            get_student_t_critical_95(runs - 1),
+            sum(aggregation.iterations for aggregation in results.aggregations),
         ),
-        "EncryptAesTable": build_table(results, config, "encrypt", "AES-GCM"),
-        "EncryptAsconTable": build_table(results, config, "encrypt", "ASCON"),
-        "DecryptAesTable": build_table(results, config, "decrypt", "AES-GCM"),
-        "DecryptAsconTable": build_table(results, config, "decrypt", "ASCON"),
+        "EncryptAesTable": build_table(
+            results, payload_sizes, runs, "Encrypt", "AES-GCM"
+        ),
+        "EncryptAsconTable": build_table(
+            results, payload_sizes, runs, "Encrypt", "ASCON"
+        ),
+        "DecryptAesTable": build_table(
+            results, payload_sizes, runs, "Decrypt", "AES-GCM"
+        ),
+        "DecryptAsconTable": build_table(
+            results, payload_sizes, runs, "Decrypt", "ASCON"
+        ),
         "LatencyPlot": LATENCY_PLOT,
         "ThroughputPlot": THROUGHPUT_PLOT,
     }
 
-    build_html_report(config.template, config.report, placeholders)
+    build_html_report(template_path, report_path, placeholders)
 
 
 def main() -> None:
-    config = Config(SCENARIO, TEMPLATE_NAME, ENV_PREFIX)
+    runs = parse_int_env("AES_ASCON_RUNS")
+    payload_sizes = parse_int_list_env("AES_ASCON_PAYLOAD_SIZES")
 
-    results = load_results(config.bench_output, BENCHMARK_PREFIX, "B")
+    result_dir = Path(
+        os.environ.get("AES_ASCON_RESULT_DIR", f"{DEFAULT_RESULT_ROOT}/{SCENARIO}")
+    )
+    bench_output = result_dir / BENCH_OUTPUT_NAME
+    template_path = Path(TEMPLATE_DIR) / HTML_TEMPLATE_NAME
+    report_path = result_dir / REPORT_NAME
+
+    # Create object and load benchmark results into it
+    results = BenchmarkSummary()
+    load_results(results, str(bench_output), BENCHMARK_PREFIX, "B")
 
     plot_metric(
         results,
-        config,
+        payload_sizes,
         NS_PER_OP,
         NS_PER_MICROSECOND,
         "AES-GCM vs. ASCON: Latency vs. Payload Size",
         "Latency (µs) ± 95% CI",
-        config.figure(LATENCY_PLOT),
+        str(result_dir / LATENCY_PLOT),
     )
-
     plot_metric(
         results,
-        config,
+        payload_sizes,
         MB_PER_SECOND,
         1.0,
         "AES-GCM vs. ASCON: Throughput vs. Payload Size",
         "Throughput (MB/s) ± 95% CI",
-        config.figure(THROUGHPUT_PLOT),
+        str(result_dir / THROUGHPUT_PLOT),
     )
 
-    write_html_report(results, config)
+    write_html_report(
+        results, payload_sizes, runs, str(template_path), str(report_path)
+    )
 
 
 if __name__ == "__main__":

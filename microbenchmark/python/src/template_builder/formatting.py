@@ -1,6 +1,8 @@
 KILOBYTE = 1024
 MEGABYTE = 1024 * 1024
 
+NS_PER_MICROSECOND = 1000.0
+
 
 # Convert raw byte count into a human-readable size using B, KB, or MB ex. 1536 -> "1.5 KB"
 # Compact form removes decimals and spaces ex. 1536 -> "1KB"
