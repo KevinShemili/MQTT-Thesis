@@ -7,15 +7,12 @@ from template_builder.html import *
 from template_builder.color import *
 
 from model.benchmark_summary import *
-from model.case_aggregation import *
-from model.case import *
 from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
 
 from statistics_tbd.summary import *
-from statistics_tbd.linear_regression import *
 
 SCENARIO = "json-cbor"
 HTML_TEMPLATE_NAME = "json_cbor_template.html"
@@ -37,18 +34,6 @@ def configure_attribute_axis(attribute_counts: list[int], axis: Axes) -> None:
     apply_mesh_grid(axis)
 
 
-def scaled_mean_and_ci(
-    aggregation: CaseAggregation, measurement_name: str, divisor: float
-) -> tuple[float, float]:
-    values = [
-        value / divisor
-        for value in aggregation.get_all_measurement_values(measurement_name)
-    ]
-    return mean_and_confidence_interval(
-        values, get_student_t_critical_95(len(values) - 1)
-    )
-
-
 def plot_latency(
     results: BenchmarkSummary,
     attribute_counts: list[int],
@@ -68,8 +53,13 @@ def plot_latency(
             ]
             assert all(aggregation is not None for aggregation in aggregations)
 
-            statistics = [
-                scaled_mean_and_ci(aggregation, NS_PER_OP, NS_PER_MICROSECOND)
+            means = [
+                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
+                for aggregation in aggregations
+                if aggregation is not None
+            ]
+            confidence_intervals = [
+                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
                 for aggregation in aggregations
                 if aggregation is not None
             ]
@@ -77,8 +67,8 @@ def plot_latency(
             draw_summary(
                 axis,
                 attribute_counts,
-                [mean for mean, _ in statistics],
-                [ci for _, ci in statistics],
+                means,
+                confidence_intervals,
                 FORMAT_LABELS.get(format_name, format_name),
                 FORMAT_COLORS[format_name],
                 with_ci=True,
@@ -217,25 +207,30 @@ def write_html_report(
     template_path: str,
     report_path: str,
 ) -> None:
-    tables = {
-        f"{operation}{key}Table": build_table(
-            results, attribute_counts, runs, operation, format_name
-        )
-        for operation in OPERATIONS
-        for key, format_name in (
-            ("Json", "JSON"),
-            ("Cbor", "CBOR"),
-            ("CborKeyAsInt", "CBORKeyAsInt"),
-        )
-    }
-
     placeholders = {
         **build_html_generic_data(
             runs,
             get_student_t_critical_95(runs - 1),
             sum(aggregation.iterations for aggregation in results.aggregations),
         ),
-        **tables,
+        "SerializeJsonTable": build_table(
+            results, attribute_counts, runs, "Serialize", "JSON"
+        ),
+        "SerializeCborTable": build_table(
+            results, attribute_counts, runs, "Serialize", "CBOR"
+        ),
+        "SerializeCborKeyAsIntTable": build_table(
+            results, attribute_counts, runs, "Serialize", "CBORKeyAsInt"
+        ),
+        "DeserializeJsonTable": build_table(
+            results, attribute_counts, runs, "Deserialize", "JSON"
+        ),
+        "DeserializeCborTable": build_table(
+            results, attribute_counts, runs, "Deserialize", "CBOR"
+        ),
+        "DeserializeCborKeyAsIntTable": build_table(
+            results, attribute_counts, runs, "Deserialize", "CBORKeyAsInt"
+        ),
         "LatencyPlot": LATENCY_PLOT,
         "SizePlot": SIZE_PLOT,
     }

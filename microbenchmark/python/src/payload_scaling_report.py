@@ -7,15 +7,12 @@ from template_builder.html import *
 from template_builder.color import *
 
 from model.benchmark_summary import *
-from model.case_aggregation import *
-from model.case import *
 from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
 
 from statistics_tbd.summary import *
-from statistics_tbd.linear_regression import *
 
 SCENARIO = "payload-scaling"
 HTML_TEMPLATE_NAME = "payload_scaling_template.html"
@@ -27,29 +24,7 @@ SCHEMES = ["PSK", "RSA", "CPABE"]
 OPERATIONS = ["Encrypt", "Decrypt"]
 SCHEME_COLORS = {"PSK": TEAL, "RSA": VIOLET, "CPABE": CRIMSON}
 
-LEGEND = {"fontsize": 10, "loc": "upper left"}
-
 BENCHMARK_PREFIX = "BenchmarkPayloadScaling"
-AXIS_TICK_STEP = 4 * MEGABYTE
-
-ZOOM_BOUNDS = [0.08, 0.08, 0.47, 0.32]
-ZOOM_HEADROOM = 1.10
-
-
-def configure_payload_axis(payload_sizes: list[int], axis: Axes) -> None:
-    configure_byte_axis(axis, payload_sizes[-1], AXIS_TICK_STEP)
-
-
-def scaled_mean_and_ci(
-    aggregation: CaseAggregation, measurement_name: str, divisor: float
-) -> tuple[float, float]:
-    values = [
-        value / divisor
-        for value in aggregation.get_all_measurement_values(measurement_name)
-    ]
-    return mean_and_confidence_interval(
-        values, get_student_t_critical_95(len(values) - 1)
-    )
 
 
 # A scheme's wire overhead does not depend on payload size, so it is averaged over every
@@ -69,18 +44,13 @@ def scheme_overhead_bytes(
     return mean(values)
 
 
-def plot_metric(
+def plot_latency(
     results: BenchmarkSummary,
     payload_sizes: list[int],
-    measurement_name: str,
-    divisor: float,
-    title: str,
-    y_label: str,
     output_path: str,
-    with_encrypt_zoom: bool = False,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(title, fontsize=13)
+    figure.suptitle("PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size", fontsize=13)
 
     for axis, operation in zip(axes, OPERATIONS):
         drawn = []
@@ -92,13 +62,16 @@ def plot_metric(
             ]
             assert all(aggregation is not None for aggregation in aggregations)
 
-            statistics = [
-                scaled_mean_and_ci(aggregation, measurement_name, divisor)
+            means = [
+                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
                 for aggregation in aggregations
                 if aggregation is not None
             ]
-            means = [mean_value for mean_value, _ in statistics]
-            confidence_intervals = [ci for _, ci in statistics]
+            confidence_intervals = [
+                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
+                for aggregation in aggregations
+                if aggregation is not None
+            ]
 
             draw_summary(
                 axis,
@@ -113,13 +86,13 @@ def plot_metric(
 
         axis.set_title(operation.capitalize(), fontsize=11)
         axis.set_xlabel("Payload Size")
-        axis.set_ylabel(y_label)
+        axis.set_ylabel("Latency (µs) ± 95% CI")
         axis.set_ylim(bottom=0)
-        configure_payload_axis(payload_sizes, axis)
-        axis.legend(**LEGEND)
+        configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
+        axis.legend(fontsize=10, loc="upper left")
 
-        if with_encrypt_zoom and operation == "Encrypt":
-            zoom_axis = axis.inset_axes(ZOOM_BOUNDS)  # type: ignore
+        if operation == "Encrypt":
+            zoom_axis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])  # type: ignore
             zoomed = [entry for entry in drawn if entry[0] != "CPABE"]
 
             for scheme_name, means, confidence_intervals in zoomed:
@@ -141,7 +114,7 @@ def plot_metric(
                     calculate_axis_top(means, confidence_intervals)
                     for _, means, confidence_intervals in zoomed
                 )
-                * ZOOM_HEADROOM,
+                * 1.10,
             )
             zoom_axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
             zoom_axis.set_xticks([])
@@ -150,6 +123,51 @@ def plot_metric(
             zoom_axis.tick_params(axis="both", labelsize=8)
             apply_value_grid(zoom_axis, linewidth=0.4)
             zoom_axis.legend(fontsize=8, loc="upper left")
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+def plot_throughput(
+    results: BenchmarkSummary,
+    payload_sizes: list[int],
+    output_path: str,
+) -> None:
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size", fontsize=13)
+
+    for axis, operation in zip(axes, OPERATIONS):
+        for scheme_name in SCHEMES:
+            aggregations = [
+                results.find_aggregation(operation, scheme_name, payload_size)
+                for payload_size in payload_sizes
+            ]
+            assert all(aggregation is not None for aggregation in aggregations)
+
+            draw_summary(
+                axis,
+                payload_sizes,
+                [
+                    aggregation.mean(MB_PER_SECOND)
+                    for aggregation in aggregations
+                    if aggregation is not None
+                ],
+                [
+                    aggregation.confidence_interval(MB_PER_SECOND)
+                    for aggregation in aggregations
+                    if aggregation is not None
+                ],
+                scheme_name,
+                SCHEME_COLORS[scheme_name],
+                with_ci=True,
+            )
+
+        axis.set_title(operation.capitalize(), fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
+        axis.set_ylim(bottom=0)
+        configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
+        axis.legend(fontsize=10, loc="upper left")
 
     figure.tight_layout()
     save_figure(figure, output_path)
@@ -171,9 +189,8 @@ def build_table(
         aggregation = results.find_aggregation(operation, scheme_name, payload_size)
         assert aggregation is not None
 
-        latency_mean, latency_ci = scaled_mean_and_ci(
-            aggregation, NS_PER_OP, NS_PER_MICROSECOND
-        )
+        latency_mean = aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
+        latency_ci = aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
         overhead_percent = overhead_bytes / payload_size * 100.0
 
         rows.append(
@@ -212,21 +229,22 @@ def write_html_report(
     template_path: str,
     report_path: str,
 ) -> None:
-    tables = {
-        f"{operation}{scheme_name.capitalize()}Table": build_table(
-            results, payload_sizes, runs, operation, scheme_name
-        )
-        for operation in OPERATIONS
-        for scheme_name in SCHEMES
-    }
-
     placeholders = {
         **build_html_generic_data(
             runs,
             get_student_t_critical_95(runs - 1),
             sum(aggregation.iterations for aggregation in results.aggregations),
         ),
-        **tables,
+        "EncryptPskTable": build_table(results, payload_sizes, runs, "Encrypt", "PSK"),
+        "EncryptRsaTable": build_table(results, payload_sizes, runs, "Encrypt", "RSA"),
+        "EncryptCpabeTable": build_table(
+            results, payload_sizes, runs, "Encrypt", "CPABE"
+        ),
+        "DecryptPskTable": build_table(results, payload_sizes, runs, "Decrypt", "PSK"),
+        "DecryptRsaTable": build_table(results, payload_sizes, runs, "Decrypt", "RSA"),
+        "DecryptCpabeTable": build_table(
+            results, payload_sizes, runs, "Decrypt", "CPABE"
+        ),
         "LatencyPlot": LATENCY_PLOT,
         "ThroughputPlot": THROUGHPUT_PLOT,
     }
@@ -250,25 +268,8 @@ def main() -> None:
     results = BenchmarkSummary()
     load_results(results, str(bench_output), BENCHMARK_PREFIX, "B")
 
-    plot_metric(
-        results,
-        payload_sizes,
-        NS_PER_OP,
-        NS_PER_MICROSECOND,
-        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
-        "Latency (µs) ± 95% CI",
-        str(result_dir / LATENCY_PLOT),
-        with_encrypt_zoom=True,
-    )
-    plot_metric(
-        results,
-        payload_sizes,
-        MB_PER_SECOND,
-        1.0,
-        "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
-        "Throughput (MB/s) ± 95% CI",
-        str(result_dir / THROUGHPUT_PLOT),
-    )
+    plot_latency(results, payload_sizes, str(result_dir / LATENCY_PLOT))
+    plot_throughput(results, payload_sizes, str(result_dir / THROUGHPUT_PLOT))
 
     write_html_report(
         results, payload_sizes, runs, str(template_path), str(report_path)

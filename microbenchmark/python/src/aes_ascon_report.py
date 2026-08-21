@@ -7,15 +7,12 @@ from template_builder.html import *
 from template_builder.color import *
 
 from model.benchmark_summary import *
-from model.case_aggregation import *
-from model.case import *
 from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
 
 from statistics_tbd.summary import *
-from statistics_tbd.linear_regression import *
 
 SCENARIO = "aes-ascon"
 HTML_TEMPLATE_NAME = "aes_ascon_template.html"
@@ -28,23 +25,6 @@ OPERATIONS = ["Encrypt", "Decrypt"]
 ALGORITHM_COLORS = {"AES-GCM": AMBER, "ASCON": VIOLET}
 
 BENCHMARK_PREFIX = "BenchmarkAESASCON"
-AXIS_TICK_STEP = 16 * KILOBYTE
-
-
-def configure_payload_axis(payload_sizes: list[int], axis: Axes) -> None:
-    configure_byte_axis(axis, payload_sizes[-1], AXIS_TICK_STEP)
-
-
-def scaled_mean_and_ci(
-    aggregation: CaseAggregation, measurement_name: str, divisor: float
-) -> tuple[float, float]:
-    values = [
-        value / divisor
-        for value in aggregation.get_all_measurement_values(measurement_name)
-    ]
-    return mean_and_confidence_interval(
-        values, get_student_t_critical_95(len(values) - 1)
-    )
 
 
 def plot_metric(
@@ -67,8 +47,13 @@ def plot_metric(
             ]
             assert all(aggregation is not None for aggregation in aggregations)
 
-            statistics = [
-                scaled_mean_and_ci(aggregation, measurement_name, divisor)
+            means = [
+                aggregation.mean(measurement_name) / divisor
+                for aggregation in aggregations
+                if aggregation is not None
+            ]
+            confidence_intervals = [
+                aggregation.confidence_interval(measurement_name) / divisor
                 for aggregation in aggregations
                 if aggregation is not None
             ]
@@ -76,8 +61,8 @@ def plot_metric(
             draw_summary(
                 axis,
                 payload_sizes,
-                [mean for mean, _ in statistics],
-                [ci for _, ci in statistics],
+                means,
+                confidence_intervals,
                 algorithm,
                 ALGORITHM_COLORS[algorithm],
                 with_ci=True,
@@ -87,7 +72,7 @@ def plot_metric(
         axis.set_xlabel("Payload size")
         axis.set_ylabel(y_label)
         axis.set_ylim(bottom=0)
-        configure_payload_axis(payload_sizes, axis)
+        configure_byte_axis(axis, payload_sizes[-1], 16 * KILOBYTE)
         axis.legend(fontsize=10)
 
     figure.tight_layout()
