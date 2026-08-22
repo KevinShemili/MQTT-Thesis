@@ -1052,6 +1052,9 @@ def plot_decrypt_latency_crossover(
     for index, (rsa_key_bits, rsa_mean, rsa_ci) in enumerate(
         zip(rsa_key_sizes, rsa_means, rsa_cis)
     ):
+        if isnan(rsa_mean) or isnan(rsa_ci):
+            continue
+
         rsa_color = RSA_KEY_BITS_COLORS[index % len(RSA_KEY_BITS_COLORS)]
 
         axis.hlines(
