@@ -10,6 +10,7 @@ from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
+from statistics_tbd.summary import *
 
 SCENARIO = "json-cbor"
 HTML_TEMPLATE_NAME = "json_cbor_template.html"
@@ -18,88 +19,6 @@ LATENCY_PLOT = "plot.png"
 SIZE_PLOT = "size.png"
 
 BENCHMARK_PREFIX = "BenchmarkEnvelope"
-
-
-def build_table(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    runs: int,
-    operation: str,
-    format_name: str,
-) -> str:
-    rows = []
-
-    for attribute_count in attribute_counts:
-        aggregation = results.find_aggregation(operation, format_name, attribute_count)
-        assert aggregation is not None
-
-        envelope_size = aggregation.mean(ENVELOPE_BYTES)
-        raw_size = aggregation.mean(RAW_BYTES)
-        overhead_percent = (envelope_size - raw_size) / raw_size * 100.0
-
-        rows.append(
-            [
-                str(attribute_count),
-                format_mean_with_ci(
-                    aggregation.mean(NS_PER_OP),
-                    aggregation.confidence_interval(NS_PER_OP),
-                ),
-                f"{raw_size:,.0f}",
-                f"{envelope_size:,.0f}",
-                f"{overhead_percent:.2f}%",
-                f"{aggregation.iterations:,}",
-            ]
-        )
-
-    return build_html_table(
-        [
-            "Attributes",
-            "Latency (ns/op)",
-            "Raw (B)",
-            "Envelope Size (B)",
-            "Format Overhead (%)",
-            f"Iters (Σ{runs} runs)",
-        ],
-        rows,
-        results.get_throttle_flags(operation, format_name, attribute_counts),
-    )
-
-
-def write_html_report(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    runs: int,
-    template_path: str,
-    report_path: str,
-) -> None:
-    placeholders = {
-        **build_html_generic_data(
-            runs,
-            sum(aggregation.iterations for aggregation in results.aggregations),
-        ),
-        "SerializeJsonTable": build_table(
-            results, attribute_counts, runs, "Serialize", "JSON"
-        ),
-        "SerializeCborTable": build_table(
-            results, attribute_counts, runs, "Serialize", "CBOR"
-        ),
-        "SerializeCborKeyAsIntTable": build_table(
-            results, attribute_counts, runs, "Serialize", "CBORKeyAsInt"
-        ),
-        "DeserializeJsonTable": build_table(
-            results, attribute_counts, runs, "Deserialize", "JSON"
-        ),
-        "DeserializeCborTable": build_table(
-            results, attribute_counts, runs, "Deserialize", "CBOR"
-        ),
-        "DeserializeCborKeyAsIntTable": build_table(
-            results, attribute_counts, runs, "Deserialize", "CBORKeyAsInt"
-        ),
-        "LatencyPlot": LATENCY_PLOT,
-        "SizePlot": SIZE_PLOT,
-    }
-
-    build_html_report(template_path, report_path, placeholders)
 
 
 def main() -> None:
@@ -116,10 +35,306 @@ def main() -> None:
     results = BenchmarkSummary()
     load_results(results, str(bench_output), BENCHMARK_PREFIX, "Attrs")
 
-    plot_json_cbor_latency(results, attribute_counts, str(result_dir / LATENCY_PLOT))
-    plot_json_cbor_size(results, attribute_counts, str(result_dir / SIZE_PLOT))
-    write_html_report(
-        results, attribute_counts, runs, str(template_path), str(report_path)
+    json_serialize = [
+        results.find_aggregation("Serialize", "JSON", attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    cbor_serialize = [
+        results.find_aggregation("Serialize", "CBOR", attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    cbor_int_serialize = [
+        results.find_aggregation("Serialize", "CBORKeyAsInt", attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    json_deserialize = [
+        results.find_aggregation("Deserialize", "JSON", attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    cbor_deserialize = [
+        results.find_aggregation("Deserialize", "CBOR", attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    cbor_int_deserialize = [
+        results.find_aggregation("Deserialize", "CBORKeyAsInt", attribute_count)
+        for attribute_count in attribute_counts
+    ]
+    assert all(aggregation is not None for aggregation in json_serialize)
+    assert all(aggregation is not None for aggregation in cbor_serialize)
+    assert all(aggregation is not None for aggregation in cbor_int_serialize)
+    assert all(aggregation is not None for aggregation in json_deserialize)
+    assert all(aggregation is not None for aggregation in cbor_deserialize)
+    assert all(aggregation is not None for aggregation in cbor_int_deserialize)
+
+    json_serialize = [
+        aggregation for aggregation in json_serialize if aggregation is not None
+    ]
+    cbor_serialize = [
+        aggregation for aggregation in cbor_serialize if aggregation is not None
+    ]
+    cbor_int_serialize = [
+        aggregation for aggregation in cbor_int_serialize if aggregation is not None
+    ]
+    json_deserialize = [
+        aggregation for aggregation in json_deserialize if aggregation is not None
+    ]
+    cbor_deserialize = [
+        aggregation for aggregation in cbor_deserialize if aggregation is not None
+    ]
+    cbor_int_deserialize = [
+        aggregation for aggregation in cbor_int_deserialize if aggregation is not None
+    ]
+
+    json_serialize_latency_ns = [
+        aggregation.mean(NS_PER_OP) for aggregation in json_serialize
+    ]
+    json_serialize_latency_cis_ns = [
+        aggregation.confidence_interval(NS_PER_OP) for aggregation in json_serialize
+    ]
+    cbor_serialize_latency_ns = [
+        aggregation.mean(NS_PER_OP) for aggregation in cbor_serialize
+    ]
+    cbor_serialize_latency_cis_ns = [
+        aggregation.confidence_interval(NS_PER_OP) for aggregation in cbor_serialize
+    ]
+    cbor_int_serialize_latency_ns = [
+        aggregation.mean(NS_PER_OP) for aggregation in cbor_int_serialize
+    ]
+    cbor_int_serialize_latency_cis_ns = [
+        aggregation.confidence_interval(NS_PER_OP) for aggregation in cbor_int_serialize
+    ]
+    json_deserialize_latency_ns = [
+        aggregation.mean(NS_PER_OP) for aggregation in json_deserialize
+    ]
+    json_deserialize_latency_cis_ns = [
+        aggregation.confidence_interval(NS_PER_OP) for aggregation in json_deserialize
+    ]
+    cbor_deserialize_latency_ns = [
+        aggregation.mean(NS_PER_OP) for aggregation in cbor_deserialize
+    ]
+    cbor_deserialize_latency_cis_ns = [
+        aggregation.confidence_interval(NS_PER_OP) for aggregation in cbor_deserialize
+    ]
+    cbor_int_deserialize_latency_ns = [
+        aggregation.mean(NS_PER_OP) for aggregation in cbor_int_deserialize
+    ]
+    cbor_int_deserialize_latency_cis_ns = [
+        aggregation.confidence_interval(NS_PER_OP)
+        for aggregation in cbor_int_deserialize
+    ]
+
+    json_serialize_raw_sizes = [
+        aggregation.mean(RAW_BYTES) for aggregation in json_serialize
+    ]
+    json_serialize_envelope_sizes = [
+        aggregation.mean(ENVELOPE_BYTES) for aggregation in json_serialize
+    ]
+    cbor_serialize_raw_sizes = [
+        aggregation.mean(RAW_BYTES) for aggregation in cbor_serialize
+    ]
+    cbor_serialize_envelope_sizes = [
+        aggregation.mean(ENVELOPE_BYTES) for aggregation in cbor_serialize
+    ]
+    cbor_int_serialize_raw_sizes = [
+        aggregation.mean(RAW_BYTES) for aggregation in cbor_int_serialize
+    ]
+    cbor_int_serialize_envelope_sizes = [
+        aggregation.mean(ENVELOPE_BYTES) for aggregation in cbor_int_serialize
+    ]
+    json_deserialize_raw_sizes = [
+        aggregation.mean(RAW_BYTES) for aggregation in json_deserialize
+    ]
+    json_deserialize_envelope_sizes = [
+        aggregation.mean(ENVELOPE_BYTES) for aggregation in json_deserialize
+    ]
+    cbor_deserialize_raw_sizes = [
+        aggregation.mean(RAW_BYTES) for aggregation in cbor_deserialize
+    ]
+    cbor_deserialize_envelope_sizes = [
+        aggregation.mean(ENVELOPE_BYTES) for aggregation in cbor_deserialize
+    ]
+    cbor_int_deserialize_raw_sizes = [
+        aggregation.mean(RAW_BYTES) for aggregation in cbor_int_deserialize
+    ]
+    cbor_int_deserialize_envelope_sizes = [
+        aggregation.mean(ENVELOPE_BYTES) for aggregation in cbor_int_deserialize
+    ]
+
+    json_serialize_overhead_bytes = [
+        envelope - raw
+        for envelope, raw in zip(
+            json_serialize_envelope_sizes, json_serialize_raw_sizes, strict=True
+        )
+    ]
+    cbor_serialize_overhead_bytes = [
+        envelope - raw
+        for envelope, raw in zip(
+            cbor_serialize_envelope_sizes, cbor_serialize_raw_sizes, strict=True
+        )
+    ]
+    cbor_int_serialize_overhead_bytes = [
+        envelope - raw
+        for envelope, raw in zip(
+            cbor_int_serialize_envelope_sizes,
+            cbor_int_serialize_raw_sizes,
+            strict=True,
+        )
+    ]
+
+    plot_json_cbor_latency(
+        attribute_counts,
+        [value / NS_PER_MICROSECOND for value in json_serialize_latency_ns],
+        [value / NS_PER_MICROSECOND for value in json_serialize_latency_cis_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_serialize_latency_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_serialize_latency_cis_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_int_serialize_latency_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_int_serialize_latency_cis_ns],
+        [value / NS_PER_MICROSECOND for value in json_deserialize_latency_ns],
+        [value / NS_PER_MICROSECOND for value in json_deserialize_latency_cis_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_deserialize_latency_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_deserialize_latency_cis_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_int_deserialize_latency_ns],
+        [value / NS_PER_MICROSECOND for value in cbor_int_deserialize_latency_cis_ns],
+        str(result_dir / LATENCY_PLOT),
+    )
+    plot_json_cbor_size(
+        attribute_counts,
+        json_serialize_envelope_sizes,
+        [
+            aggregation.confidence_interval(ENVELOPE_BYTES)
+            for aggregation in json_serialize
+        ],
+        json_serialize_overhead_bytes,
+        cbor_serialize_envelope_sizes,
+        [
+            aggregation.confidence_interval(ENVELOPE_BYTES)
+            for aggregation in cbor_serialize
+        ],
+        cbor_serialize_overhead_bytes,
+        cbor_int_serialize_envelope_sizes,
+        [
+            aggregation.confidence_interval(ENVELOPE_BYTES)
+            for aggregation in cbor_int_serialize
+        ],
+        cbor_int_serialize_overhead_bytes,
+        str(result_dir / SIZE_PLOT),
+    )
+
+    write_json_cbor_report(
+        runs=runs,
+        t_multiplier=get_student_t_critical_95(runs - 1),
+        total_iterations=sum(
+            aggregation.iterations for aggregation in results.aggregations
+        ),
+        attribute_counts=attribute_counts,
+        json_serialize_latency_means=json_serialize_latency_ns,
+        json_serialize_latency_cis=json_serialize_latency_cis_ns,
+        json_serialize_raw_sizes=json_serialize_raw_sizes,
+        json_serialize_envelope_sizes=json_serialize_envelope_sizes,
+        json_serialize_overhead_percents=[
+            overhead / raw * 100.0
+            for overhead, raw in zip(
+                json_serialize_overhead_bytes, json_serialize_raw_sizes, strict=True
+            )
+        ],
+        json_serialize_iterations=[
+            aggregation.iterations for aggregation in json_serialize
+        ],
+        json_serialize_throttled=results.get_throttle_flags(
+            "Serialize", "JSON", attribute_counts
+        ),
+        cbor_serialize_latency_means=cbor_serialize_latency_ns,
+        cbor_serialize_latency_cis=cbor_serialize_latency_cis_ns,
+        cbor_serialize_raw_sizes=cbor_serialize_raw_sizes,
+        cbor_serialize_envelope_sizes=cbor_serialize_envelope_sizes,
+        cbor_serialize_overhead_percents=[
+            (envelope - raw) / raw * 100.0
+            for envelope, raw in zip(
+                cbor_serialize_envelope_sizes, cbor_serialize_raw_sizes, strict=True
+            )
+        ],
+        cbor_serialize_iterations=[
+            aggregation.iterations for aggregation in cbor_serialize
+        ],
+        cbor_serialize_throttled=results.get_throttle_flags(
+            "Serialize", "CBOR", attribute_counts
+        ),
+        cbor_int_serialize_latency_means=cbor_int_serialize_latency_ns,
+        cbor_int_serialize_latency_cis=cbor_int_serialize_latency_cis_ns,
+        cbor_int_serialize_raw_sizes=cbor_int_serialize_raw_sizes,
+        cbor_int_serialize_envelope_sizes=cbor_int_serialize_envelope_sizes,
+        cbor_int_serialize_overhead_percents=[
+            (envelope - raw) / raw * 100.0
+            for envelope, raw in zip(
+                cbor_int_serialize_envelope_sizes,
+                cbor_int_serialize_raw_sizes,
+                strict=True,
+            )
+        ],
+        cbor_int_serialize_iterations=[
+            aggregation.iterations for aggregation in cbor_int_serialize
+        ],
+        cbor_int_serialize_throttled=results.get_throttle_flags(
+            "Serialize", "CBORKeyAsInt", attribute_counts
+        ),
+        json_deserialize_latency_means=json_deserialize_latency_ns,
+        json_deserialize_latency_cis=json_deserialize_latency_cis_ns,
+        json_deserialize_raw_sizes=json_deserialize_raw_sizes,
+        json_deserialize_envelope_sizes=json_deserialize_envelope_sizes,
+        json_deserialize_overhead_percents=[
+            (envelope - raw) / raw * 100.0
+            for envelope, raw in zip(
+                json_deserialize_envelope_sizes,
+                json_deserialize_raw_sizes,
+                strict=True,
+            )
+        ],
+        json_deserialize_iterations=[
+            aggregation.iterations for aggregation in json_deserialize
+        ],
+        json_deserialize_throttled=results.get_throttle_flags(
+            "Deserialize", "JSON", attribute_counts
+        ),
+        cbor_deserialize_latency_means=cbor_deserialize_latency_ns,
+        cbor_deserialize_latency_cis=cbor_deserialize_latency_cis_ns,
+        cbor_deserialize_raw_sizes=cbor_deserialize_raw_sizes,
+        cbor_deserialize_envelope_sizes=cbor_deserialize_envelope_sizes,
+        cbor_deserialize_overhead_percents=[
+            (envelope - raw) / raw * 100.0
+            for envelope, raw in zip(
+                cbor_deserialize_envelope_sizes,
+                cbor_deserialize_raw_sizes,
+                strict=True,
+            )
+        ],
+        cbor_deserialize_iterations=[
+            aggregation.iterations for aggregation in cbor_deserialize
+        ],
+        cbor_deserialize_throttled=results.get_throttle_flags(
+            "Deserialize", "CBOR", attribute_counts
+        ),
+        cbor_int_deserialize_latency_means=cbor_int_deserialize_latency_ns,
+        cbor_int_deserialize_latency_cis=cbor_int_deserialize_latency_cis_ns,
+        cbor_int_deserialize_raw_sizes=cbor_int_deserialize_raw_sizes,
+        cbor_int_deserialize_envelope_sizes=cbor_int_deserialize_envelope_sizes,
+        cbor_int_deserialize_overhead_percents=[
+            (envelope - raw) / raw * 100.0
+            for envelope, raw in zip(
+                cbor_int_deserialize_envelope_sizes,
+                cbor_int_deserialize_raw_sizes,
+                strict=True,
+            )
+        ],
+        cbor_int_deserialize_iterations=[
+            aggregation.iterations for aggregation in cbor_int_deserialize
+        ],
+        cbor_int_deserialize_throttled=results.get_throttle_flags(
+            "Deserialize", "CBORKeyAsInt", attribute_counts
+        ),
+        latency_plot=LATENCY_PLOT,
+        size_plot=SIZE_PLOT,
+        template_path=str(template_path),
+        report_path=str(report_path),
     )
 
 

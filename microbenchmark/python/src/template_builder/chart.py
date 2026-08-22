@@ -8,19 +8,14 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from math import isnan
 
-from model.benchmark_summary import BenchmarkSummary
-from model.measurement import *
-from statistics_tbd.linear_regression import LinearRegression
 from template_builder.color import *
-from template_builder.formatting import KILOBYTE, MEGABYTE, NS_PER_MICROSECOND
+from template_builder.formatting import KILOBYTE, MEGABYTE
 
 FIGURE_DPI = 150
 PANEL_FIGURE_SIZE = (13, 5)
 
 # Leaves a little space between the last data point and the right edge of an axis
 AXIS_HEADROOM = 1.03
-NS_PER_MILLISECOND = 1000000.0
-NO_MEASUREMENT = float("nan")
 CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 TOTAL_CIPHERTEXT_COLOR = TEAL
 RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
@@ -199,32 +194,32 @@ def save_figure(figure: Figure, output_path: str) -> None:
 
 
 def plot_aes_ascon_latency(
-    results: BenchmarkSummary,
     payload_sizes: list[int],
+    aes_encrypt_means: list[float],
+    aes_encrypt_cis: list[float],
+    ascon_encrypt_means: list[float],
+    ascon_encrypt_cis: list[float],
+    aes_decrypt_means: list[float],
+    aes_decrypt_cis: list[float],
+    ascon_decrypt_means: list[float],
+    ascon_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle("AES-GCM vs. ASCON: Latency vs. Payload Size", fontsize=13)
 
-    for axis, operation in zip(axes, ["Encrypt", "Decrypt"]):
-        for algorithm, color in (("AES-GCM", AMBER), ("ASCON", VIOLET)):
-            aggregations = [
-                results.find_aggregation(operation, algorithm, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
+    for axis, operation, aes_means, aes_cis, ascon_means, ascon_cis in zip(
+        axes,
+        ["Encrypt", "Decrypt"],
+        [aes_encrypt_means, aes_decrypt_means],
+        [aes_encrypt_cis, aes_decrypt_cis],
+        [ascon_encrypt_means, ascon_decrypt_means],
+        [ascon_encrypt_cis, ascon_decrypt_cis],
+    ):
+        for algorithm, means, confidence_intervals, color in (
+            ("AES-GCM", aes_means, aes_cis, AMBER),
+            ("ASCON", ascon_means, ascon_cis, VIOLET),
+        ):
             draw_summary(
                 axis,
                 payload_sizes,
@@ -247,32 +242,32 @@ def plot_aes_ascon_latency(
 
 
 def plot_aes_ascon_throughput(
-    results: BenchmarkSummary,
     payload_sizes: list[int],
+    aes_encrypt_means: list[float],
+    aes_encrypt_cis: list[float],
+    ascon_encrypt_means: list[float],
+    ascon_encrypt_cis: list[float],
+    aes_decrypt_means: list[float],
+    aes_decrypt_cis: list[float],
+    ascon_decrypt_means: list[float],
+    ascon_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle("AES-GCM vs. ASCON: Throughput vs. Payload Size", fontsize=13)
 
-    for axis, operation in zip(axes, ["Encrypt", "Decrypt"]):
-        for algorithm, color in (("AES-GCM", AMBER), ("ASCON", VIOLET)):
-            aggregations = [
-                results.find_aggregation(operation, algorithm, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(MB_PER_SECOND)
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(MB_PER_SECOND)
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
+    for axis, operation, aes_means, aes_cis, ascon_means, ascon_cis in zip(
+        axes,
+        ["Encrypt", "Decrypt"],
+        [aes_encrypt_means, aes_decrypt_means],
+        [aes_encrypt_cis, aes_decrypt_cis],
+        [ascon_encrypt_means, ascon_decrypt_means],
+        [ascon_encrypt_cis, ascon_decrypt_cis],
+    ):
+        for algorithm, means, confidence_intervals, color in (
+            ("AES-GCM", aes_means, aes_cis, AMBER),
+            ("ASCON", ascon_means, ascon_cis, VIOLET),
+        ):
             draw_summary(
                 axis,
                 payload_sizes,
@@ -295,34 +290,48 @@ def plot_aes_ascon_throughput(
 
 
 def plot_payload_scaling_latency(
-    results: BenchmarkSummary,
     payload_sizes: list[int],
+    psk_encrypt_means: list[float],
+    psk_encrypt_cis: list[float],
+    rsa_encrypt_means: list[float],
+    rsa_encrypt_cis: list[float],
+    cpabe_encrypt_means: list[float],
+    cpabe_encrypt_cis: list[float],
+    psk_decrypt_means: list[float],
+    psk_decrypt_cis: list[float],
+    rsa_decrypt_means: list[float],
+    rsa_decrypt_cis: list[float],
+    cpabe_decrypt_means: list[float],
+    cpabe_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle("PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size", fontsize=13)
 
-    for axis, operation in zip(axes, ["Encrypt", "Decrypt"]):
-        drawn = []
-
-        for scheme_name, color in (("PSK", TEAL), ("RSA", VIOLET), ("CPABE", CRIMSON)):
-            aggregations = [
-                results.find_aggregation(operation, scheme_name, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
+    for (
+        axis,
+        operation,
+        psk_means,
+        psk_cis,
+        rsa_means,
+        rsa_cis,
+        cpabe_means,
+        cpabe_cis,
+    ) in zip(
+        axes,
+        ["Encrypt", "Decrypt"],
+        [psk_encrypt_means, psk_decrypt_means],
+        [psk_encrypt_cis, psk_decrypt_cis],
+        [rsa_encrypt_means, rsa_decrypt_means],
+        [rsa_encrypt_cis, rsa_decrypt_cis],
+        [cpabe_encrypt_means, cpabe_decrypt_means],
+        [cpabe_encrypt_cis, cpabe_decrypt_cis],
+    ):
+        for scheme_name, means, confidence_intervals, color in (
+            ("PSK", psk_means, psk_cis, TEAL),
+            ("RSA", rsa_means, rsa_cis, VIOLET),
+            ("CPABE", cpabe_means, cpabe_cis, CRIMSON),
+        ):
             draw_summary(
                 axis,
                 payload_sizes,
@@ -332,8 +341,6 @@ def plot_payload_scaling_latency(
                 color,
                 with_ci=True,
             )
-            drawn.append((scheme_name, means, confidence_intervals, color))
-
         axis.set_title(operation, fontsize=11)
         axis.set_xlabel("Payload Size")
         axis.set_ylabel("Latency (µs) ± 95% CI")
@@ -343,9 +350,10 @@ def plot_payload_scaling_latency(
 
         if operation == "Encrypt":
             zoom_axis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])  # type: ignore
-            zoomed = [entry for entry in drawn if entry[0] != "CPABE"]
-
-            for scheme_name, means, confidence_intervals, color in zoomed:
+            for scheme_name, means, confidence_intervals, color in (
+                ("PSK", psk_means, psk_cis, TEAL),
+                ("RSA", rsa_means, rsa_cis, VIOLET),
+            ):
                 draw_summary(
                     zoom_axis,
                     payload_sizes,
@@ -361,8 +369,8 @@ def plot_payload_scaling_latency(
             zoom_axis.set_ylim(
                 0.0,
                 max(
-                    calculate_axis_top(means, confidence_intervals)
-                    for _, means, confidence_intervals, _ in zoomed
+                    calculate_axis_top(psk_means, psk_cis),
+                    calculate_axis_top(rsa_means, rsa_cis),
                 )
                 * 1.10,
             )
@@ -379,34 +387,53 @@ def plot_payload_scaling_latency(
 
 
 def plot_payload_scaling_throughput(
-    results: BenchmarkSummary,
     payload_sizes: list[int],
+    psk_encrypt_means: list[float],
+    psk_encrypt_cis: list[float],
+    rsa_encrypt_means: list[float],
+    rsa_encrypt_cis: list[float],
+    cpabe_encrypt_means: list[float],
+    cpabe_encrypt_cis: list[float],
+    psk_decrypt_means: list[float],
+    psk_decrypt_cis: list[float],
+    rsa_decrypt_means: list[float],
+    rsa_decrypt_cis: list[float],
+    cpabe_decrypt_means: list[float],
+    cpabe_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle("PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size", fontsize=13)
 
-    for axis, operation in zip(axes, ["Encrypt", "Decrypt"]):
-        for scheme_name, color in (("PSK", TEAL), ("RSA", VIOLET), ("CPABE", CRIMSON)):
-            aggregations = [
-                results.find_aggregation(operation, scheme_name, payload_size)
-                for payload_size in payload_sizes
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
+    for (
+        axis,
+        operation,
+        psk_means,
+        psk_cis,
+        rsa_means,
+        rsa_cis,
+        cpabe_means,
+        cpabe_cis,
+    ) in zip(
+        axes,
+        ["Encrypt", "Decrypt"],
+        [psk_encrypt_means, psk_decrypt_means],
+        [psk_encrypt_cis, psk_decrypt_cis],
+        [rsa_encrypt_means, rsa_decrypt_means],
+        [rsa_encrypt_cis, rsa_decrypt_cis],
+        [cpabe_encrypt_means, cpabe_decrypt_means],
+        [cpabe_encrypt_cis, cpabe_decrypt_cis],
+    ):
+        for scheme_name, means, confidence_intervals, color in (
+            ("PSK", psk_means, psk_cis, TEAL),
+            ("RSA", rsa_means, rsa_cis, VIOLET),
+            ("CPABE", cpabe_means, cpabe_cis, CRIMSON),
+        ):
             draw_summary(
                 axis,
                 payload_sizes,
-                [
-                    aggregation.mean(MB_PER_SECOND)
-                    for aggregation in aggregations
-                    if aggregation is not None
-                ],
-                [
-                    aggregation.confidence_interval(MB_PER_SECOND)
-                    for aggregation in aggregations
-                    if aggregation is not None
-                ],
+                means,
+                confidence_intervals,
                 scheme_name,
                 color,
                 with_ci=True,
@@ -429,8 +456,19 @@ def configure_attribute_axis(attribute_counts: list[int], axis: Axes) -> None:
 
 
 def plot_json_cbor_latency(
-    results: BenchmarkSummary,
     attribute_counts: list[int],
+    json_serialize_means: list[float],
+    json_serialize_cis: list[float],
+    cbor_serialize_means: list[float],
+    cbor_serialize_cis: list[float],
+    cbor_int_serialize_means: list[float],
+    cbor_int_serialize_cis: list[float],
+    json_deserialize_means: list[float],
+    json_deserialize_cis: list[float],
+    cbor_deserialize_means: list[float],
+    cbor_deserialize_cis: list[float],
+    cbor_int_deserialize_means: list[float],
+    cbor_int_deserialize_cis: list[float],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
@@ -439,29 +477,30 @@ def plot_json_cbor_latency(
         fontsize=13,
     )
 
-    for axis, operation in zip(axes, ["Serialize", "Deserialize"]):
-        for format_name, label, color in (
-            ("JSON", "JSON", AMBER),
-            ("CBOR", "CBOR", VIOLET),
-            ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
+    for (
+        axis,
+        operation,
+        json_means,
+        json_cis,
+        cbor_means,
+        cbor_cis,
+        cbor_int_means,
+        cbor_int_cis,
+    ) in zip(
+        axes,
+        ["Serialize", "Deserialize"],
+        [json_serialize_means, json_deserialize_means],
+        [json_serialize_cis, json_deserialize_cis],
+        [cbor_serialize_means, cbor_deserialize_means],
+        [cbor_serialize_cis, cbor_deserialize_cis],
+        [cbor_int_serialize_means, cbor_int_deserialize_means],
+        [cbor_int_serialize_cis, cbor_int_deserialize_cis],
+    ):
+        for label, means, confidence_intervals, color in (
+            ("JSON", json_means, json_cis, AMBER),
+            ("CBOR", cbor_means, cbor_cis, VIOLET),
+            ("CBOR (int keys)", cbor_int_means, cbor_int_cis, TEAL),
         ):
-            aggregations = [
-                results.find_aggregation(operation, format_name, attribute_count)
-                for attribute_count in attribute_counts
-            ]
-            assert all(aggregation is not None for aggregation in aggregations)
-
-            means = [
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-            confidence_intervals = [
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                for aggregation in aggregations
-                if aggregation is not None
-            ]
-
             draw_summary(
                 axis,
                 attribute_counts,
@@ -484,8 +523,16 @@ def plot_json_cbor_latency(
 
 
 def plot_json_cbor_size(
-    results: BenchmarkSummary,
     attribute_counts: list[int],
+    json_envelope_means: list[float],
+    json_envelope_cis: list[float],
+    json_overhead_bytes: list[float],
+    cbor_envelope_means: list[float],
+    cbor_envelope_cis: list[float],
+    cbor_overhead_bytes: list[float],
+    cbor_int_envelope_means: list[float],
+    cbor_int_envelope_cis: list[float],
+    cbor_int_overhead_bytes: list[float],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
@@ -494,33 +541,17 @@ def plot_json_cbor_size(
         fontsize=13,
     )
 
-    for format_name, label, color in (
-        ("JSON", "JSON", AMBER),
-        ("CBOR", "CBOR", VIOLET),
-        ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
+    for label, envelope_means, envelope_cis, overhead_bytes, color in (
+        ("JSON", json_envelope_means, json_envelope_cis, json_overhead_bytes, AMBER),
+        ("CBOR", cbor_envelope_means, cbor_envelope_cis, cbor_overhead_bytes, VIOLET),
+        (
+            "CBOR (int keys)",
+            cbor_int_envelope_means,
+            cbor_int_envelope_cis,
+            cbor_int_overhead_bytes,
+            TEAL,
+        ),
     ):
-        aggregations = [
-            results.find_aggregation("Serialize", format_name, attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        assert all(aggregation is not None for aggregation in aggregations)
-
-        envelope_means = [
-            aggregation.mean(ENVELOPE_BYTES)
-            for aggregation in aggregations
-            if aggregation is not None
-        ]
-        envelope_cis = [
-            aggregation.confidence_interval(ENVELOPE_BYTES)
-            for aggregation in aggregations
-            if aggregation is not None
-        ]
-        raw_means = [
-            aggregation.mean(RAW_BYTES)
-            for aggregation in aggregations
-            if aggregation is not None
-        ]
-
         draw_summary(
             axes[0],
             attribute_counts,
@@ -532,7 +563,7 @@ def plot_json_cbor_size(
 
         axes[1].plot(
             attribute_counts,
-            [envelope - raw for envelope, raw in zip(envelope_means, raw_means)],
+            overhead_bytes,
             label=label,
             color=color,
             marker="o",
@@ -556,35 +587,24 @@ def plot_json_cbor_size(
 
 
 def plot_cpabe_attribute_sweep(
-    results: BenchmarkSummary,
     attribute_counts: list[int],
+    encrypt_latency_means: list[float],
+    encrypt_latency_cis: list[float],
+    decrypt_latency_means: list[float],
+    decrypt_latency_cis: list[float],
+    ciphertext_means: list[float],
+    ciphertext_cis: list[float],
+    stored_key_means: list[float],
+    stored_key_cis: list[float],
     output_path: str,
 ) -> None:
     figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle("CP-ABE Scaling with Policy Attribute Count", fontsize=13)
 
-    for operation, color in (("Encrypt", AMBER), ("Decrypt", VIOLET)):
-        aggregations = [
-            results.find_aggregation(operation, "CPABEAttributes", attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        means = [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in aggregations
-        ]
-        confidence_intervals = [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in aggregations
-        ]
-
+    for operation, means, confidence_intervals, color in (
+        ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
+        ("Decrypt", decrypt_latency_means, decrypt_latency_cis, VIOLET),
+    ):
         draw_summary(
             latency_axis,
             attribute_counts,
@@ -595,33 +615,15 @@ def plot_cpabe_attribute_sweep(
             with_ci=True,
         )
 
-    for operation, measurement_name, label, color in (
-        ("Encrypt", CIPHERTEXT_BYTES, "Ciphertext", AMBER),
-        ("Decrypt", STORED_KEY_BYTES, "Private Key", CRIMSON),
+    for means, confidence_intervals, label, color in (
+        (ciphertext_means, ciphertext_cis, "Ciphertext", AMBER),
+        (stored_key_means, stored_key_cis, "Private Key", CRIMSON),
     ):
-        aggregations = [
-            results.find_aggregation(operation, "CPABEAttributes", attribute_count)
-            for attribute_count in attribute_counts
-        ]
         draw_summary(
             size_axis,
             attribute_counts,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
+            means,
+            confidence_intervals,
             label,
             color,
         )
@@ -647,9 +649,15 @@ def plot_cpabe_attribute_sweep(
 
 
 def plot_rsa_subscriber_sweep(
-    results: BenchmarkSummary,
     subscriber_counts: list[int],
     fixed_rsa_key_bits: int,
+    encrypt_latency_means: list[float],
+    encrypt_latency_cis: list[float],
+    decrypt_latency: float | None,
+    ciphertext_means: list[float],
+    ciphertext_cis: list[float],
+    total_ciphertext_means: list[float],
+    total_ciphertext_cis: list[float],
     output_path: str,
 ) -> None:
     figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
@@ -658,73 +666,39 @@ def plot_rsa_subscriber_sweep(
         fontsize=13,
     )
 
-    encrypt_aggregations = [
-        results.find_aggregation("Encrypt", "RSASubscribers", subscriber_count)
-        for subscriber_count in subscriber_counts
-    ]
     draw_summary(
         latency_axis,
         subscriber_counts,
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in encrypt_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-            )
-            for aggregation in encrypt_aggregations
-        ],
+        encrypt_latency_means,
+        encrypt_latency_cis,
         "Encrypt",
         AMBER,
         with_ci=True,
     )
 
-    decrypt_reference = results.find_aggregation(
-        "Decrypt", "RSAKeyBits", fixed_rsa_key_bits
-    )
-    if (
-        decrypt_reference is not None
-        and not decrypt_reference.out_of_memory
-        and decrypt_reference.has_measurement(NS_PER_OP)
-    ):
+    if decrypt_latency is not None:
         draw_constant(
             latency_axis,
-            decrypt_reference.mean(NS_PER_OP) / NS_PER_MICROSECOND,
+            decrypt_latency,
             subscriber_counts,
             f"Decrypt (RSA-{fixed_rsa_key_bits}, Constant)",
             VIOLET,
         )
 
-    for measurement_name, label, color in (
-        (CIPHERTEXT_BYTES, "Ciphertext", AMBER),
-        (TOTAL_CIPHERTEXT_BYTES, "Ciphertext (TOTAL)", TOTAL_CIPHERTEXT_COLOR),
+    for means, confidence_intervals, label, color in (
+        (ciphertext_means, ciphertext_cis, "Ciphertext", AMBER),
+        (
+            total_ciphertext_means,
+            total_ciphertext_cis,
+            "Ciphertext (TOTAL)",
+            TOTAL_CIPHERTEXT_COLOR,
+        ),
     ):
         draw_summary(
             size_axis,
             subscriber_counts,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(measurement_name)
-                )
-                for aggregation in encrypt_aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(measurement_name)
-                )
-                for aggregation in encrypt_aggregations
-            ],
+            means,
+            confidence_intervals,
             label,
             color,
         )
@@ -750,8 +724,20 @@ def plot_rsa_subscriber_sweep(
 
 
 def plot_rsa_key_size_sweep(
-    results: BenchmarkSummary,
     rsa_key_sizes: list[int],
+    keygen_medians: list[float],
+    keygen_minimums: list[float],
+    keygen_maximums: list[float],
+    keygen_first_quartiles: list[float],
+    keygen_third_quartiles: list[float],
+    encrypt_latency_means: list[float],
+    encrypt_latency_cis: list[float],
+    decrypt_latency_means: list[float],
+    decrypt_latency_cis: list[float],
+    ciphertext_means: list[float],
+    ciphertext_cis: list[float],
+    stored_key_means: list[float],
+    stored_key_cis: list[float],
     output_path: str,
 ) -> None:
     figure = plt.figure(figsize=(13, 7))
@@ -761,113 +747,41 @@ def plot_rsa_key_size_sweep(
     size_axis = figure.add_subplot(grid_spec[:, 1])
     figure.suptitle("RSA Scaling with Key Size (1 Subscriber)", fontsize=13)
 
-    keygen_aggregations = [
-        results.find_aggregation("KeyGen", "RSAKeyBits", rsa_key_bits)
-        for rsa_key_bits in rsa_key_sizes
-    ]
     draw_distribution(
         keygen_latency_axis,
         rsa_key_sizes,
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.median(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.minimum(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.maximum(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.first_quartile(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.third_quartile(NS_PER_OP) / NS_PER_MILLISECOND
-            )
-            for aggregation in keygen_aggregations
-        ],
+        keygen_medians,
+        keygen_minimums,
+        keygen_maximums,
+        keygen_first_quartiles,
+        keygen_third_quartiles,
         "Keygen",
         CRIMSON,
     )
 
-    for operation, color in (("Encrypt", AMBER), ("Decrypt", VIOLET)):
-        aggregations = [
-            results.find_aggregation(operation, "RSAKeyBits", rsa_key_bits)
-            for rsa_key_bits in rsa_key_sizes
-        ]
+    for operation, means, confidence_intervals, color in (
+        ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
+        ("Decrypt", decrypt_latency_means, decrypt_latency_cis, VIOLET),
+    ):
         draw_summary(
             latency_axis,
             rsa_key_sizes,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-                )
-                for aggregation in aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
-                )
-                for aggregation in aggregations
-            ],
+            means,
+            confidence_intervals,
             operation,
             color,
             with_ci=True,
         )
 
-    encrypt_aggregations = [
-        results.find_aggregation("Encrypt", "RSAKeyBits", rsa_key_bits)
-        for rsa_key_bits in rsa_key_sizes
-    ]
-    for aggregations, measurement_name, label, color in (
-        (encrypt_aggregations, CIPHERTEXT_BYTES, "Ciphertext", AMBER),
-        (keygen_aggregations, STORED_KEY_BYTES, "Private Key", CRIMSON),
+    for means, confidence_intervals, label, color in (
+        (ciphertext_means, ciphertext_cis, "Ciphertext", AMBER),
+        (stored_key_means, stored_key_cis, "Private Key", CRIMSON),
     ):
         draw_summary(
             size_axis,
             rsa_key_sizes,
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.mean(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
-            [
-                (
-                    NO_MEASUREMENT
-                    if aggregation is None or aggregation.out_of_memory
-                    else aggregation.confidence_interval(measurement_name)
-                )
-                for aggregation in aggregations
-            ],
+            means,
+            confidence_intervals,
             label,
             color,
         )
@@ -902,10 +816,20 @@ def plot_rsa_key_size_sweep(
 
 
 def plot_peak_memory(
-    results: BenchmarkSummary,
     attribute_counts: list[int],
+    cpabe_encrypt_means: list[float],
+    cpabe_encrypt_cis: list[float],
+    cpabe_decrypt_means: list[float],
+    cpabe_decrypt_cis: list[float],
     subscriber_counts: list[int],
+    subscriber_encrypt_means: list[float],
+    subscriber_encrypt_cis: list[float],
+    subscriber_decrypt_reference: float | None,
     rsa_key_sizes: list[int],
+    rsa_encrypt_means: list[float],
+    rsa_encrypt_cis: list[float],
+    rsa_decrypt_means: list[float],
+    rsa_decrypt_cis: list[float],
     fixed_rsa_key_bits: int,
     output_path: str,
 ) -> None:
@@ -914,96 +838,48 @@ def plot_peak_memory(
 
     cpabe_axis, subscriber_axis, key_size_axis = axes
 
-    for operation, label, color in (
-        ("MemoryEncrypt", "Encrypt", AMBER),
-        ("MemoryDecrypt", "Decrypt", VIOLET),
+    for means, confidence_intervals, label, color in (
+        (cpabe_encrypt_means, cpabe_encrypt_cis, "Encrypt", AMBER),
+        (cpabe_decrypt_means, cpabe_decrypt_cis, "Decrypt", VIOLET),
     ):
-        aggregations = [
-            results.find_aggregation(operation, "CPABEAttributes", attribute_count)
-            for attribute_count in attribute_counts
-        ]
-        assert all(aggregation is not None for aggregation in aggregations)
         draw_summary(
             cpabe_axis,
             attribute_counts,
-            [
-                aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
-            [
-                aggregation.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
+            means,
+            confidence_intervals,
             label,
             color,
             with_ci=True,
         )
 
-    subscriber_encrypt_aggregations = [
-        results.find_aggregation("MemoryEncrypt", "RSASubscribers", subscriber_count)
-        for subscriber_count in subscriber_counts
-    ]
-    assert all(
-        aggregation is not None for aggregation in subscriber_encrypt_aggregations
-    )
     draw_summary(
         subscriber_axis,
         subscriber_counts,
-        [
-            aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
-            for aggregation in subscriber_encrypt_aggregations
-            if aggregation is not None
-        ],
-        [
-            aggregation.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
-            for aggregation in subscriber_encrypt_aggregations
-            if aggregation is not None
-        ],
+        subscriber_encrypt_means,
+        subscriber_encrypt_cis,
         "Encrypt",
         AMBER,
         with_ci=True,
     )
 
-    decrypt_reference = results.find_aggregation(
-        "MemoryDecrypt", "RSAKeyBits", fixed_rsa_key_bits
-    )
-    if (
-        decrypt_reference is not None
-        and not decrypt_reference.out_of_memory
-        and decrypt_reference.has_measurement(PEAK_RSS_BYTES)
-    ):
+    if subscriber_decrypt_reference is not None:
         draw_constant(
             subscriber_axis,
-            decrypt_reference.mean(PEAK_RSS_BYTES) / MEGABYTE,
+            subscriber_decrypt_reference,
             subscriber_counts,
             f"Decrypt (RSA-{fixed_rsa_key_bits})",
             VIOLET,
         )
 
-    for operation, label, color in (
-        ("MemoryEncrypt", "Encrypt", AMBER),
-        ("MemoryDecrypt", "Decrypt", VIOLET),
+    for means, confidence_intervals, label, color in (
+        (rsa_encrypt_means, rsa_encrypt_cis, "Encrypt", AMBER),
+        (rsa_decrypt_means, rsa_decrypt_cis, "Decrypt", VIOLET),
     ):
-        aggregations = [
-            results.find_aggregation(operation, "RSAKeyBits", rsa_key_bits)
-            for rsa_key_bits in rsa_key_sizes
-        ]
-        assert all(aggregation is not None for aggregation in aggregations)
         draw_summary(
             key_size_axis,
             rsa_key_sizes,
-            [
-                aggregation.mean(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
-            [
-                aggregation.confidence_interval(PEAK_RSS_BYTES) / MEGABYTE
-                for aggregation in aggregations
-                if aggregation is not None
-            ],
+            means,
+            confidence_intervals,
             label,
             color,
             with_ci=True,
@@ -1032,53 +908,33 @@ def plot_peak_memory(
 
 
 def plot_ciphertext_size_crossover(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
     subscriber_counts: list[int],
+    rsa_means: list[float],
+    rsa_cis: list[float],
+    low_attribute_count: int,
+    low_cpabe_level: float,
     low_crossover: float,
+    high_attribute_count: int,
+    high_cpabe_level: float,
     high_crossover: float,
     output_path: str,
 ) -> None:
     x_limit = subscriber_counts[-1]
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
-    rsa_aggregations = [
-        results.find_aggregation("Encrypt", "RSASubscribers", count)
-        for count in subscriber_counts
-    ]
     draw_summary(
         axis,
         subscriber_counts,
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.mean(TOTAL_CIPHERTEXT_BYTES)
-            )
-            for aggregation in rsa_aggregations
-        ],
-        [
-            (
-                NO_MEASUREMENT
-                if aggregation is None or aggregation.out_of_memory
-                else aggregation.confidence_interval(TOTAL_CIPHERTEXT_BYTES)
-            )
-            for aggregation in rsa_aggregations
-        ],
+        rsa_means,
+        rsa_cis,
         "RSA Scaling Subs",
         TOTAL_CIPHERTEXT_COLOR,
     )
 
-    for attribute_count, crossover, color in (
-        (attribute_counts[0], low_crossover, AMBER),
-        (attribute_counts[-1], high_crossover, CRIMSON),
+    for attribute_count, level, crossover, color in (
+        (low_attribute_count, low_cpabe_level, low_crossover, AMBER),
+        (high_attribute_count, high_cpabe_level, high_crossover, CRIMSON),
     ):
-        aggregation = results.find_aggregation(
-            "Encrypt", "CPABEAttributes", attribute_count
-        )
-        assert aggregation is not None and not aggregation.out_of_memory
-        level = aggregation.mean(CIPHERTEXT_BYTES)
-
         axis.hlines(
             level,
             1,
@@ -1105,51 +961,38 @@ def plot_ciphertext_size_crossover(
 
 
 def plot_encrypt_latency_crossover(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
     subscriber_counts: list[int],
-    encrypt_fit: LinearRegression,
+    rsa_means: list[float],
+    rsa_cis: list[float],
+    projection_start_subscribers: float,
+    projection_start_micros: float,
+    projection_end_subscribers: float,
+    projection_end_micros: float,
+    low_attribute_count: int,
+    low_cpabe_level: float,
     low_crossover: float,
+    high_attribute_count: int,
+    high_cpabe_level: float,
     high_crossover: float,
     output_path: str,
 ) -> None:
-    x_limit = high_crossover * 1.15
+    x_limit = projection_end_subscribers
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
-    projection_start_subscribers = float(subscriber_counts[-1])
-    projection_end_micros = encrypt_fit.calculate_y_based_on_x(x_limit)
     axis.plot(
         [projection_start_subscribers, x_limit],
-        [
-            encrypt_fit.calculate_y_based_on_x(projection_start_subscribers),
-            projection_end_micros,
-        ],
+        [projection_start_micros, projection_end_micros],
         color=TOTAL_CIPHERTEXT_COLOR,
         linewidth=1.8,
         linestyle=":",
         label="RSA Linear Fit (Projected Beyond Sample)",
     )
 
-    rsa_aggregations = [
-        results.find_aggregation("Encrypt", "RSASubscribers", count)
-        for count in subscriber_counts
-    ]
-    rsa_statistics = [
-        (
-            (NO_MEASUREMENT, NO_MEASUREMENT)
-            if aggregation is None or aggregation.out_of_memory
-            else (
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND,
-            )
-        )
-        for aggregation in rsa_aggregations
-    ]
     draw_summary(
         axis,
         subscriber_counts,
-        [mean_value for mean_value, _ in rsa_statistics],
-        [ci for _, ci in rsa_statistics],
+        rsa_means,
+        rsa_cis,
         "RSA Scaling Subs (Measured)",
         TOTAL_CIPHERTEXT_COLOR,
         linewidth=2.6,
@@ -1157,16 +1000,10 @@ def plot_encrypt_latency_crossover(
 
     largest_value = projection_end_micros
 
-    for attribute_count, crossover, color in (
-        (attribute_counts[0], low_crossover, AMBER),
-        (attribute_counts[-1], high_crossover, CRIMSON),
+    for attribute_count, level, crossover, color in (
+        (low_attribute_count, low_cpabe_level, low_crossover, AMBER),
+        (high_attribute_count, high_cpabe_level, high_crossover, CRIMSON),
     ):
-        aggregation = results.find_aggregation(
-            "Encrypt", "CPABEAttributes", attribute_count
-        )
-        assert aggregation is not None and not aggregation.out_of_memory
-        level = aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-
         axis.hlines(
             level,
             0.0,
@@ -1190,34 +1027,14 @@ def plot_encrypt_latency_crossover(
 
 
 def plot_decrypt_latency_crossover(
-    results: BenchmarkSummary,
     attribute_counts: list[int],
+    cpabe_means: list[float],
+    cpabe_cis: list[float],
     rsa_key_sizes: list[int],
+    rsa_means: list[float],
+    rsa_cis: list[float],
     output_path: str,
 ) -> None:
-    rsa_key_bits_values = []
-    for rsa_key_bits in rsa_key_sizes:
-        aggregation = results.find_aggregation("Decrypt", "RSAKeyBits", rsa_key_bits)
-        if aggregation is not None and not aggregation.out_of_memory:
-            rsa_key_bits_values.append(rsa_key_bits)
-    cpabe_aggregations = [
-        results.find_aggregation("Decrypt", "CPABEAttributes", attribute_count)
-        for attribute_count in attribute_counts
-    ]
-    cpabe_statistics = [
-        (
-            (NO_MEASUREMENT, NO_MEASUREMENT)
-            if aggregation is None or aggregation.out_of_memory
-            else (
-                aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-                aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND,
-            )
-        )
-        for aggregation in cpabe_aggregations
-    ]
-    cpabe_means = [mean_value for mean_value, _ in cpabe_statistics]
-    cpabe_cis = [ci for _, ci in cpabe_statistics]
-
     figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
     draw_summary(
         axis,
@@ -1232,13 +1049,9 @@ def plot_decrypt_latency_crossover(
 
     largest_value = calculate_axis_top(cpabe_means, cpabe_cis)
 
-    for index, rsa_key_bits in enumerate(rsa_key_bits_values):
-        rsa_aggregation = results.find_aggregation(
-            "Decrypt", "RSAKeyBits", rsa_key_bits
-        )
-        assert rsa_aggregation is not None and not rsa_aggregation.out_of_memory
-        rsa_mean = rsa_aggregation.mean(NS_PER_OP) / NS_PER_MICROSECOND
-        rsa_ci = rsa_aggregation.confidence_interval(NS_PER_OP) / NS_PER_MICROSECOND
+    for index, (rsa_key_bits, rsa_mean, rsa_ci) in enumerate(
+        zip(rsa_key_sizes, rsa_means, rsa_cis)
+    ):
         rsa_color = RSA_KEY_BITS_COLORS[index % len(RSA_KEY_BITS_COLORS)]
 
         axis.hlines(
@@ -1273,37 +1086,26 @@ def plot_decrypt_latency_crossover(
 
 
 def plot_encrypt_decrypt_asymmetry(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
     fixed_rsa_key_bits: int,
+    min_attribute_count: int,
+    rsa_encrypt_micros: float,
+    rsa_decrypt_micros: float,
+    rsa_slower_operation: str,
+    rsa_ratio: float,
+    cpabe_encrypt_micros: float,
+    cpabe_decrypt_micros: float,
+    cpabe_slower_operation: str,
+    cpabe_ratio: float,
     output_path: str,
 ) -> None:
-    min_attributes = attribute_counts[0]
-    rsa_encrypt = results.find_aggregation("Encrypt", "RSAKeyBits", fixed_rsa_key_bits)
-    rsa_decrypt = results.find_aggregation("Decrypt", "RSAKeyBits", fixed_rsa_key_bits)
-    cpabe_encrypt = results.find_aggregation(
-        "Encrypt", "CPABEAttributes", min_attributes
-    )
-    cpabe_decrypt = results.find_aggregation(
-        "Decrypt", "CPABEAttributes", min_attributes
-    )
-    assert rsa_encrypt is not None and not rsa_encrypt.out_of_memory
-    assert rsa_decrypt is not None and not rsa_decrypt.out_of_memory
-    assert cpabe_encrypt is not None and not cpabe_encrypt.out_of_memory
-    assert cpabe_decrypt is not None and not cpabe_decrypt.out_of_memory
-
-    encrypt_values = [
-        rsa_encrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-        cpabe_encrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-    ]
-    decrypt_values = [
-        rsa_decrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-        cpabe_decrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND,
-    ]
+    encrypt_values = [rsa_encrypt_micros, cpabe_encrypt_micros]
+    decrypt_values = [rsa_decrypt_micros, cpabe_decrypt_micros]
     scheme_labels = [
         f"RSA-{fixed_rsa_key_bits}",
-        f"CP-ABE ({formatting.format_attribute_label(min_attributes)})",
+        f"CP-ABE ({formatting.format_attribute_label(min_attribute_count)})",
     ]
+    slower_operations = [rsa_slower_operation, cpabe_slower_operation]
+    ratios = [rsa_ratio, cpabe_ratio]
 
     figure, axis = plt.subplots(figsize=(9, 5.5))
     positions = [0.0, 1.25]
@@ -1338,10 +1140,7 @@ def plot_encrypt_decrypt_asymmetry(
                 fontsize=9,
             )
 
-        if encrypt_values[index] >= decrypt_values[index]:
-            ratio_text = f"Encrypt is {encrypt_values[index] / decrypt_values[index]:.0f}× Slower"
-        else:
-            ratio_text = f"Decrypt is {decrypt_values[index] / encrypt_values[index]:.0f}× Slower"
+        ratio_text = f"{slower_operations[index]} is {ratios[index]:.0f}× Slower"
 
         tallest_value = max(encrypt_values[index], decrypt_values[index])
         axis.text(
