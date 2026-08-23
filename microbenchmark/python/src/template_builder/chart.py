@@ -7,6 +7,7 @@ matplotlib.use("Agg")
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from math import isnan
+from typing import Any
 
 from template_builder.color import *
 from template_builder.formatting import KILOBYTE, MEGABYTE
@@ -21,8 +22,6 @@ TOTAL_CIPHERTEXT_COLOR = TEAL
 RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
 
 
-# Draws a sweep as its mean at every point. Error bars are opt-in because a size fixed
-# by construction, such as a ciphertext length, has no meaningful spread to present.
 def draw_summary(
     axis: Axes,
     sweep_values: list[int],
@@ -31,10 +30,9 @@ def draw_summary(
     label: str,
     color: str,
     with_ci: bool = False,
-    linewidth: float = 1.8,
-    markersize: float = 5,
-    capsize: float = 4,
+    **style: Any,
 ) -> None:
+    options = {"linewidth": 1.8, "markersize": 5, "capsize": 4, **style}
     axis.errorbar(
         sweep_values,
         means,
@@ -42,15 +40,10 @@ def draw_summary(
         label=label,
         color=color,
         marker="o",
-        linewidth=linewidth,
-        markersize=markersize,
-        capsize=capsize,
+        **options,
     )
 
 
-# A measurement that does not depend on the swept variable, drawn as the flat line it is.
-# Spans the whole sweep rather than carrying a point at every value, since it was measured
-# once and repeating it at each tick would read as a sweep that had been performed
 def draw_constant(
     axis: Axes,
     value: float,
@@ -58,7 +51,6 @@ def draw_constant(
     label: str,
     color: str,
 ) -> None:
-
     axis.hlines(
         value,
         sweep_values[0],
@@ -70,10 +62,6 @@ def draw_constant(
     )
 
 
-# Draws a sweep as a distribution rather than as a mean, for a measurement whose
-# samples are skewed and where the tail is the point, ex. RSA key generation.
-# The median is the line, the box spans the IQR and the thin whiskers reach the
-# smallest and largest sample observed
 def draw_distribution(
     axis: Axes,
     sweep_values: list[int],
@@ -85,6 +73,10 @@ def draw_distribution(
     label: str,
     color: str,
 ) -> None:
+    quartile_errors = [
+        [median - lower for median, lower in zip(medians, first_quartiles)],
+        [upper - median for median, upper in zip(medians, third_quartiles)],
+    ]
     axis.vlines(
         sweep_values,
         minimums,
@@ -97,16 +89,7 @@ def draw_distribution(
     axis.errorbar(
         sweep_values,
         medians,
-        yerr=[
-            [
-                median_value - lower
-                for median_value, lower in zip(medians, first_quartiles)
-            ],
-            [
-                upper - median_value
-                for median_value, upper in zip(medians, third_quartiles)
-            ],
-        ],
+        yerr=quartile_errors,
         label=label,
         color=color,
         marker="o",
@@ -117,14 +100,10 @@ def draw_distribution(
     )
 
 
-# Adds horizontal grid lines to allow better interpretability of the vertical axis
-# linewidth controls how thick those grid lines are.
 def apply_value_grid(axis: Axes, linewidth: float = 0.5) -> None:
     axis.grid(True, axis="y", linestyle="-", linewidth=linewidth, alpha=0.18)
 
 
-# Configures a horizontal axis that measures payload sizes, labelling the ticks
-# in compact byte units ex. "16KB" rather than raw byte counts
 def configure_byte_axis(axis: Axes, max_byte_size: int, tick_step: int) -> None:
 
     tick_values = list(range(0, max_byte_size + tick_step, tick_step))
@@ -141,7 +120,6 @@ def configure_byte_axis(axis: Axes, max_byte_size: int, tick_step: int) -> None:
     apply_value_grid(axis)
 
 
-# Adds a grid in both directions
 def apply_mesh_grid(axis: Axes) -> None:
     axis.grid(
         True,
@@ -153,7 +131,6 @@ def apply_mesh_grid(axis: Axes) -> None:
     )
 
 
-# Marks the crossover point of two lines on a plot with an X marker and a label
 def mark_crossover(axis: Axes, x_value: float, y_value: float, label: str) -> None:
     axis.plot(
         [x_value],
@@ -174,7 +151,6 @@ def mark_crossover(axis: Axes, x_value: float, y_value: float, label: str) -> No
     )
 
 
-# Finds the highest visible mean plus CI without introducing a plot-data object.
 def calculate_axis_top(means: list[float], confidence_intervals: list[float]) -> float:
     return max(
         (
@@ -186,11 +162,133 @@ def calculate_axis_top(means: list[float], confidence_intervals: list[float]) ->
     )
 
 
-# Persists created image
 def save_figure(figure: Figure, output_path: str) -> None:
     figure.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(figure)
     print(f"Saved -> {output_path}")
+
+
+def _draw_summaries(
+    axis: Axes,
+    sweep_values: list[int],
+    series: list[tuple[str, list[float], list[float], str]],
+    with_ci: bool = False,
+) -> None:
+    for label, means, confidence_intervals, color in series:
+        draw_summary(
+            axis,
+            sweep_values,
+            means,
+            confidence_intervals,
+            label,
+            color,
+            with_ci=with_ci,
+        )
+
+
+def _draw_zoom(
+    axis: Axes,
+    sweep_values: list[int],
+    series: list[tuple[str, list[float], list[float], str]],
+) -> None:
+    zoom_axis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])  # type: ignore
+    for label, means, confidence_intervals, color in series:
+        draw_summary(
+            zoom_axis,
+            sweep_values,
+            means,
+            confidence_intervals,
+            label,
+            color,
+            linewidth=1.6,
+            markersize=4,
+            capsize=3,
+        )
+
+    zoom_axis.set_ylim(
+        0.0,
+        max(
+            calculate_axis_top(means, confidence_intervals)
+            for _, means, confidence_intervals, _ in series
+        )
+        * 1.10,
+    )
+    zoom_axis.set_xlim(0, sweep_values[-1] * AXIS_HEADROOM)
+    zoom_axis.set_xticks([])
+    zoom_axis.set_title("PSK + RSA Zoom", fontsize=9)
+    zoom_axis.set_ylabel("µs", fontsize=8)
+    zoom_axis.tick_params(axis="both", labelsize=8)
+    apply_value_grid(zoom_axis, linewidth=0.4)
+    zoom_axis.legend(fontsize=8, loc="upper left")
+
+
+def _plot_operation_comparison(
+    sweep_values: list[int],
+    panels: list[tuple[str, list[tuple[str, list[float], list[float], str]]]],
+    title: str,
+    x_label: str,
+    y_label: str,
+    output_path: str,
+    byte_tick_step: int | None = None,
+    legend_location: str | None = None,
+    zoom_first_panel: bool = False,
+) -> None:
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+
+    for index, (axis, (operation, series)) in enumerate(zip(axes, panels)):
+        _draw_summaries(axis, sweep_values, series, with_ci=True)
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel(x_label)
+        axis.set_ylabel(y_label)
+        axis.set_ylim(bottom=0)
+
+        if byte_tick_step is None:
+            configure_attribute_axis(sweep_values, axis)
+        else:
+            configure_byte_axis(axis, sweep_values[-1], byte_tick_step)
+
+        legend_options = {"fontsize": 10}
+        if legend_location is not None:
+            legend_options["loc"] = legend_location
+        axis.legend(**legend_options)
+
+        if zoom_first_panel and index == 0:
+            _draw_zoom(axis, sweep_values, series[:2])
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+def _plot_prefixed_operation_comparison(
+    sweep_values: list[int],
+    scope: dict[str, Any],
+    series: list[tuple[str, str, str]],
+    operations: list[tuple[str, str]],
+    title: str,
+    x_label: str,
+    y_label: str,
+    output_path: str,
+    **options: Any,
+) -> None:
+    panels = [
+        (
+            operation_label,
+            [
+                (
+                    label,
+                    scope[f"{prefix}_{operation}_means"],
+                    scope[f"{prefix}_{operation}_cis"],
+                    color,
+                )
+                for label, prefix, color in series
+            ],
+        )
+        for operation_label, operation in operations
+    ]
+    _plot_operation_comparison(
+        sweep_values, panels, title, x_label, y_label, output_path, **options
+    )
 
 
 def plot_aes_ascon_latency(
@@ -205,40 +303,17 @@ def plot_aes_ascon_latency(
     ascon_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("AES-GCM vs. ASCON: Latency vs. Payload Size", fontsize=13)
-
-    for axis, operation, aes_means, aes_cis, ascon_means, ascon_cis in zip(
-        axes,
-        ["Encrypt", "Decrypt"],
-        [aes_encrypt_means, aes_decrypt_means],
-        [aes_encrypt_cis, aes_decrypt_cis],
-        [ascon_encrypt_means, ascon_decrypt_means],
-        [ascon_encrypt_cis, ascon_decrypt_cis],
-    ):
-        for algorithm, means, confidence_intervals, color in (
-            ("AES-GCM", aes_means, aes_cis, AMBER),
-            ("ASCON", ascon_means, ascon_cis, VIOLET),
-        ):
-            draw_summary(
-                axis,
-                payload_sizes,
-                means,
-                confidence_intervals,
-                algorithm,
-                color,
-                with_ci=True,
-            )
-
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 16 * KILOBYTE)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
+    _plot_prefixed_operation_comparison(
+        payload_sizes,
+        locals(),
+        [("AES-GCM", "aes", AMBER), ("ASCON", "ascon", VIOLET)],
+        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        "AES-GCM vs. ASCON: Latency vs. Payload Size",
+        "Payload size",
+        "Latency (µs) ± 95% CI",
+        output_path,
+        byte_tick_step=16 * KILOBYTE,
+    )
 
 
 def plot_aes_ascon_throughput(
@@ -253,40 +328,17 @@ def plot_aes_ascon_throughput(
     ascon_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("AES-GCM vs. ASCON: Throughput vs. Payload Size", fontsize=13)
-
-    for axis, operation, aes_means, aes_cis, ascon_means, ascon_cis in zip(
-        axes,
-        ["Encrypt", "Decrypt"],
-        [aes_encrypt_means, aes_decrypt_means],
-        [aes_encrypt_cis, aes_decrypt_cis],
-        [ascon_encrypt_means, ascon_decrypt_means],
-        [ascon_encrypt_cis, ascon_decrypt_cis],
-    ):
-        for algorithm, means, confidence_intervals, color in (
-            ("AES-GCM", aes_means, aes_cis, AMBER),
-            ("ASCON", ascon_means, ascon_cis, VIOLET),
-        ):
-            draw_summary(
-                axis,
-                payload_sizes,
-                means,
-                confidence_intervals,
-                algorithm,
-                color,
-                with_ci=True,
-            )
-
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload size")
-        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 16 * KILOBYTE)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
+    _plot_prefixed_operation_comparison(
+        payload_sizes,
+        locals(),
+        [("AES-GCM", "aes", AMBER), ("ASCON", "ascon", VIOLET)],
+        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        "AES-GCM vs. ASCON: Throughput vs. Payload Size",
+        "Payload size",
+        "Throughput (MB/s) ± 95% CI",
+        output_path,
+        byte_tick_step=16 * KILOBYTE,
+    )
 
 
 def plot_payload_scaling_latency(
@@ -305,85 +357,19 @@ def plot_payload_scaling_latency(
     cpabe_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size", fontsize=13)
-
-    for (
-        axis,
-        operation,
-        psk_means,
-        psk_cis,
-        rsa_means,
-        rsa_cis,
-        cpabe_means,
-        cpabe_cis,
-    ) in zip(
-        axes,
-        ["Encrypt", "Decrypt"],
-        [psk_encrypt_means, psk_decrypt_means],
-        [psk_encrypt_cis, psk_decrypt_cis],
-        [rsa_encrypt_means, rsa_decrypt_means],
-        [rsa_encrypt_cis, rsa_decrypt_cis],
-        [cpabe_encrypt_means, cpabe_decrypt_means],
-        [cpabe_encrypt_cis, cpabe_decrypt_cis],
-    ):
-        for scheme_name, means, confidence_intervals, color in (
-            ("PSK", psk_means, psk_cis, TEAL),
-            ("RSA", rsa_means, rsa_cis, VIOLET),
-            ("CPABE", cpabe_means, cpabe_cis, CRIMSON),
-        ):
-            draw_summary(
-                axis,
-                payload_sizes,
-                means,
-                confidence_intervals,
-                scheme_name,
-                color,
-                with_ci=True,
-            )
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
-        axis.legend(fontsize=10, loc="upper left")
-
-        if operation == "Encrypt":
-            zoom_axis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])  # type: ignore
-            for scheme_name, means, confidence_intervals, color in (
-                ("PSK", psk_means, psk_cis, TEAL),
-                ("RSA", rsa_means, rsa_cis, VIOLET),
-            ):
-                draw_summary(
-                    zoom_axis,
-                    payload_sizes,
-                    means,
-                    confidence_intervals,
-                    scheme_name,
-                    color,
-                    linewidth=1.6,
-                    markersize=4,
-                    capsize=3,
-                )
-
-            zoom_axis.set_ylim(
-                0.0,
-                max(
-                    calculate_axis_top(psk_means, psk_cis),
-                    calculate_axis_top(rsa_means, rsa_cis),
-                )
-                * 1.10,
-            )
-            zoom_axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
-            zoom_axis.set_xticks([])
-            zoom_axis.set_title("PSK + RSA Zoom", fontsize=9)
-            zoom_axis.set_ylabel("µs", fontsize=8)
-            zoom_axis.tick_params(axis="both", labelsize=8)
-            apply_value_grid(zoom_axis, linewidth=0.4)
-            zoom_axis.legend(fontsize=8, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
+    _plot_prefixed_operation_comparison(
+        payload_sizes,
+        locals(),
+        [("PSK", "psk", TEAL), ("RSA", "rsa", VIOLET), ("CPABE", "cpabe", CRIMSON)],
+        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
+        "Payload Size",
+        "Latency (µs) ± 95% CI",
+        output_path,
+        byte_tick_step=4 * MEGABYTE,
+        legend_location="upper left",
+        zoom_first_panel=True,
+    )
 
 
 def plot_payload_scaling_throughput(
@@ -402,57 +388,39 @@ def plot_payload_scaling_throughput(
     cpabe_decrypt_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size", fontsize=13)
-
-    for (
-        axis,
-        operation,
-        psk_means,
-        psk_cis,
-        rsa_means,
-        rsa_cis,
-        cpabe_means,
-        cpabe_cis,
-    ) in zip(
-        axes,
-        ["Encrypt", "Decrypt"],
-        [psk_encrypt_means, psk_decrypt_means],
-        [psk_encrypt_cis, psk_decrypt_cis],
-        [rsa_encrypt_means, rsa_decrypt_means],
-        [rsa_encrypt_cis, rsa_decrypt_cis],
-        [cpabe_encrypt_means, cpabe_decrypt_means],
-        [cpabe_encrypt_cis, cpabe_decrypt_cis],
-    ):
-        for scheme_name, means, confidence_intervals, color in (
-            ("PSK", psk_means, psk_cis, TEAL),
-            ("RSA", rsa_means, rsa_cis, VIOLET),
-            ("CPABE", cpabe_means, cpabe_cis, CRIMSON),
-        ):
-            draw_summary(
-                axis,
-                payload_sizes,
-                means,
-                confidence_intervals,
-                scheme_name,
-                color,
-                with_ci=True,
-            )
-
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_ylabel("Throughput (MB/s) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
-        axis.legend(fontsize=10, loc="upper left")
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
+    _plot_prefixed_operation_comparison(
+        payload_sizes,
+        locals(),
+        [("PSK", "psk", TEAL), ("RSA", "rsa", VIOLET), ("CPABE", "cpabe", CRIMSON)],
+        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
+        "Payload Size",
+        "Throughput (MB/s) ± 95% CI",
+        output_path,
+        byte_tick_step=4 * MEGABYTE,
+        legend_location="upper left",
+    )
 
 
 def configure_attribute_axis(attribute_counts: list[int], axis: Axes) -> None:
     axis.set_xticks(attribute_counts)
     apply_mesh_grid(axis)
+
+
+def _configure_sweep_axis(
+    axis: Axes,
+    title: str,
+    y_label: str,
+    sweep_values: list[int],
+    x_label: str,
+) -> None:
+    axis.set_title(title, fontsize=11)
+    axis.set_ylabel(y_label)
+    axis.set_ylim(bottom=0)
+    axis.set_xticks(sweep_values)
+    axis.set_xlabel(x_label)
+    apply_value_grid(axis)
+    axis.legend(fontsize=10)
 
 
 def plot_json_cbor_latency(
@@ -471,55 +439,20 @@ def plot_json_cbor_latency(
     cbor_int_deserialize_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(
+    _plot_prefixed_operation_comparison(
+        attribute_counts,
+        locals(),
+        [
+            ("JSON", "json", AMBER),
+            ("CBOR", "cbor", VIOLET),
+            ("CBOR (int keys)", "cbor_int", TEAL),
+        ],
+        [("Serialize", "serialize"), ("Deserialize", "deserialize")],
         "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
-        fontsize=13,
+        "Attribute Count",
+        "Latency (µs) ± 95% CI",
+        output_path,
     )
-
-    for (
-        axis,
-        operation,
-        json_means,
-        json_cis,
-        cbor_means,
-        cbor_cis,
-        cbor_int_means,
-        cbor_int_cis,
-    ) in zip(
-        axes,
-        ["Serialize", "Deserialize"],
-        [json_serialize_means, json_deserialize_means],
-        [json_serialize_cis, json_deserialize_cis],
-        [cbor_serialize_means, cbor_deserialize_means],
-        [cbor_serialize_cis, cbor_deserialize_cis],
-        [cbor_int_serialize_means, cbor_int_deserialize_means],
-        [cbor_int_serialize_cis, cbor_int_deserialize_cis],
-    ):
-        for label, means, confidence_intervals, color in (
-            ("JSON", json_means, json_cis, AMBER),
-            ("CBOR", cbor_means, cbor_cis, VIOLET),
-            ("CBOR (int keys)", cbor_int_means, cbor_int_cis, TEAL),
-        ):
-            draw_summary(
-                axis,
-                attribute_counts,
-                means,
-                confidence_intervals,
-                label,
-                color,
-                with_ci=True,
-            )
-
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Attribute Count")
-        axis.set_ylabel("Latency (µs) ± 95% CI")
-        axis.set_ylim(bottom=0)
-        configure_attribute_axis(attribute_counts, axis)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
 
 
 def plot_json_cbor_size(
@@ -586,6 +519,30 @@ def plot_json_cbor_size(
     save_figure(figure, output_path)
 
 
+def _plot_latency_size_sweep(
+    sweep_values: list[int],
+    title: str,
+    x_label: str,
+    latency_series: list[tuple[str, list[float], list[float], str]],
+    size_series: list[tuple[str, list[float], list[float], str]],
+    output_path: str,
+    constant: tuple[float, str, str] | None = None,
+) -> None:
+    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+    _draw_summaries(latency_axis, sweep_values, latency_series, with_ci=True)
+    if constant is not None:
+        value, label, color = constant
+        draw_constant(latency_axis, value, sweep_values, label, color)
+    _draw_summaries(size_axis, sweep_values, size_series)
+    _configure_sweep_axis(
+        latency_axis, "Latency", "Latency (µs) ± 95% CI", sweep_values, x_label
+    )
+    _configure_sweep_axis(size_axis, "Sizes", "Size (bytes)", sweep_values, x_label)
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+    save_figure(figure, output_path)
+
+
 def plot_cpabe_attribute_sweep(
     attribute_counts: list[int],
     encrypt_latency_means: list[float],
@@ -598,54 +555,20 @@ def plot_cpabe_attribute_sweep(
     stored_key_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("CP-ABE Scaling with Policy Attribute Count", fontsize=13)
-
-    for operation, means, confidence_intervals, color in (
-        ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
-        ("Decrypt", decrypt_latency_means, decrypt_latency_cis, VIOLET),
-    ):
-        draw_summary(
-            latency_axis,
-            attribute_counts,
-            means,
-            confidence_intervals,
-            operation,
-            color,
-            with_ci=True,
-        )
-
-    for means, confidence_intervals, label, color in (
-        (ciphertext_means, ciphertext_cis, "Ciphertext", AMBER),
-        (stored_key_means, stored_key_cis, "Private Key", CRIMSON),
-    ):
-        draw_summary(
-            size_axis,
-            attribute_counts,
-            means,
-            confidence_intervals,
-            label,
-            color,
-        )
-
-    latency_axis.set_title("Latency", fontsize=11)
-    latency_axis.set_ylabel("Latency (µs) ± 95% CI")
-    latency_axis.set_ylim(bottom=0)
-    latency_axis.set_xticks(attribute_counts)
-    latency_axis.set_xlabel("Policy Attributes")
-    apply_value_grid(latency_axis)
-    latency_axis.legend(fontsize=10)
-
-    size_axis.set_title("Sizes", fontsize=11)
-    size_axis.set_ylabel("Size (bytes)")
-    size_axis.set_xticks(attribute_counts)
-    size_axis.set_xlabel("Policy Attributes")
-    size_axis.set_ylim(bottom=0)
-    apply_value_grid(size_axis)
-    size_axis.legend(fontsize=10)
-
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
-    save_figure(figure, output_path)
+    _plot_latency_size_sweep(
+        attribute_counts,
+        "CP-ABE Scaling with Policy Attribute Count",
+        "Policy Attributes",
+        [
+            ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
+            ("Decrypt", decrypt_latency_means, decrypt_latency_cis, VIOLET),
+        ],
+        [
+            ("Ciphertext", ciphertext_means, ciphertext_cis, AMBER),
+            ("Private Key", stored_key_means, stored_key_cis, CRIMSON),
+        ],
+        output_path,
+    )
 
 
 def plot_rsa_subscriber_sweep(
@@ -660,67 +583,30 @@ def plot_rsa_subscriber_sweep(
     total_ciphertext_cis: list[float],
     output_path: str,
 ) -> None:
-    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(
-        f"RSA Scaling with Subscriber Count (Fixed Key: {fixed_rsa_key_bits} bits)",
-        fontsize=13,
-    )
-
-    draw_summary(
-        latency_axis,
-        subscriber_counts,
-        encrypt_latency_means,
-        encrypt_latency_cis,
-        "Encrypt",
-        AMBER,
-        with_ci=True,
-    )
-
+    constant = None
     if decrypt_latency is not None:
-        draw_constant(
-            latency_axis,
+        constant = (
             decrypt_latency,
-            subscriber_counts,
             f"Decrypt (RSA-{fixed_rsa_key_bits}, Constant)",
             VIOLET,
         )
-
-    for means, confidence_intervals, label, color in (
-        (ciphertext_means, ciphertext_cis, "Ciphertext", AMBER),
-        (
-            total_ciphertext_means,
-            total_ciphertext_cis,
-            "Ciphertext (TOTAL)",
-            TOTAL_CIPHERTEXT_COLOR,
-        ),
-    ):
-        draw_summary(
-            size_axis,
-            subscriber_counts,
-            means,
-            confidence_intervals,
-            label,
-            color,
-        )
-
-    latency_axis.set_title("Latency", fontsize=11)
-    latency_axis.set_ylabel("Latency (µs) ± 95% CI")
-    latency_axis.set_ylim(bottom=0)
-    latency_axis.set_xticks(subscriber_counts)
-    latency_axis.set_xlabel("Subscribers")
-    apply_value_grid(latency_axis)
-    latency_axis.legend(fontsize=10)
-
-    size_axis.set_title("Sizes", fontsize=11)
-    size_axis.set_ylabel("Size (bytes)")
-    size_axis.set_xticks(subscriber_counts)
-    size_axis.set_xlabel("Subscribers")
-    size_axis.set_ylim(bottom=0)
-    apply_value_grid(size_axis)
-    size_axis.legend(fontsize=10)
-
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
-    save_figure(figure, output_path)
+    _plot_latency_size_sweep(
+        subscriber_counts,
+        f"RSA Scaling with Subscriber Count (Fixed Key: {fixed_rsa_key_bits} bits)",
+        "Subscribers",
+        [("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER)],
+        [
+            ("Ciphertext", ciphertext_means, ciphertext_cis, AMBER),
+            (
+                "Ciphertext (TOTAL)",
+                total_ciphertext_means,
+                total_ciphertext_cis,
+                TOTAL_CIPHERTEXT_COLOR,
+            ),
+        ],
+        output_path,
+        constant,
+    )
 
 
 def plot_rsa_key_size_sweep(
@@ -759,32 +645,23 @@ def plot_rsa_key_size_sweep(
         CRIMSON,
     )
 
-    for operation, means, confidence_intervals, color in (
-        ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
-        ("Decrypt", decrypt_latency_means, decrypt_latency_cis, VIOLET),
-    ):
-        draw_summary(
-            latency_axis,
-            rsa_key_sizes,
-            means,
-            confidence_intervals,
-            operation,
-            color,
-            with_ci=True,
-        )
-
-    for means, confidence_intervals, label, color in (
-        (ciphertext_means, ciphertext_cis, "Ciphertext", AMBER),
-        (stored_key_means, stored_key_cis, "Private Key", CRIMSON),
-    ):
-        draw_summary(
-            size_axis,
-            rsa_key_sizes,
-            means,
-            confidence_intervals,
-            label,
-            color,
-        )
+    _draw_summaries(
+        latency_axis,
+        rsa_key_sizes,
+        [
+            ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
+            ("Decrypt", decrypt_latency_means, decrypt_latency_cis, VIOLET),
+        ],
+        with_ci=True,
+    )
+    _draw_summaries(
+        size_axis,
+        rsa_key_sizes,
+        [
+            ("Ciphertext", ciphertext_means, ciphertext_cis, AMBER),
+            ("Private Key", stored_key_means, stored_key_cis, CRIMSON),
+        ],
+    )
 
     keygen_latency_axis.set_title("Key Generation Latency", fontsize=11)
     keygen_latency_axis.set_ylabel("Latency (ms), Median + IQR + Min-Max")
@@ -795,21 +672,16 @@ def plot_rsa_key_size_sweep(
     apply_value_grid(keygen_latency_axis)
     keygen_latency_axis.legend(fontsize=10)
 
-    latency_axis.set_title("Encrypt + Decrypt Latency", fontsize=11)
-    latency_axis.set_ylabel("Latency (µs) ± 95% CI")
-    latency_axis.set_ylim(bottom=0)
-    latency_axis.set_xticks(rsa_key_sizes)
-    latency_axis.set_xlabel("RSA Key Bits")
-    apply_value_grid(latency_axis)
-    latency_axis.legend(fontsize=10)
-
-    size_axis.set_title("Sizes", fontsize=11)
-    size_axis.set_ylabel("Size (bytes)")
-    size_axis.set_xticks(rsa_key_sizes)
-    size_axis.set_xlabel("RSA Key Bits")
-    size_axis.set_ylim(bottom=0)
-    apply_value_grid(size_axis)
-    size_axis.legend(fontsize=10)
+    _configure_sweep_axis(
+        latency_axis,
+        "Encrypt + Decrypt Latency",
+        "Latency (µs) ± 95% CI",
+        rsa_key_sizes,
+        "RSA Key Bits",
+    )
+    _configure_sweep_axis(
+        size_axis, "Sizes", "Size (bytes)", rsa_key_sizes, "RSA Key Bits"
+    )
 
     figure.subplots_adjust(top=0.92)
     save_figure(figure, output_path)
@@ -836,68 +708,48 @@ def plot_peak_memory(
     figure, axes = plt.subplots(1, 3, figsize=(14, 4.6), sharey=True)
     figure.suptitle("Peak Process Memory of a Single Operation", fontsize=13)
 
-    cpabe_axis, subscriber_axis, key_size_axis = axes
-
-    for means, confidence_intervals, label, color in (
-        (cpabe_encrypt_means, cpabe_encrypt_cis, "Encrypt", AMBER),
-        (cpabe_decrypt_means, cpabe_decrypt_cis, "Decrypt", VIOLET),
-    ):
-        draw_summary(
-            cpabe_axis,
+    panels = [
+        (
+            axes[0],
             attribute_counts,
-            means,
-            confidence_intervals,
-            label,
-            color,
-            with_ci=True,
-        )
-
-    draw_summary(
-        subscriber_axis,
-        subscriber_counts,
-        subscriber_encrypt_means,
-        subscriber_encrypt_cis,
-        "Encrypt",
-        AMBER,
-        with_ci=True,
-    )
-
-    if subscriber_decrypt_reference is not None:
-        draw_constant(
-            subscriber_axis,
-            subscriber_decrypt_reference,
+            "CP-ABE",
+            "Policy Attributes",
+            [
+                ("Encrypt", cpabe_encrypt_means, cpabe_encrypt_cis, AMBER),
+                ("Decrypt", cpabe_decrypt_means, cpabe_decrypt_cis, VIOLET),
+            ],
+        ),
+        (
+            axes[1],
             subscriber_counts,
-            f"Decrypt (RSA-{fixed_rsa_key_bits})",
-            VIOLET,
-        )
-
-    for means, confidence_intervals, label, color in (
-        (rsa_encrypt_means, rsa_encrypt_cis, "Encrypt", AMBER),
-        (rsa_decrypt_means, rsa_decrypt_cis, "Decrypt", VIOLET),
-    ):
-        draw_summary(
-            key_size_axis,
+            "RSA Subscribers",
+            "Subscribers",
+            [("Encrypt", subscriber_encrypt_means, subscriber_encrypt_cis, AMBER)],
+        ),
+        (
+            axes[2],
             rsa_key_sizes,
-            means,
-            confidence_intervals,
-            label,
-            color,
-            with_ci=True,
-        )
-
-    cpabe_axis.set_title("CP-ABE", fontsize=11)
-    cpabe_axis.set_xlabel("Policy Attributes")
-    cpabe_axis.set_xticks(attribute_counts)
-
-    subscriber_axis.set_title("RSA Subscribers", fontsize=11)
-    subscriber_axis.set_xlabel("Subscribers")
-    subscriber_axis.set_xticks(subscriber_counts)
-
-    key_size_axis.set_title("RSA Key Size", fontsize=11)
-    key_size_axis.set_xlabel("RSA Key Bits")
-    key_size_axis.set_xticks(rsa_key_sizes)
-
-    for axis in axes:
+            "RSA Key Size",
+            "RSA Key Bits",
+            [
+                ("Encrypt", rsa_encrypt_means, rsa_encrypt_cis, AMBER),
+                ("Decrypt", rsa_decrypt_means, rsa_decrypt_cis, VIOLET),
+            ],
+        ),
+    ]
+    for axis, sweep_values, title, x_label, series in panels:
+        _draw_summaries(axis, sweep_values, series, with_ci=True)
+        if axis is axes[1] and subscriber_decrypt_reference is not None:
+            draw_constant(
+                axis,
+                subscriber_decrypt_reference,
+                subscriber_counts,
+                f"Decrypt (RSA-{fixed_rsa_key_bits})",
+                VIOLET,
+            )
+        axis.set_title(title, fontsize=11)
+        axis.set_xlabel(x_label)
+        axis.set_xticks(sweep_values)
         apply_value_grid(axis)
         axis.legend(fontsize=9)
 
