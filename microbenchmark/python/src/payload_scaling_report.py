@@ -2,6 +2,9 @@ import os
 from typing import cast
 from pathlib import Path
 
+import numpy as np
+from scipy import stats
+
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
@@ -11,8 +14,6 @@ from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
-
-from statistics_tbd.summary import *
 
 SCENARIO = "payload-scaling"
 HTML_TEMPLATE_NAME = "payload_scaling_template.html"
@@ -118,7 +119,7 @@ def main() -> None:
     psk_overhead_value_list = [
         aggregation.mean(WIRE_OVERHEAD_BYTES) for aggregation in psk_encrypt
     ]
-    psk_overhead_byte_list = int(round(mean(psk_overhead_value_list)))
+    psk_overhead_byte_list = int(round(np.mean(psk_overhead_value_list)))
     psk_wire_size_list = [
         payload_size + psk_overhead_byte_list for payload_size in payload_sizes
     ]
@@ -170,7 +171,7 @@ def main() -> None:
     rsa_overhead_value_list = [
         aggregation.mean(WIRE_OVERHEAD_BYTES) for aggregation in rsa_encrypt
     ]
-    rsa_overhead_byte_list = int(round(mean(rsa_overhead_value_list)))
+    rsa_overhead_byte_list = int(round(np.mean(rsa_overhead_value_list)))
     rsa_wire_size_list = [
         payload_size + rsa_overhead_byte_list for payload_size in payload_sizes
     ]
@@ -223,7 +224,7 @@ def main() -> None:
     cpabe_overhead_value_list = [
         aggregation.mean(WIRE_OVERHEAD_BYTES) for aggregation in cpabe_encrypt
     ]
-    cpabe_overhead_byte_list = int(round(mean(cpabe_overhead_value_list)))
+    cpabe_overhead_byte_list = int(round(np.mean(cpabe_overhead_value_list)))
     cpabe_wire_size_list = [
         payload_size + cpabe_overhead_byte_list for payload_size in payload_sizes
     ]
@@ -290,7 +291,7 @@ def main() -> None:
     # Write HTML
     write_payload_scaling_report(
         runs=runs,
-        t_multiplier=get_student_t_critical_95(runs - 1),
+        t_multiplier=float(stats.t.ppf(0.975, runs - 1)),
         total_iterations=total_benchmark_iterations,
         payload_sizes=payload_sizes,
         psk_wire_sizes=psk_wire_size_list,

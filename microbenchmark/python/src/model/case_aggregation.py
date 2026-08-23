@@ -1,6 +1,9 @@
 from __future__ import annotations
+
+import numpy as np
+from scipy import stats
+
 from model.case import Case
-from statistics_tbd import summary
 from model.measurement import THROTTLED
 
 
@@ -31,7 +34,7 @@ class CaseAggregation:
 
     # Calculate the mean of a given measurement name across all cases
     def mean(self, name: str) -> float:
-        return summary.mean(self._statistical_values(name))
+        return float(np.mean(self._statistical_values(name)))
 
     # Calculate the confidence interval of a given measurement name across all cases
     def confidence_interval(self, name: str) -> float:
@@ -40,14 +43,11 @@ class CaseAggregation:
         if len(values) == 1:
             return 0.0
 
-        return summary.mean_and_confidence_interval(
-            values,
-            summary.get_student_t_critical_95(len(values) - 1),
-        )[1]
+        return float(stats.t.ppf(0.975, len(values) - 1) * stats.sem(values))
 
     # Calculate median of a given measurement name across all cases
     def median(self, name: str) -> float:
-        return summary.median(self._statistical_values(name))
+        return float(np.median(self._statistical_values(name)))
 
     # Calculate the minimum of a given measurement name across all cases
     def minimum(self, name: str) -> float:
@@ -59,11 +59,11 @@ class CaseAggregation:
 
     # Calculate the first quartile of a given measurement name across all cases
     def first_quartile(self, name: str) -> float:
-        return summary.percentile(self._statistical_values(name), 0.25)
+        return float(np.quantile(self._statistical_values(name), 0.25, method="linear"))
 
     # Calculate the third quartile of a given measurement name across all cases
     def third_quartile(self, name: str) -> float:
-        return summary.percentile(self._statistical_values(name), 0.75)
+        return float(np.quantile(self._statistical_values(name), 0.75, method="linear"))
 
     # Calculate the interquartile range of a given measurement name across all cases
     def iqr(self, name: str) -> float:

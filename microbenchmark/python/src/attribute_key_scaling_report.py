@@ -2,6 +2,8 @@ import os
 from typing import cast
 from pathlib import Path
 
+from scipy import stats
+
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
@@ -12,9 +14,6 @@ from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
-
-from statistics_tbd.linear_regression import *
-from statistics_tbd.summary import *
 
 NS_PER_MILLISECOND = 1000000.0
 NO_MEASUREMENT = float("nan")
@@ -523,6 +522,22 @@ def analyze_memory_aggregations(
     )
 
 
+def fit_linear_regression(
+    x_values: list[float],
+    y_values: list[float],
+):
+    result = stats.linregress(x_values, y_values)
+
+    slope_ci = float(stats.t.ppf(0.975, len(x_values) - 2) * result.stderr)
+
+    return (
+        result.slope,
+        result.intercept,
+        result.rvalue**2,
+        slope_ci,
+    )
+
+
 def obtain_fits(
     attribute_counts: list[int],
     subscriber_counts: list[int],
@@ -634,10 +649,7 @@ def obtain_fits(
     subscriber_encrypt_fit = (
         None
         if len(subscriber_encrypt_fit_x) < MINIMUM_FIT_POINTS
-        else fit_linear_regression(
-            subscriber_encrypt_fit_x,
-            subscriber_encrypt_fit_y,
-        )
+        else fit_linear_regression(subscriber_encrypt_fit_x, subscriber_encrypt_fit_y)
     )
 
     return (
@@ -655,7 +667,7 @@ def obtain_crossovers(
     scaling_attribute_encrypt_latency_list: list[float | None],
     scaling_attribute_decrypt_latency_list: list[float | None],
     scaling_subscriber_fixed_decrypt_latency: float | None,
-    subscriber_encrypt_fit: LinearRegression | None,
+    subscriber_encrypt_fit: tuple[float, float, float, float] | None,
 ):
     # Calculate Ciphertext Crossover
     # 1. Take any ciphertext size from the subscriber sweep, since it is constant across all subscriber counts
@@ -694,14 +706,14 @@ def obtain_crossovers(
     ):
         # 3. At what subscriber count does RSA latency equal this CP-ABE latency?
         # - Lower Bound
-        latency_crossover_low = subscriber_encrypt_fit.solve_x_for_y(
-            cpabe_low_encrypt_latency
-        )
+        latency_crossover_low = (
+            cpabe_low_encrypt_latency - subscriber_encrypt_fit[1]
+        ) / subscriber_encrypt_fit[0]
 
         # - Upper Bound
-        latency_crossover_high = subscriber_encrypt_fit.solve_x_for_y(
-            cpabe_high_encrypt_latency
-        )
+        latency_crossover_high = (
+            cpabe_high_encrypt_latency - subscriber_encrypt_fit[1]
+        ) / subscriber_encrypt_fit[0]
     else:
         latency_crossover_low = None
         latency_crossover_high = None
@@ -1232,11 +1244,13 @@ def main() -> None:
     ):
         projection_start_subscribers = float(subscriber_counts[-1])
         projection_end_subscribers = latency_crossover_high * 1.15
-        projection_start_latency = subscriber_encrypt_fit.calculate_y_based_on_x(
-            projection_start_subscribers
+        projection_start_latency = (
+            subscriber_encrypt_fit[1]
+            + subscriber_encrypt_fit[0] * projection_start_subscribers
         )
-        projection_end_latency = subscriber_encrypt_fit.calculate_y_based_on_x(
-            projection_end_subscribers
+        projection_end_latency = (
+            subscriber_encrypt_fit[1]
+            + subscriber_encrypt_fit[0] * projection_end_subscribers
         )
         plot_encrypt_latency_crossover(
             subscriber_counts,
@@ -1372,7 +1386,7 @@ def main() -> None:
 
     write_attribute_key_scaling_report(
         timing_runs=timing_runs,
-        t_multiplier=get_student_t_critical_95(timing_runs - 1),
+        t_multiplier=float(stats.t.ppf(0.975, timing_runs - 1)),
         timing_iterations=timing_iterations,
         attribute_counts=attribute_counts,
         subscriber_counts=subscriber_counts,
@@ -1554,59 +1568,59 @@ def main() -> None:
         cpabe_encrypt_slope=(
             None
             if cpabe_encrypt_fit is None
-            else cpabe_encrypt_fit.slope / NS_PER_MICROSECOND
+            else cpabe_encrypt_fit[0] / NS_PER_MICROSECOND
         ),
         cpabe_encrypt_slope_ci=(
             None
             if cpabe_encrypt_fit is None
-            else cpabe_encrypt_fit.slope_ci / NS_PER_MICROSECOND
+            else cpabe_encrypt_fit[3] / NS_PER_MICROSECOND
         ),
         cpabe_encrypt_r_squared=(
-            None if cpabe_encrypt_fit is None else cpabe_encrypt_fit.r_squared
+            None if cpabe_encrypt_fit is None else cpabe_encrypt_fit[2]
         ),
         cpabe_decrypt_slope=(
             None
             if cpabe_decrypt_fit is None
-            else cpabe_decrypt_fit.slope / NS_PER_MICROSECOND
+            else cpabe_decrypt_fit[0] / NS_PER_MICROSECOND
         ),
         cpabe_decrypt_slope_ci=(
             None
             if cpabe_decrypt_fit is None
-            else cpabe_decrypt_fit.slope_ci / NS_PER_MICROSECOND
+            else cpabe_decrypt_fit[3] / NS_PER_MICROSECOND
         ),
         cpabe_decrypt_r_squared=(
-            None if cpabe_decrypt_fit is None else cpabe_decrypt_fit.r_squared
+            None if cpabe_decrypt_fit is None else cpabe_decrypt_fit[2]
         ),
         cpabe_ciphertext_slope=(
-            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit.slope
+            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit[0]
         ),
         cpabe_ciphertext_slope_ci=(
-            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit.slope_ci
+            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit[3]
         ),
         cpabe_ciphertext_r_squared=(
-            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit.r_squared
+            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit[2]
         ),
         cpabe_stored_key_slope=(
-            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit.slope
+            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit[0]
         ),
         cpabe_stored_key_slope_ci=(
-            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit.slope_ci
+            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit[3]
         ),
         cpabe_stored_key_r_squared=(
-            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit.r_squared
+            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit[2]
         ),
         subscriber_encrypt_slope=(
             None
             if subscriber_encrypt_fit is None
-            else subscriber_encrypt_fit.slope / NS_PER_MICROSECOND
+            else subscriber_encrypt_fit[0] / NS_PER_MICROSECOND
         ),
         subscriber_encrypt_slope_ci=(
             None
             if subscriber_encrypt_fit is None
-            else subscriber_encrypt_fit.slope_ci / NS_PER_MICROSECOND
+            else subscriber_encrypt_fit[3] / NS_PER_MICROSECOND
         ),
         subscriber_encrypt_r_squared=(
-            None if subscriber_encrypt_fit is None else subscriber_encrypt_fit.r_squared
+            None if subscriber_encrypt_fit is None else subscriber_encrypt_fit[2]
         ),
         bytes_per_subscriber=bytes_per_subscriber,
         bytes_crossover_low=ciphertext_crossover_low,

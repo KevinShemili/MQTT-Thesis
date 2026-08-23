@@ -2,6 +2,8 @@ import os
 from typing import cast
 from pathlib import Path
 
+from scipy import stats
+
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
@@ -11,7 +13,6 @@ from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
-from statistics_tbd.summary import *
 
 SCENARIO = "json-cbor"
 HTML_TEMPLATE_NAME = "json_cbor_template.html"
@@ -336,7 +337,7 @@ def main() -> None:
 
     write_json_cbor_report(
         runs=runs,
-        t_multiplier=get_student_t_critical_95(runs - 1),
+        t_multiplier=float(stats.t.ppf(0.975, runs - 1)),
         total_iterations=total_benchmark_iterations,
         attribute_counts=attribute_counts,
         json_serialize_latency_means=json_serialize_latency_list,

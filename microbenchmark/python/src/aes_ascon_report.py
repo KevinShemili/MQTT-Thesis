@@ -2,6 +2,8 @@ import os
 from typing import cast
 from pathlib import Path
 
+from scipy import stats
+
 from template_builder.chart import *
 from template_builder.formatting import *
 from template_builder.html import *
@@ -11,7 +13,6 @@ from model.measurement import *
 from model.populate_model import *
 
 from config.environment import *
-from statistics_tbd.summary import *
 
 SCENARIO = "aes-ascon"
 HTML_TEMPLATE_NAME = "aes_ascon_template.html"
@@ -201,7 +202,7 @@ def main() -> None:
     # Write HTML
     write_aes_ascon_report(
         runs=runs,
-        t_multiplier=get_student_t_critical_95(runs - 1),
+        t_multiplier=float(stats.t.ppf(0.975, runs - 1)),
         total_iterations=total_benchmark_iterations,
         payload_sizes=payload_sizes,
         aes_encrypt_latency_means=aes_encrypt_latency_list,
