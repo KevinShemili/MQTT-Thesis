@@ -148,6 +148,81 @@ def _build_data_table(
     return build_html_table(headers, _rows_from_columns(columns), throttled)
 
 
+def _format_optional_mean_ci_column(
+    means: Sequence[float | None],
+    confidence_intervals: Sequence[float | None],
+    decimals: int = 2,
+) -> list[str | None]:
+    return [
+        (
+            None
+            if mean is None or confidence_interval is None
+            else format_mean_with_ci(mean, confidence_interval, decimals=decimals)
+        )
+        for mean, confidence_interval in zip(means, confidence_intervals, strict=True)
+    ]
+
+
+def _format_optional_column(
+    values: Sequence[Any], formatter: Callable[[Any], str]
+) -> list[str | None]:
+    return [None if value is None else formatter(value) for value in values]
+
+
+def _build_optional_table(
+    headers: list[str],
+    index_values: Sequence[Any],
+    index_formatter: Callable[[Any], str],
+    primary_values: Sequence[str | None],
+    extra_columns: Sequence[Sequence[str | None]],
+    throttled: list[bool] | None,
+    thermal_header: str = "Thermal",
+    highlighted: list[bool] | None = None,
+) -> str:
+    rows = []
+    columns = [primary_values, *extra_columns]
+    for values in zip(index_values, *columns, strict=True):
+        index_value, primary_value, *extra_values = values
+        if primary_value is None:
+            rows.append(
+                [index_formatter(index_value), OUT_OF_MEMORY]
+                + [NOT_AVAILABLE] * len(extra_values)
+            )
+        else:
+            rows.append(
+                [index_formatter(index_value), primary_value]
+                + [NOT_AVAILABLE if value is None else value for value in extra_values]
+            )
+
+    rendered_throttled = (
+        None
+        if throttled is None
+        else [
+            is_throttled and primary_value is not None
+            for is_throttled, primary_value in zip(
+                throttled, primary_values, strict=True
+            )
+        ]
+    )
+
+    return build_html_table(
+        headers,
+        rows,
+        rendered_throttled,
+        thermal_header=thermal_header,
+        highlighted=highlighted,
+    )
+
+
+def _build_out_of_memory_case_notice(operations: list[str], cases: list[str]) -> str:
+    return build_html_out_of_memory_notice(
+        [
+            [operation, case_name, OUT_OF_MEMORY]
+            for operation, case_name in zip(operations, cases, strict=True)
+        ]
+    )
+
+
 def _build_aes_ascon_tables(
     payload_sizes: list[int], scope: dict[str, Any], runs: int
 ) -> dict[str, str]:
@@ -164,27 +239,33 @@ def _build_aes_ascon_tables(
         ("DecryptAesTable", "aes_decrypt"),
         ("DecryptAsconTable", "ascon_decrypt"),
     ]
-    return {
-        placeholder: _build_data_table(
+    tables = {}
+    for placeholder, prefix in specifications:
+        tables[placeholder] = _build_optional_table(
             headers,
+            payload_sizes,
+            lambda value: format_byte_size(value, compact=True),
+            _format_optional_mean_ci_column(
+                scope[f"{prefix}_latency_means"],
+                scope[f"{prefix}_latency_cis"],
+            ),
             [
-                [format_byte_size(value, compact=True) for value in payload_sizes],
-                _mean_ci_column(
-                    scope[f"{prefix}_latency_means"],
-                    scope[f"{prefix}_latency_cis"],
-                ),
-                _mean_ci_column(
+                _format_optional_mean_ci_column(
                     scope[f"{prefix}_throughput_means"],
                     scope[f"{prefix}_throughput_cis"],
                     decimals=1,
                 ),
-                [f"{value:.0f}" for value in scope[f"{prefix}_overhead_bytes"]],
-                [f"{value:,}" for value in scope[f"{prefix}_iterations"]],
+                _format_optional_column(
+                    scope[f"{prefix}_overhead_bytes"], lambda value: f"{value:.0f}"
+                ),
+                _format_optional_column(
+                    scope[f"{prefix}_iterations"], lambda value: f"{value:,}"
+                ),
             ],
             scope[f"{prefix}_throttled"],
         )
-        for placeholder, prefix in specifications
-    }
+
+    return tables
 
 
 def write_aes_ascon_report(
@@ -193,34 +274,36 @@ def write_aes_ascon_report(
     t_multiplier: float,
     total_iterations: int,
     payload_sizes: list[int],
-    aes_encrypt_latency_means: list[float],
-    aes_encrypt_latency_cis: list[float],
-    aes_encrypt_throughput_means: list[float],
-    aes_encrypt_throughput_cis: list[float],
-    aes_encrypt_overhead_bytes: list[float],
-    aes_encrypt_iterations: list[int],
+    aes_encrypt_latency_means: list[float | None],
+    aes_encrypt_latency_cis: list[float | None],
+    aes_encrypt_throughput_means: list[float | None],
+    aes_encrypt_throughput_cis: list[float | None],
+    aes_encrypt_overhead_bytes: list[float | None],
+    aes_encrypt_iterations: list[int | None],
     aes_encrypt_throttled: list[bool] | None,
-    ascon_encrypt_latency_means: list[float],
-    ascon_encrypt_latency_cis: list[float],
-    ascon_encrypt_throughput_means: list[float],
-    ascon_encrypt_throughput_cis: list[float],
-    ascon_encrypt_overhead_bytes: list[float],
-    ascon_encrypt_iterations: list[int],
+    ascon_encrypt_latency_means: list[float | None],
+    ascon_encrypt_latency_cis: list[float | None],
+    ascon_encrypt_throughput_means: list[float | None],
+    ascon_encrypt_throughput_cis: list[float | None],
+    ascon_encrypt_overhead_bytes: list[float | None],
+    ascon_encrypt_iterations: list[int | None],
     ascon_encrypt_throttled: list[bool] | None,
-    aes_decrypt_latency_means: list[float],
-    aes_decrypt_latency_cis: list[float],
-    aes_decrypt_throughput_means: list[float],
-    aes_decrypt_throughput_cis: list[float],
-    aes_decrypt_overhead_bytes: list[float],
-    aes_decrypt_iterations: list[int],
+    aes_decrypt_latency_means: list[float | None],
+    aes_decrypt_latency_cis: list[float | None],
+    aes_decrypt_throughput_means: list[float | None],
+    aes_decrypt_throughput_cis: list[float | None],
+    aes_decrypt_overhead_bytes: list[float | None],
+    aes_decrypt_iterations: list[int | None],
     aes_decrypt_throttled: list[bool] | None,
-    ascon_decrypt_latency_means: list[float],
-    ascon_decrypt_latency_cis: list[float],
-    ascon_decrypt_throughput_means: list[float],
-    ascon_decrypt_throughput_cis: list[float],
-    ascon_decrypt_overhead_bytes: list[float],
-    ascon_decrypt_iterations: list[int],
+    ascon_decrypt_latency_means: list[float | None],
+    ascon_decrypt_latency_cis: list[float | None],
+    ascon_decrypt_throughput_means: list[float | None],
+    ascon_decrypt_throughput_cis: list[float | None],
+    ascon_decrypt_overhead_bytes: list[float | None],
+    ascon_decrypt_iterations: list[int | None],
     ascon_decrypt_throttled: list[bool] | None,
+    out_of_memory_operations: list[str],
+    out_of_memory_cases: list[str],
     latency_plot: str,
     throughput_plot: str,
     template_path: str,
@@ -228,6 +311,9 @@ def write_aes_ascon_report(
 ) -> None:
     placeholders = {
         **build_html_generic_data(runs, t_multiplier, total_iterations),
+        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
+            out_of_memory_operations, out_of_memory_cases
+        ),
         **_build_aes_ascon_tables(payload_sizes, locals(), runs),
         "LatencyPlot": latency_plot,
         "ThroughputPlot": throughput_plot,
@@ -255,24 +341,36 @@ def _build_json_cbor_tables(
         ("DeserializeCborTable", "cbor_deserialize"),
         ("DeserializeCborKeyAsIntTable", "cbor_int_deserialize"),
     ]
-    return {
-        placeholder: _build_data_table(
+    tables = {}
+    for placeholder, prefix in specifications:
+        tables[placeholder] = _build_optional_table(
             headers,
+            attribute_counts,
+            str,
+            _format_optional_mean_ci_column(
+                scope[f"{prefix}_latency_means"],
+                scope[f"{prefix}_latency_cis"],
+            ),
             [
-                [str(value) for value in attribute_counts],
-                _mean_ci_column(
-                    scope[f"{prefix}_latency_means"],
-                    scope[f"{prefix}_latency_cis"],
+                _format_optional_column(
+                    scope[f"{prefix}_raw_sizes"], lambda value: f"{value:,.0f}"
                 ),
-                [f"{value:,.0f}" for value in scope[f"{prefix}_raw_sizes"]],
-                [f"{value:,.0f}" for value in scope[f"{prefix}_envelope_sizes"]],
-                [f"{value:.2f}%" for value in scope[f"{prefix}_overhead_percents"]],
-                [f"{value:,}" for value in scope[f"{prefix}_iterations"]],
+                _format_optional_column(
+                    scope[f"{prefix}_envelope_sizes"],
+                    lambda value: f"{value:,.0f}",
+                ),
+                _format_optional_column(
+                    scope[f"{prefix}_overhead_percents"],
+                    lambda value: f"{value:.2f}%",
+                ),
+                _format_optional_column(
+                    scope[f"{prefix}_iterations"], lambda value: f"{value:,}"
+                ),
             ],
             scope[f"{prefix}_throttled"],
         )
-        for placeholder, prefix in specifications
-    }
+
+    return tables
 
 
 def write_json_cbor_report(
@@ -281,48 +379,50 @@ def write_json_cbor_report(
     t_multiplier: float,
     total_iterations: int,
     attribute_counts: list[int],
-    json_serialize_latency_means: list[float],
-    json_serialize_latency_cis: list[float],
-    json_serialize_raw_sizes: list[float],
-    json_serialize_envelope_sizes: list[float],
-    json_serialize_overhead_percents: list[float],
-    json_serialize_iterations: list[int],
+    json_serialize_latency_means: list[float | None],
+    json_serialize_latency_cis: list[float | None],
+    json_serialize_raw_sizes: list[float | None],
+    json_serialize_envelope_sizes: list[float | None],
+    json_serialize_overhead_percents: list[float | None],
+    json_serialize_iterations: list[int | None],
     json_serialize_throttled: list[bool] | None,
-    cbor_serialize_latency_means: list[float],
-    cbor_serialize_latency_cis: list[float],
-    cbor_serialize_raw_sizes: list[float],
-    cbor_serialize_envelope_sizes: list[float],
-    cbor_serialize_overhead_percents: list[float],
-    cbor_serialize_iterations: list[int],
+    cbor_serialize_latency_means: list[float | None],
+    cbor_serialize_latency_cis: list[float | None],
+    cbor_serialize_raw_sizes: list[float | None],
+    cbor_serialize_envelope_sizes: list[float | None],
+    cbor_serialize_overhead_percents: list[float | None],
+    cbor_serialize_iterations: list[int | None],
     cbor_serialize_throttled: list[bool] | None,
-    cbor_int_serialize_latency_means: list[float],
-    cbor_int_serialize_latency_cis: list[float],
-    cbor_int_serialize_raw_sizes: list[float],
-    cbor_int_serialize_envelope_sizes: list[float],
-    cbor_int_serialize_overhead_percents: list[float],
-    cbor_int_serialize_iterations: list[int],
+    cbor_int_serialize_latency_means: list[float | None],
+    cbor_int_serialize_latency_cis: list[float | None],
+    cbor_int_serialize_raw_sizes: list[float | None],
+    cbor_int_serialize_envelope_sizes: list[float | None],
+    cbor_int_serialize_overhead_percents: list[float | None],
+    cbor_int_serialize_iterations: list[int | None],
     cbor_int_serialize_throttled: list[bool] | None,
-    json_deserialize_latency_means: list[float],
-    json_deserialize_latency_cis: list[float],
-    json_deserialize_raw_sizes: list[float],
-    json_deserialize_envelope_sizes: list[float],
-    json_deserialize_overhead_percents: list[float],
-    json_deserialize_iterations: list[int],
+    json_deserialize_latency_means: list[float | None],
+    json_deserialize_latency_cis: list[float | None],
+    json_deserialize_raw_sizes: list[float | None],
+    json_deserialize_envelope_sizes: list[float | None],
+    json_deserialize_overhead_percents: list[float | None],
+    json_deserialize_iterations: list[int | None],
     json_deserialize_throttled: list[bool] | None,
-    cbor_deserialize_latency_means: list[float],
-    cbor_deserialize_latency_cis: list[float],
-    cbor_deserialize_raw_sizes: list[float],
-    cbor_deserialize_envelope_sizes: list[float],
-    cbor_deserialize_overhead_percents: list[float],
-    cbor_deserialize_iterations: list[int],
+    cbor_deserialize_latency_means: list[float | None],
+    cbor_deserialize_latency_cis: list[float | None],
+    cbor_deserialize_raw_sizes: list[float | None],
+    cbor_deserialize_envelope_sizes: list[float | None],
+    cbor_deserialize_overhead_percents: list[float | None],
+    cbor_deserialize_iterations: list[int | None],
     cbor_deserialize_throttled: list[bool] | None,
-    cbor_int_deserialize_latency_means: list[float],
-    cbor_int_deserialize_latency_cis: list[float],
-    cbor_int_deserialize_raw_sizes: list[float],
-    cbor_int_deserialize_envelope_sizes: list[float],
-    cbor_int_deserialize_overhead_percents: list[float],
-    cbor_int_deserialize_iterations: list[int],
+    cbor_int_deserialize_latency_means: list[float | None],
+    cbor_int_deserialize_latency_cis: list[float | None],
+    cbor_int_deserialize_raw_sizes: list[float | None],
+    cbor_int_deserialize_envelope_sizes: list[float | None],
+    cbor_int_deserialize_overhead_percents: list[float | None],
+    cbor_int_deserialize_iterations: list[int | None],
     cbor_int_deserialize_throttled: list[bool] | None,
+    out_of_memory_operations: list[str],
+    out_of_memory_cases: list[str],
     latency_plot: str,
     size_plot: str,
     template_path: str,
@@ -330,6 +430,9 @@ def write_json_cbor_report(
 ) -> None:
     placeholders = {
         **build_html_generic_data(runs, t_multiplier, total_iterations),
+        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
+            out_of_memory_operations, out_of_memory_cases
+        ),
         **_build_json_cbor_tables(attribute_counts, locals(), runs),
         "LatencyPlot": latency_plot,
         "SizePlot": size_plot,
@@ -357,30 +460,36 @@ def _build_payload_tables(
         ("DecryptRsaTable", "rsa_decrypt", "rsa"),
         ("DecryptCpabeTable", "cpabe_decrypt", "cpabe"),
     ]
-    return {
-        placeholder: _build_data_table(
+    tables = {}
+    for placeholder, case, scheme in specifications:
+        tables[placeholder] = _build_optional_table(
             headers,
+            payload_sizes,
+            format_byte_size,
+            _format_optional_mean_ci_column(
+                scope[f"{case}_latency_means"], scope[f"{case}_latency_cis"]
+            ),
             [
-                [format_byte_size(value) for value in payload_sizes],
-                _mean_ci_column(
-                    scope[f"{case}_latency_means"], scope[f"{case}_latency_cis"]
-                ),
-                _mean_ci_column(
+                _format_optional_mean_ci_column(
                     scope[f"{case}_throughput_means"],
                     scope[f"{case}_throughput_cis"],
                     decimals=1,
                 ),
-                [format_byte_size(value) for value in scope[f"{scheme}_wire_sizes"]],
-                [
-                    f"{value:.2f}%" if value >= 0.01 else "&lt;0.01%"
-                    for value in scope[f"{scheme}_overhead_percents"]
-                ],
-                [f"{value:,}" for value in scope[f"{case}_iterations"]],
+                _format_optional_column(
+                    scope[f"{scheme}_wire_sizes"], format_byte_size
+                ),
+                _format_optional_column(
+                    scope[f"{scheme}_overhead_percents"],
+                    lambda value: (f"{value:.2f}%" if value >= 0.01 else "&lt;0.01%"),
+                ),
+                _format_optional_column(
+                    scope[f"{case}_iterations"], lambda value: f"{value:,}"
+                ),
             ],
             scope[f"{case}_throttled"],
         )
-        for placeholder, case, scheme in specifications
-    }
+
+    return tables
 
 
 def write_payload_scaling_report(
@@ -389,48 +498,50 @@ def write_payload_scaling_report(
     t_multiplier: float,
     total_iterations: int,
     payload_sizes: list[int],
-    psk_wire_sizes: list[int],
-    psk_overhead_percents: list[float],
-    rsa_wire_sizes: list[int],
-    rsa_overhead_percents: list[float],
-    cpabe_wire_sizes: list[int],
-    cpabe_overhead_percents: list[float],
-    psk_encrypt_latency_means: list[float],
-    psk_encrypt_latency_cis: list[float],
-    psk_encrypt_throughput_means: list[float],
-    psk_encrypt_throughput_cis: list[float],
-    psk_encrypt_iterations: list[int],
+    psk_wire_sizes: list[int | None],
+    psk_overhead_percents: list[float | None],
+    rsa_wire_sizes: list[int | None],
+    rsa_overhead_percents: list[float | None],
+    cpabe_wire_sizes: list[int | None],
+    cpabe_overhead_percents: list[float | None],
+    psk_encrypt_latency_means: list[float | None],
+    psk_encrypt_latency_cis: list[float | None],
+    psk_encrypt_throughput_means: list[float | None],
+    psk_encrypt_throughput_cis: list[float | None],
+    psk_encrypt_iterations: list[int | None],
     psk_encrypt_throttled: list[bool] | None,
-    rsa_encrypt_latency_means: list[float],
-    rsa_encrypt_latency_cis: list[float],
-    rsa_encrypt_throughput_means: list[float],
-    rsa_encrypt_throughput_cis: list[float],
-    rsa_encrypt_iterations: list[int],
+    rsa_encrypt_latency_means: list[float | None],
+    rsa_encrypt_latency_cis: list[float | None],
+    rsa_encrypt_throughput_means: list[float | None],
+    rsa_encrypt_throughput_cis: list[float | None],
+    rsa_encrypt_iterations: list[int | None],
     rsa_encrypt_throttled: list[bool] | None,
-    cpabe_encrypt_latency_means: list[float],
-    cpabe_encrypt_latency_cis: list[float],
-    cpabe_encrypt_throughput_means: list[float],
-    cpabe_encrypt_throughput_cis: list[float],
-    cpabe_encrypt_iterations: list[int],
+    cpabe_encrypt_latency_means: list[float | None],
+    cpabe_encrypt_latency_cis: list[float | None],
+    cpabe_encrypt_throughput_means: list[float | None],
+    cpabe_encrypt_throughput_cis: list[float | None],
+    cpabe_encrypt_iterations: list[int | None],
     cpabe_encrypt_throttled: list[bool] | None,
-    psk_decrypt_latency_means: list[float],
-    psk_decrypt_latency_cis: list[float],
-    psk_decrypt_throughput_means: list[float],
-    psk_decrypt_throughput_cis: list[float],
-    psk_decrypt_iterations: list[int],
+    psk_decrypt_latency_means: list[float | None],
+    psk_decrypt_latency_cis: list[float | None],
+    psk_decrypt_throughput_means: list[float | None],
+    psk_decrypt_throughput_cis: list[float | None],
+    psk_decrypt_iterations: list[int | None],
     psk_decrypt_throttled: list[bool] | None,
-    rsa_decrypt_latency_means: list[float],
-    rsa_decrypt_latency_cis: list[float],
-    rsa_decrypt_throughput_means: list[float],
-    rsa_decrypt_throughput_cis: list[float],
-    rsa_decrypt_iterations: list[int],
+    rsa_decrypt_latency_means: list[float | None],
+    rsa_decrypt_latency_cis: list[float | None],
+    rsa_decrypt_throughput_means: list[float | None],
+    rsa_decrypt_throughput_cis: list[float | None],
+    rsa_decrypt_iterations: list[int | None],
     rsa_decrypt_throttled: list[bool] | None,
-    cpabe_decrypt_latency_means: list[float],
-    cpabe_decrypt_latency_cis: list[float],
-    cpabe_decrypt_throughput_means: list[float],
-    cpabe_decrypt_throughput_cis: list[float],
-    cpabe_decrypt_iterations: list[int],
+    cpabe_decrypt_latency_means: list[float | None],
+    cpabe_decrypt_latency_cis: list[float | None],
+    cpabe_decrypt_throughput_means: list[float | None],
+    cpabe_decrypt_throughput_cis: list[float | None],
+    cpabe_decrypt_iterations: list[int | None],
     cpabe_decrypt_throttled: list[bool] | None,
+    out_of_memory_operations: list[str],
+    out_of_memory_cases: list[str],
     latency_plot: str,
     throughput_plot: str,
     template_path: str,
@@ -438,6 +549,9 @@ def write_payload_scaling_report(
 ) -> None:
     placeholders = {
         **build_html_generic_data(runs, t_multiplier, total_iterations),
+        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
+            out_of_memory_operations, out_of_memory_cases
+        ),
         **_build_payload_tables(payload_sizes, locals(), runs),
         "LatencyPlot": latency_plot,
         "ThroughputPlot": throughput_plot,
@@ -468,43 +582,23 @@ def _build_optional_latency_table(
     runs: int,
     highlighted: list[bool] | None = None,
 ) -> str:
-    rows = []
-    columns = [index_values, latency_means, latency_cis]
-    columns.extend(values for _, values, _ in extra_columns)
-    columns.append(iterations)
-    for values in zip(*columns, strict=True):
-        index_value, latency_mean, latency_ci, *remaining = values
-        measurement_values = remaining[:-1]
-        iteration_count = remaining[-1]
-
-        if latency_mean is None or latency_ci is None:
-            rows.append(
-                [str(index_value), OUT_OF_MEMORY]
-                + [NOT_AVAILABLE] * (len(extra_columns) + 1)
-            )
-            continue
-
-        assert iteration_count is not None
-        assert all(value is not None for value in measurement_values)
-        rows.append(
-            [str(index_value), format_mean_with_ci(latency_mean, latency_ci)]
-            + [
-                formatter(value)  # type: ignore
-                for value, (_, _, formatter) in zip(
-                    measurement_values, extra_columns, strict=True
-                )
-            ]
-            + [f"{iteration_count:,}"]
-        )
-
-    return build_html_table(
+    return _build_optional_table(
         [
             index_header,
             "LATENCY (µs/op)",
             *[header for header, _, _ in extra_columns],
             f"ITERS (Σ{runs} RUNS)",
         ],
-        rows,
+        index_values,
+        str,
+        _format_optional_mean_ci_column(latency_means, latency_cis),
+        [
+            *[
+                _format_optional_column(values, formatter)
+                for _, values, formatter in extra_columns
+            ],
+            _format_optional_column(iterations, lambda value: f"{value:,}"),
+        ],
         throttled,
         thermal_header="THERMAL",
         highlighted=highlighted,
@@ -945,13 +1039,8 @@ def write_attribute_key_scaling_report(
         **build_rsa_circle_visualization(
             fanout_single_bytes, fanout_total_bytes, fanout_multiplier
         ),
-        "OutOfMemoryNotice": build_html_out_of_memory_notice(
-            [
-                [operation, case_name, OUT_OF_MEMORY]
-                for operation, case_name in zip(
-                    out_of_memory_operations, out_of_memory_cases, strict=True
-                )
-            ]
+        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
+            out_of_memory_operations, out_of_memory_cases
         ),
         **_build_attribute_timing_tables(
             locals(),

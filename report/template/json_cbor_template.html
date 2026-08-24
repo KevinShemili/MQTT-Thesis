@@ -144,6 +144,14 @@
             letter-spacing: -0.025em;
         }
 
+        .section-heading p {
+            max-width: 650px;
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            text-align: right;
+        }
+
         .plot-stack {
             display: grid;
             gap: 18px;
@@ -260,6 +268,28 @@
             text-align: center;
         }
 
+        .failure-notice {
+            border-color: #e7bcc6;
+            background: linear-gradient(180deg, #fff8f9 0%, var(--surface) 60%);
+        }
+
+        .failure-notice .section-heading h2 {
+            color: var(--rose);
+        }
+
+        .failure-notice .section-heading p {
+            max-width: 720px;
+        }
+
+        .failure-notice td {
+            text-align: left;
+            white-space: normal;
+        }
+
+        .failure-notice th {
+            text-align: left;
+        }
+
         .table-note {
             margin: 10px 14px 12px;
             color: var(--muted);
@@ -299,6 +329,15 @@
             .metadata {
                 grid-template-columns: 1fr;
             }
+
+            .section-heading {
+                display: block;
+            }
+
+            .section-heading p {
+                margin-top: 7px;
+                text-align: left;
+            }
         }
 
         @media print {
@@ -326,6 +365,8 @@
             <div class="eyebrow">Microbenchmark Scenario 3</div>
             <h1>Envelope Serialization under Attribute Scaling</h1>
         </header>
+
+        {{OutOfMemoryNotice}}
 
         <section class="metadata" aria-label="Benchmark metadata">
             <div class="metric">

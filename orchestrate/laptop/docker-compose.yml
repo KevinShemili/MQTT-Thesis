@@ -1,65 +1,49 @@
 services:
-  aes-ascon-with-acceleration:
+  aes-ascon:
     build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: aes-ascon-with-acceleration-benchmark
+      context: ../..
+      dockerfile: orchestrate/laptop/Dockerfile
+    container_name: aes-ascon-benchmark
     restart: "no"
     tty: true
-    env_file:
-      - ./config/benchmark.env
+    working_dir: /app
     volumes:
-      - ./results:/results
-    command: ["./run-aes-ascon-with-acceleration.sh"]
-
-  aes-ascon-without-acceleration:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: aes-ascon-without-acceleration-benchmark
-    restart: "no"
-    tty: true
-    env_file:
-      - ./config/benchmark.env
-    volumes:
-      - ./results:/results
-    command: ["./run-aes-ascon-without-acceleration.sh"]
+      - ../../results:/app/results
+    command: ["python3", "orchestrate/raspberry/orchestrate_aes_ascon.py"]
 
   json-cbor:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: orchestrate/laptop/Dockerfile
     container_name: json-cbor-benchmark
     restart: "no"
     tty: true
-    env_file:
-      - ./config/benchmark.env
+    working_dir: /app
     volumes:
-      - ./results:/results
-    command: ["./run-json-cbor.sh"]
+      - ../../results:/app/results
+    command: ["python3", "orchestrate/raspberry/orchestrate_json_cbor.py"]
 
   payload-scaling:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: orchestrate/laptop/Dockerfile
     container_name: payload-scaling-benchmark
     restart: "no"
     tty: true
-    env_file:
-      - ./config/benchmark.env
+    working_dir: /app
     volumes:
-      - ./results:/results
-    command: ["./run-payload-scaling.sh"]
+      - ../../results:/app/results
+    command: ["python3", "orchestrate/raspberry/orchestrate_payload_scaling.py"]
 
   attribute-key-scaling:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: orchestrate/laptop/Dockerfile
     container_name: attribute-key-scaling-benchmark
     restart: "no"
     tty: true
-    env_file:
-      - ./config/benchmark.env
+    working_dir: /app
     volumes:
-      - ./results:/results
-    command: ["python3", "orchestration/orchestrate_attribute_key_scaling.py"]
+      - ../../results:/app/results
+    command:
+      ["python3", "orchestrate/raspberry/orchestrate_attribute_key_scaling.py"]

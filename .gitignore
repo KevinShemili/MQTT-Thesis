@@ -104,6 +104,8 @@ Pipfile.lock
 # Benchmark / Data files (optional)
 # ==========================================
 
+results/
+
 # Benchmark binaries and provisioned fixtures
 benchmark/bin/
 benchmark/disk-cache/

@@ -1,20 +1,31 @@
-FROM golang:1.25.11-alpine3.24
-
-RUN apk add --no-cache python3=3.14.5-r0 py3-pip=26.1.2-r0 pv=1.10.5-r0
+FROM alpine:3.24
 
 WORKDIR /app
 
-COPY python/requirements.txt .
-RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
+# Install required runtimes
+RUN apk add --no-cache \
+    go \
+    python3 \
+    py3-pip
 
-COPY golang/go.mod golang/go.sum ./
-RUN go mod download
+# Install Go dependencies first for Docker layer caching
+COPY benchmark/go.mod benchmark/go.sum ./benchmark/
 
-COPY golang/ .
+RUN cd benchmark && go mod download
 
-RUN go test -c -o benchmark-binary ./benchmark
-RUN go build -o provision-binary ./cmd/provision
+# Install Python dependencies
+COPY requirements.txt ./requirements.txt
 
-COPY python/ .
-COPY script/ .
-COPY orchestration/ ./orchestration/
+RUN python3 -m pip install \
+    --no-cache-dir \
+    --break-system-packages \
+    -r requirements.txt
+
+# Copy project using the real repository layout
+COPY benchmark/ ./benchmark/
+COPY environment/ ./environment/
+COPY orchestrate/ ./orchestrate/
+COPY report/ ./report/
+
+# Runtime directories used by the orchestrators
+RUN mkdir -p ./bin ./results
