@@ -3,7 +3,8 @@ package benchmark
 import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/ascon"
-	"benchmark/support"
+	"benchmark/system/thermal"
+	"benchmark/utility"
 	"fmt"
 	"testing"
 )
@@ -24,13 +25,13 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate AES cipher
-			aes := aes.NewAES(support.GenerateRandomBytes(config.AESKeySize))
+			aes := aes.NewAES(utility.GenerateRandomBytes(config.AESKeySize))
 
 			// Construct plaintexts
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aes.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Pre-allocate output destination buffers, to avoid allocation inside loop
 			ciphertext := make([]byte, 0, payloadSize+aes.Overhead())
@@ -42,7 +43,7 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
@@ -67,14 +68,14 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
 			// Instantiate cipher
 			ascon := ascon.NewASCON(
-				support.GenerateRandomBytes(config.ASCONKeySize),
+				utility.GenerateRandomBytes(config.ASCONKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(ascon.NonceSize())
+			nonce := utility.GenerateRandomBytes(ascon.NonceSize())
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
 			ciphertext := make([]byte, 0, payloadSize+ascon.Overhead())
@@ -86,7 +87,7 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
@@ -116,14 +117,14 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
 			// Instantiate cipher
 			aes := aes.NewAES(
-				support.GenerateRandomBytes(config.AESKeySize),
+				utility.GenerateRandomBytes(config.AESKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aes.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Create ciphertext to measure decryption cost
 			ciphertext := aes.Seal(nil, nonce, plaintext, nil)
@@ -138,7 +139,7 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
@@ -163,14 +164,14 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
 			// Instantiate cipher
 			ascon := ascon.NewASCON(
-				support.GenerateRandomBytes(config.ASCONKeySize),
+				utility.GenerateRandomBytes(config.ASCONKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(ascon.NonceSize())
+			nonce := utility.GenerateRandomBytes(ascon.NonceSize())
 
 			// Create ciphertext to measure decryption cost
 			ciphertext := ascon.Seal(nil, nonce, plaintext, nil)
@@ -185,7 +186,7 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
@@ -207,15 +208,15 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 func loadAESASCONConfig() AESASCONConfig {
 
 	return AESASCONConfig{
-		PayloadSizes: support.ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES"),
-		AESKeySize:   support.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
-		ASCONKeySize: support.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
+		PayloadSizes: utility.ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES"),
+		AESKeySize:   utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
+		ASCONKeySize: utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}
 }
 
 func waitForCooldown() {
-	support.WaitForCooldown(
-		support.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		support.CooldownTimeout,
+	thermal.WaitForCooldown(
+		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
+		thermal.CooldownTimeout,
 	)
 }

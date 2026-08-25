@@ -4,7 +4,7 @@ import (
 	"benchmark/cache"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/support"
+	"benchmark/utility"
 	"fmt"
 	"os"
 	"strconv"
@@ -37,7 +37,7 @@ func main() {
 		panic(err)
 	}
 
-	aesKeySize := support.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
+	aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
 	aesKey := provisionAESKey(aesKeySize)
 
 	switch group {
@@ -62,7 +62,7 @@ func provisionAESKey(aesKeySize int) []byte {
 		return aesKey
 	}
 
-	aesKey := support.GenerateRandomBytes(aesKeySize)
+	aesKey := utility.GenerateRandomBytes(aesKeySize)
 	cache.StoreFile(cache.CreateAESKeyFileName(aesKeySize), aesKey)
 
 	return aesKey
@@ -119,7 +119,7 @@ func provisionCPABEAuthority() cpabe.CPABEAuthority {
 
 func provisionRSASubscribers(subscriberCount int) {
 
-	rsaKeyBits := support.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
+	rsaKeyBits := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
 
 	for index := range subscriberCount {
 		provisionRSAKey(rsaKeyBits, index)

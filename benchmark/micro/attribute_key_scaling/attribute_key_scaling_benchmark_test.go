@@ -3,7 +3,8 @@ package benchmark
 import (
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/support"
+	"benchmark/system/thermal"
+	"benchmark/utility"
 	"fmt"
 	"testing"
 )
@@ -36,7 +37,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 			// True cryptographic realism is not necessary here,
 			// hence no need to regenerate a symmetric key for each new encryption
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
 			asymmetricCiphertextSize := len(authority.Encrypt(abePolicy, symmetricKey))
@@ -45,7 +46,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				authority.Encrypt(abePolicy, symmetricKey)
@@ -65,7 +66,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
 
 			publicKeySlice := loadRSAKeysFromInMemoryCache(config.FixedRSAKeySize, subscriberCount)
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Size of a single wrapped key
 			// - Directly comparable with CP-ABE's single ciphertext
@@ -78,7 +79,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				for index := range subscriberCount {
@@ -103,7 +104,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 			// Get just 1 RSA key of the specified size
 			publicKey := loadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
 			asymmetricCiphertextSize := len(publicKey.Encrypt(symmetricKey))
@@ -112,7 +113,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				publicKey.Encrypt(symmetricKey)
@@ -142,7 +143,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			// Create synthetic policy and attributes for given attribute count
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Create private key based on attributes
 			privateKey := authority.IssuePrivateKey(abeAttributes)
@@ -157,7 +158,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				privateKey.Decrypt(asymmetricCiphertext)
@@ -178,7 +179,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 			// Get just 1 RSA key of the specified size
 			privateKey := loadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Create ciphertext based on policy to measure decryption cost
 			asymmetricCiphertext := privateKey.Encrypt(symmetricKey)
@@ -187,7 +188,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				privateKey.Decrypt(asymmetricCiphertext)
@@ -226,7 +227,7 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			var schema rsa.RSA
 
@@ -246,19 +247,19 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
 
 	return AttributeKeyScalingConfig{
-		AttributeCountList: support.ParseIntListFromEnv(
+		AttributeCountList: utility.ParseIntListFromEnv(
 			"ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT",
 		),
-		SubscriberCountList: support.ParseIntListFromEnv(
+		SubscriberCountList: utility.ParseIntListFromEnv(
 			"ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT",
 		),
-		RSAKeySizeList: support.ParseIntListFromEnv(
+		RSAKeySizeList: utility.ParseIntListFromEnv(
 			"ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES",
 		),
-		FixedRSAKeySize: support.ParseIntFromEnv(
+		FixedRSAKeySize: utility.ParseIntFromEnv(
 			"ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE",
 		),
-		AESKeySize: support.ParseIntFromEnv(
+		AESKeySize: utility.ParseIntFromEnv(
 			"ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE",
 		),
 	}
@@ -282,8 +283,8 @@ func loadRSAKeysFromInMemoryCache(rsaKeySize int, amount int) []rsa.RSA {
 }
 
 func waitForCooldown() {
-	support.WaitForCooldown(
-		support.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		support.CooldownTimeout,
+	thermal.WaitForCooldown(
+		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
+		thermal.CooldownTimeout,
 	)
 }

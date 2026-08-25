@@ -4,7 +4,8 @@ import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/support"
+	"benchmark/system/thermal"
+	"benchmark/utility"
 	"fmt"
 	"testing"
 )
@@ -27,11 +28,11 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 
 			// Instantiate AES-GCM cipher
 			aesGcm := aes.NewAES(
-				support.GenerateRandomBytes(config.AESKeySize),
+				utility.GenerateRandomBytes(config.AESKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
 			ciphertext := make([]byte, 0, payloadSize+aesGcm.Overhead())
@@ -46,11 +47,11 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			// A realistic implementation of PSK necessitates a fresh nonce per message
 			for b.Loop() {
-				nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+				nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 				aesGcm.Seal(ciphertext[:0], nonce, plaintext, nil)
 			}
@@ -75,11 +76,11 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Instantiate AES-GCM once outside timed loop to obtain its fixed sizes
 			aesGcm := aes.NewAES(
-				support.GenerateRandomBytes(config.AESKeySize),
+				utility.GenerateRandomBytes(config.AESKeySize),
 			)
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
@@ -88,7 +89,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			// Calculate fixed RSA wrapped-key size
 			asymmetricCiphertextSize := len(
 				rsaScheme.Encrypt(
-					support.GenerateRandomBytes(config.AESKeySize),
+					utility.GenerateRandomBytes(config.AESKeySize),
 				),
 			)
 
@@ -104,12 +105,12 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			// A realistic implementation of RSA + AES necessitates a fresh session key & nonce per message
 			for b.Loop() {
-				nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
-				symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+				nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+				symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 				messageCipher := aes.NewAES(symmetricKey)
 
 				rsaScheme.Encrypt(symmetricKey)
@@ -141,11 +142,11 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Instantiate AES-GCM once outside timed loop to obtain its fixed sizes
 			aesGcm := aes.NewAES(
-				support.GenerateRandomBytes(config.AESKeySize),
+				utility.GenerateRandomBytes(config.AESKeySize),
 			)
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
@@ -155,7 +156,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			asymmetricCiphertextSize := len(
 				authority.Encrypt(
 					abePolicy,
-					support.GenerateRandomBytes(config.AESKeySize),
+					utility.GenerateRandomBytes(config.AESKeySize),
 				),
 			)
 
@@ -171,12 +172,12 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			// A realistic implementation of CP-ABE + AES necessitates a fresh session key & nonce per message
 			for b.Loop() {
-				nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
-				symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+				nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+				symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 				messageCipher := aes.NewAES(symmetricKey)
 
 				authority.Encrypt(abePolicy, symmetricKey)
@@ -205,16 +206,16 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("PSK/%dB", payloadSize), func(b *testing.B) {
 
 			// Generate symmetric key
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Instantiate AES-GCM cipher
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Create ciphertext to measure decryption cost
 			ciphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
@@ -229,7 +230,7 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				aesGcm.Open(
@@ -255,16 +256,16 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
 			// Generate symmetric key
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Instantiate AES-GCM cipher
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt symmetric key under RSA
 			asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
@@ -282,7 +283,7 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				recoveredSymmetricKey := rsaScheme.Decrypt(asymmetricCiphertext)
@@ -318,16 +319,16 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			subscriberKey := authority.IssuePrivateKey(abeAttributes)
 
 			// Generate symmetric key
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Instantiate AES-GCM cipher
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext for given payload size
-			plaintext := support.GenerateRandomBytes(payloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt symmetric key under CP-ABE policy
 			asymmetricCiphertext := authority.Encrypt(
@@ -348,7 +349,7 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				recoveredSymmetricKey := subscriberKey.Decrypt(
@@ -373,24 +374,24 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 func loadPayloadScalingConfig() PayloadScalingConfig {
 
 	return PayloadScalingConfig{
-		PayloadSizes: support.ParseIntListFromEnv(
+		PayloadSizes: utility.ParseIntListFromEnv(
 			"PAYLOAD_SCALING_PAYLOAD_SIZES",
 		),
-		AESKeySize: support.ParseIntFromEnv(
+		AESKeySize: utility.ParseIntFromEnv(
 			"PAYLOAD_SCALING_AES_KEY_SIZE",
 		),
-		AttributeCount: support.ParseIntFromEnv(
+		AttributeCount: utility.ParseIntFromEnv(
 			"PAYLOAD_SCALING_ATTRIBUTE_COUNT",
 		),
-		RSAKeyBits: support.ParseIntFromEnv(
+		RSAKeyBits: utility.ParseIntFromEnv(
 			"PAYLOAD_SCALING_RSA_KEY_BITS",
 		),
 	}
 }
 
 func waitForCooldown() {
-	support.WaitForCooldown(
-		support.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		support.CooldownTimeout,
+	thermal.WaitForCooldown(
+		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
+		thermal.CooldownTimeout,
 	)
 }

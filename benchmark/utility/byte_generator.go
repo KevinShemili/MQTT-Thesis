@@ -1,4 +1,4 @@
-package support
+package utility
 
 import "crypto/rand"
 

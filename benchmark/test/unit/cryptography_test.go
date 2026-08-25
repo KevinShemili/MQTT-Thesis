@@ -5,7 +5,7 @@ import (
 	"benchmark/cryptography/ascon"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/support"
+	"benchmark/utility"
 	"bytes"
 	"testing"
 )
@@ -17,10 +17,10 @@ var RSA_KEY_SIZE = 2048
 func TestAESRoundTrip(t *testing.T) {
 
 	// Arrange
-	key := support.GenerateRandomBytes(AES_KEY_SIZE)
+	key := utility.GenerateRandomBytes(AES_KEY_SIZE)
 	plaintext := []byte("test")
 	aes := aes.NewAES(key)
-	nonce := support.GenerateRandomBytes(aes.NonceSize())
+	nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 	// Act
 	ciphertext := aes.Seal(nil, nonce, plaintext, nil)
@@ -39,10 +39,10 @@ func TestAESRoundTrip(t *testing.T) {
 func TestASCONRoundTrip(t *testing.T) {
 
 	// Arrange
-	key := support.GenerateRandomBytes(ASCON_KEY_SIZE)
+	key := utility.GenerateRandomBytes(ASCON_KEY_SIZE)
 	plaintext := []byte("test")
 	ascon := ascon.NewASCON(key)
-	nonce := support.GenerateRandomBytes(ascon.NonceSize())
+	nonce := utility.GenerateRandomBytes(ascon.NonceSize())
 
 	// Act
 	ciphertext := ascon.Seal(nil, nonce, plaintext, nil)

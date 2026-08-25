@@ -4,7 +4,8 @@ import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/cpabe"
 	"benchmark/envelope"
-	"benchmark/support"
+	"benchmark/system/thermal"
+	"benchmark/utility"
 	"fmt"
 	"testing"
 )
@@ -28,14 +29,14 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			authority := cpabe.NewCPABEAuthority()
 
 			// Instantiate AES-GCM cipher
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := support.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aes.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Encrypt payload
 			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
@@ -64,7 +65,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				envelope.SerializeJSON(env)
@@ -88,14 +89,14 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			authority := cpabe.NewCPABEAuthority()
 
 			// Instantiate AES-GCM cipher
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := support.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
@@ -124,7 +125,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				envelope.SerializeCBOR(env)
@@ -148,14 +149,14 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			authority := cpabe.NewCPABEAuthority()
 
 			// Instantiate AES-GCM cipher
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := support.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
@@ -184,7 +185,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				envelope.SerializeCBORKeyAsInt(env)
@@ -213,14 +214,14 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			authority := cpabe.NewCPABEAuthority()
 
 			// Instantiate AES-GCM cipher
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := support.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
@@ -248,7 +249,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				envelope.DeserializeJSON(serializedEnvelope)
@@ -272,14 +273,14 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			authority := cpabe.NewCPABEAuthority()
 
 			// Instantiate AES-GCM cipher
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := support.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
@@ -307,7 +308,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				envelope.DeserializeCBOR(serializedEnvelope)
@@ -331,14 +332,14 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			authority := cpabe.NewCPABEAuthority()
 
 			// Instantiate AES-GCM cipher
-			symmetricKey := support.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := support.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := support.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
 
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
@@ -366,7 +367,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			waitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := support.WatchThrottling()
+			throttle := thermal.WatchThrottling()
 
 			for b.Loop() {
 				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
@@ -385,15 +386,15 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 func loadJSONCBORConfig() JSONCBORConfig {
 
 	return JSONCBORConfig{
-		AttributeSizes: support.ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS"),
-		PayloadSize:    support.ParseIntFromEnv("JSON_CBOR_PAYLOAD_SIZE"),
-		AESKeySize:     support.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
+		AttributeSizes: utility.ParseIntListFromEnv("JSON_CBOR_ATTRIBUTE_COUNTS"),
+		PayloadSize:    utility.ParseIntFromEnv("JSON_CBOR_PAYLOAD_SIZE"),
+		AESKeySize:     utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}
 }
 
 func waitForCooldown() {
-	support.WaitForCooldown(
-		support.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		support.CooldownTimeout,
+	thermal.WaitForCooldown(
+		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
+		thermal.CooldownTimeout,
 	)
 }

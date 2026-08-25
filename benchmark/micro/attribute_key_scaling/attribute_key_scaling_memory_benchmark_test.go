@@ -4,7 +4,7 @@ import (
 	"benchmark/cache"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/support"
+	"benchmark/system/memory"
 	"fmt"
 	"runtime"
 	"runtime/debug"
@@ -33,13 +33,15 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 			abePolicy := cpabe.ParseCPABEPolicy(string(cache.LoadFile(cache.CreateCPABEPolicyFileName(attributeCount))))
 			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
+			waitForCooldown()
+
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				asymmetricPublicKey.Encrypt(abePolicy, symmetricKey)
 			}
 
-			if peakBytes, isAvailable := support.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -56,6 +58,8 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeySize, subscriberCount)
 			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
+			waitForCooldown()
+
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -64,7 +68,7 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 				}
 			}
 
-			if peakBytes, isAvailable := support.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -81,13 +85,15 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 			asymmetricPublicKey := loadIndividualRSAPublicKeys(rsaKeyBits, 1)[0]
 			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
+			waitForCooldown()
+
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				asymmetricPublicKey.Encrypt(symmetricKey)
 			}
 
-			if peakBytes, isAvailable := support.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -109,13 +115,15 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 			asymmetricPrivateKey := cpabe.UnmarshalCPABEPrivateKey(cache.LoadFile(cache.CreateCPABEPrivateKeyFileName(attributeCount)))
 			asymmetricCiphertext := cache.LoadFile(cache.CreateCPABECiphertextFileName(attributeCount))
 
+			waitForCooldown()
+
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				asymmetricPrivateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			if peakBytes, isAvailable := support.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -132,13 +140,15 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 			asymmetricPrivateKey := rsa.UnmarshalPrivateKey(cache.LoadFile(cache.CreateRSAPrivateKeyFileName(rsaKeyBits, 0)))
 			asymmetricCiphertext := cache.LoadFile(cache.CreateRSACiphertextFileName(rsaKeyBits, 0))
 
+			waitForCooldown()
+
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				asymmetricPrivateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			if peakBytes, isAvailable := support.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -154,6 +164,10 @@ func BenchmarkAttributeKeyScalingMemoryBaseline(benchmark *testing.B) {
 
 	benchmark.Run("Runtime/0", func(b *testing.B) {
 
+		// Keep cooldown in the baseline so any persistent RSS footprint it introduces is also present in the
+		// baseline itself
+		waitForCooldown()
+
 		// Resetting the watermark leaves it at the current resident size, so the reading
 		// below is what the process holds before any fixture or operation touches it
 		isPrepared := preparePeakMemoryMeasurement()
@@ -162,7 +176,7 @@ func BenchmarkAttributeKeyScalingMemoryBaseline(benchmark *testing.B) {
 		for b.Loop() {
 		}
 
-		if peakBytes, isAvailable := support.PeakResidentMemory(); isPrepared && isAvailable {
+		if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 			b.ReportMetric(peakBytes, "peak_rss_bytes")
 		}
 	})
@@ -177,7 +191,7 @@ func preparePeakMemoryMeasurement() bool {
 	debug.FreeOSMemory()
 
 	// Forget the previous process memory peak so the next VmHWM reflects this benchmark case
-	flag := support.ResetPeakResidentMemory()
+	flag := memory.ResetPeakResidentMemory()
 
 	return flag
 }
