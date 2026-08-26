@@ -1,4 +1,4 @@
-package benchmark
+package attribute_key_scaling
 
 import (
 	"benchmark/cryptography/cpabe"

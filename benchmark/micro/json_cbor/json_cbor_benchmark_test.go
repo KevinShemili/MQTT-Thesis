@@ -1,4 +1,4 @@
-package benchmark
+package json_cbor
 
 import (
 	"benchmark/cryptography/aes"

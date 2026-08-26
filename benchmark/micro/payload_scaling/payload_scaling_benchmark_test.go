@@ -1,4 +1,4 @@
-package benchmark
+package payload_scaling
 
 import (
 	"benchmark/cryptography/aes"

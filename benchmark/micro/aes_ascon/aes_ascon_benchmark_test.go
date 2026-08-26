@@ -1,4 +1,4 @@
-package benchmark
+package aes_ascon
 
 import (
 	"benchmark/cryptography/aes"
