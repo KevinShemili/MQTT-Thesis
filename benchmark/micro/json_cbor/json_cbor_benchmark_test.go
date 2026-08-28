@@ -4,7 +4,7 @@ import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/cpabe"
 	"benchmark/envelope"
-	"benchmark/system/thermal"
+	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
@@ -62,10 +62,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			jsonEnvelopeSize := len(envelope.SerializeJSON(env))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				envelope.SerializeJSON(env)
@@ -74,8 +74,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -122,10 +124,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			cborEnvelopeSize := len(envelope.SerializeCBOR(env))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				envelope.SerializeCBOR(env)
@@ -134,8 +136,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -182,10 +186,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			cborEnvelopeSize := len(envelope.SerializeCBORKeyAsInt(env))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				envelope.SerializeCBORKeyAsInt(env)
@@ -194,8 +198,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -246,10 +252,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			serializedEnvelope := envelope.SerializeJSON(env)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				envelope.DeserializeJSON(serializedEnvelope)
@@ -258,8 +264,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -305,10 +313,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			serializedEnvelope := envelope.SerializeCBOR(env)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				envelope.DeserializeCBOR(serializedEnvelope)
@@ -317,8 +325,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -364,10 +374,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			serializedEnvelope := envelope.SerializeCBORKeyAsInt(env)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
@@ -376,8 +386,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes/op")
 			b.ReportMetric(float64(rawSize), "raw_bytes/op")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -390,11 +402,4 @@ func loadJSONCBORConfig() JSONCBORConfig {
 		PayloadSize:    utility.ParseIntFromEnv("JSON_CBOR_PAYLOAD_SIZE"),
 		AESKeySize:     utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}
-}
-
-func waitForCooldown() {
-	thermal.WaitForCooldown(
-		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		thermal.CooldownTimeout,
-	)
 }

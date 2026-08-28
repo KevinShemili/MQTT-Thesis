@@ -268,6 +268,32 @@ def _build_aes_ascon_tables(
     return tables
 
 
+def _build_aes_ascon_energy_tables(
+    payload_sizes: list[int], scope: dict[str, Any]
+) -> dict[str, str]:
+    headers = ["Payload", "Energy (µJ/op)"]
+    specifications = [
+        ("EncryptAesEnergyTable", "aes_encrypt"),
+        ("EncryptAsconEnergyTable", "ascon_encrypt"),
+        ("DecryptAesEnergyTable", "aes_decrypt"),
+        ("DecryptAsconEnergyTable", "ascon_decrypt"),
+    ]
+    tables = {}
+    for placeholder, prefix in specifications:
+        tables[placeholder] = _build_data_table(
+            headers,
+            [
+                [format_byte_size(value, compact=True) for value in payload_sizes],
+                _mean_ci_column(
+                    scope[f"{prefix}_energy_means"],
+                    scope[f"{prefix}_energy_cis"],
+                ),
+            ],
+        )
+
+    return tables
+
+
 def write_aes_ascon_report(
     *,
     runs: int,
@@ -302,10 +328,19 @@ def write_aes_ascon_report(
     ascon_decrypt_overhead_bytes: list[float | None],
     ascon_decrypt_iterations: list[int | None],
     ascon_decrypt_throttled: list[bool] | None,
+    aes_encrypt_energy_means: list[float],
+    aes_encrypt_energy_cis: list[float],
+    ascon_encrypt_energy_means: list[float],
+    ascon_encrypt_energy_cis: list[float],
+    aes_decrypt_energy_means: list[float],
+    aes_decrypt_energy_cis: list[float],
+    ascon_decrypt_energy_means: list[float],
+    ascon_decrypt_energy_cis: list[float],
     out_of_memory_operations: list[str],
     out_of_memory_cases: list[str],
     latency_plot: str,
     throughput_plot: str,
+    energy_plot: str,
     template_path: str,
     report_path: str,
 ) -> None:
@@ -315,8 +350,10 @@ def write_aes_ascon_report(
             out_of_memory_operations, out_of_memory_cases
         ),
         **_build_aes_ascon_tables(payload_sizes, locals(), runs),
+        **_build_aes_ascon_energy_tables(payload_sizes, locals()),
         "LatencyPlot": latency_plot,
         "ThroughputPlot": throughput_plot,
+        "EnergyPlot": energy_plot,
     }
 
     build_html_report(template_path, report_path, placeholders)

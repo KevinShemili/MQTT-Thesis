@@ -157,6 +157,10 @@
             gap: 18px;
         }
 
+        .plot-stack+.operation-group {
+            margin-top: 22px;
+        }
+
         .plot-card {
             overflow: hidden;
             border: 1px solid var(--border);
@@ -462,6 +466,70 @@
 
                         <div class="table-wrapper">
                             {{DecryptAsconTable}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Energy Results</h2>
+                <p>Idle power is subtracted from each load measurement. Only power samples in the steady-state
+                    interval [2 s, 12 s) are included.</p>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Energy per Operation vs. Payload Size</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{EnergyPlot}}" alt="AES-GCM and ASCON energy per operation over payload size">
+                    </div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Encrypt</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>AES-GCM: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{EncryptAesEnergyTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>ASCON: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{EncryptAsconEnergyTable}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Decrypt</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>AES-GCM: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{DecryptAesEnergyTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>ASCON: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{DecryptAsconEnergyTable}}
                         </div>
                     </div>
                 </div>

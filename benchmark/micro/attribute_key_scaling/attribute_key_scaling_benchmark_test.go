@@ -3,7 +3,7 @@ package attribute_key_scaling
 import (
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/system/thermal"
+	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
@@ -43,10 +43,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			asymmetricCiphertextSize := len(authority.Encrypt(abePolicy, symmetricKey))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				authority.Encrypt(abePolicy, symmetricKey)
@@ -54,8 +54,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(float64(asymmetricCiphertextSize), "ciphertext_bytes")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -76,10 +78,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			totalAsymmetricCiphertextSize := subscriberCount * asymmetricCiphertextSize
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				for index := range subscriberCount {
@@ -91,8 +93,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(float64(totalAsymmetricCiphertextSize), "total_ciphertext_bytes")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -110,10 +114,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 			asymmetricCiphertextSize := len(publicKey.Encrypt(symmetricKey))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				publicKey.Encrypt(symmetricKey)
@@ -121,8 +125,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(float64(asymmetricCiphertextSize), "ciphertext_bytes")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -155,10 +161,10 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			privateKeySize := privateKey.StoredPrivateKeySize()
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				privateKey.Decrypt(asymmetricCiphertext)
@@ -166,8 +172,10 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 			b.ReportMetric(float64(privateKeySize), "stored_key_bytes")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -185,17 +193,19 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			asymmetricCiphertext := privateKey.Encrypt(symmetricKey)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				privateKey.Decrypt(asymmetricCiphertext)
 			}
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -224,10 +234,10 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			var schema rsa.RSA
 
@@ -237,8 +247,10 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 
 			b.ReportMetric(float64(schema.StoredKeySize()), "stored_key_bytes")
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -280,11 +292,4 @@ func loadRSAKeysFromInMemoryCache(rsaKeySize int, amount int) []rsa.RSA {
 
 	// Return desired amount
 	return keySlice[:amount]
-}
-
-func waitForCooldown() {
-	thermal.WaitForCooldown(
-		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		thermal.CooldownTimeout,
-	)
 }

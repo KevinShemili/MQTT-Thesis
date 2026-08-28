@@ -7,7 +7,6 @@ class UM24C:
     RESPONSE_SIZE = 130
 
     def __init__(self, port: str):
-
         self.connection = serial.Serial(
             port=port,
             baudrate=9600,
@@ -16,10 +15,8 @@ class UM24C:
         )
 
     def read(self):
-
         self.connection.reset_input_buffer()
 
-        # Request current UM24C measurements
         self.connection.write(self.REQUEST)
         self.connection.flush()
 
@@ -27,17 +24,25 @@ class UM24C:
 
         if len(data) != self.RESPONSE_SIZE:
             raise RuntimeError(
-                f"Expected {self.RESPONSE_SIZE} bytes from UM24C, "
-                f"received {len(data)} bytes."
+                f"Invalid UM24C response size: {len(data)}"
             )
 
-        # UM24C protocol values
-        voltage = int.from_bytes(data[2:4], byteorder="big") / 100.0
-        current = int.from_bytes(data[4:6], byteorder="big") / 1000.0
-        power = int.from_bytes(data[6:10], byteorder="big") / 1000.0
+        voltage = int.from_bytes(
+            data[2:4],
+            byteorder="big",
+        ) / 100.0
+
+        current = int.from_bytes(
+            data[4:6],
+            byteorder="big",
+        ) / 1000.0
+
+        power = int.from_bytes(
+            data[6:10],
+            byteorder="big",
+        ) / 1000.0
 
         return voltage, current, power
 
     def close(self):
-
         self.connection.close()

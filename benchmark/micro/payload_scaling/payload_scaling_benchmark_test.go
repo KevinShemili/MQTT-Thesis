@@ -4,7 +4,7 @@ import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/system/thermal"
+	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
@@ -44,10 +44,10 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			// A realistic implementation of PSK necessitates a fresh nonce per message
 			for b.Loop() {
@@ -61,8 +61,10 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -102,10 +104,10 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			// A realistic implementation of RSA + AES necessitates a fresh session key & nonce per message
 			for b.Loop() {
@@ -122,8 +124,10 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -169,10 +173,10 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			// A realistic implementation of CP-ABE + AES necessitates a fresh session key & nonce per message
 			for b.Loop() {
@@ -189,8 +193,10 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -227,10 +233,10 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				aesGcm.Open(
@@ -241,8 +247,10 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 				)
 			}
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -280,10 +288,10 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				recoveredSymmetricKey := rsaScheme.Decrypt(asymmetricCiphertext)
@@ -296,8 +304,10 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 				)
 			}
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -346,10 +356,10 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				recoveredSymmetricKey := subscriberKey.Decrypt(
@@ -364,8 +374,10 @@ func BenchmarkPayloadScalingDecrypt(benchmark *testing.B) {
 				)
 			}
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -387,11 +399,4 @@ func loadPayloadScalingConfig() PayloadScalingConfig {
 			"PAYLOAD_SCALING_RSA_KEY_BITS",
 		),
 	}
-}
-
-func waitForCooldown() {
-	thermal.WaitForCooldown(
-		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		thermal.CooldownTimeout,
-	)
 }

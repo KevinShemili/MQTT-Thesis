@@ -3,7 +3,7 @@ package aes_ascon
 import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/ascon"
-	"benchmark/system/thermal"
+	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
@@ -40,10 +40,10 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
@@ -55,8 +55,10 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -84,10 +86,10 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
@@ -99,8 +101,10 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -136,10 +140,10 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
@@ -151,8 +155,10 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -183,10 +189,10 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			waitForCooldown()
+			thermal.WaitForCooldown()
 
 			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.WatchThrottling()
+			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
 				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
@@ -198,8 +204,10 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 				"wire_overhead_bytes/op",
 			)
 
-			if throttled, isAvailable := throttle.Throttled(); isAvailable {
-				b.ReportMetric(throttled, "throttled")
+			if throttle.IsThrottled() {
+				b.ReportMetric(1, "throttled")
+			} else {
+				b.ReportMetric(0, "throttled")
 			}
 		})
 	}
@@ -212,11 +220,4 @@ func loadAESASCONConfig() AESASCONConfig {
 		AESKeySize:   utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 		ASCONKeySize: utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}
-}
-
-func waitForCooldown() {
-	thermal.WaitForCooldown(
-		utility.ParseIntFromEnv("THERMAL_COOLDOWN_CELSIUS"),
-		thermal.CooldownTimeout,
-	)
 }

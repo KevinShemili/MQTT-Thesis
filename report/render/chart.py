@@ -341,6 +341,31 @@ def plot_aes_ascon_throughput(
     )
 
 
+def plot_aes_ascon_energy(
+    payload_sizes: list[int],
+    aes_encrypt_means: list[float],
+    aes_encrypt_cis: list[float],
+    ascon_encrypt_means: list[float],
+    ascon_encrypt_cis: list[float],
+    aes_decrypt_means: list[float],
+    aes_decrypt_cis: list[float],
+    ascon_decrypt_means: list[float],
+    ascon_decrypt_cis: list[float],
+    output_path: str,
+) -> None:
+    _plot_prefixed_operation_comparison(
+        payload_sizes,
+        locals(),
+        [("AES-GCM", "aes", AMBER), ("ASCON", "ascon", VIOLET)],
+        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        "AES-GCM vs. ASCON: Energy per Operation vs. Payload Size",
+        "Payload size",
+        "Energy (µJ/op) ± 95% CI",
+        output_path,
+        byte_tick_step=16 * KILOBYTE,
+    )
+
+
 def plot_payload_scaling_latency(
     payload_sizes: list[int],
     psk_encrypt_means: list[float],
