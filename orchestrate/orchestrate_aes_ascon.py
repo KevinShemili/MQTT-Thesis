@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Project Root
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from um24c.um24c import UM24C
@@ -27,20 +27,20 @@ REMOTE_BINARY = "/tmp/aes-ascon-benchmark"
 # UM24C Bluetooth serial port
 UM24C_PORT = "COM11"
 
-# Results
-RESULT_DIRECTORY = PROJECT_ROOT / "results" / "aes-ascon"
-ENERGY_RESULT_FILE = RESULT_DIRECTORY / "aes_ascon_energy.txt"
-
 
 def load_environment_variables():
 
     global RUNS
     global PAYLOAD_SIZES
+    global TIMING_DURATION
     global BASELINE_DURATION
     global WARMUP_DURATION
     global MEASUREMENT_DURATION
     global TAIL_DURATION
     global TOTAL_WORKLOAD_DURATION
+    global RESULT_DIRECTORY
+    global TIMING_RESULT_FILE
+    global ENERGY_RESULT_FILE
 
     load_dotenv(
         ENVIRONMENT_FILE,
@@ -53,13 +53,17 @@ def load_environment_variables():
         int(payload_size)
         for payload_size in os.environ["AES_ASCON_PAYLOAD_SIZES"].split(",")
     ]
-
+    TIMING_DURATION = int(os.environ["TIMING_DURATION"])
     BASELINE_DURATION = int(os.environ["BASELINE_DURATION"])
     WARMUP_DURATION = int(os.environ["WARMUP_DURATION"])
     MEASUREMENT_DURATION = int(os.environ["MEASUREMENT_DURATION"])
     TAIL_DURATION = int(os.environ["TAIL_DURATION"])
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
+
+    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["AES_ASCON_RESULT_DIR"]
+    TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
+    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
 
 
 def read_um24c(um24c, duration):
@@ -138,7 +142,6 @@ def run_energy_case(meter, output, algorithm, operation, payload_size):
     )
 
     stress_sample_future = None
-    stress_samples = None
 
     # Main thread: Reads benchmark stdout
     # Worker thread: Reads power samples from the UM24C
@@ -186,25 +189,11 @@ def run_energy_case(meter, output, algorithm, operation, payload_size):
 
     if process.wait() != 0:
         raise RuntimeError(
-            f"Benchmark failed: " f"{algorithm} " f"{operation} " f"{payload_size}B"
+            f"Benchmark Failed: " f"{algorithm} " f"{operation} " f"{payload_size}B"
         )
 
 
-def main():
-
-    # Load Environment Variables
-    load_environment_variables()
-
-    # Create Result Directory Under Root
-    RESULT_DIRECTORY.mkdir(parents=True, exist_ok=True)
-
-    # Build the Binary
-    build_benchmark_binary()
-
-    # Allow Time to Stabilize after Build
-    time.sleep(5)
-
-    # ENERGY BENCHMARK
+def orchestrate_energy():
 
     # Create the UM24C Instance & Ensure Auto Close in Case of Exception
     with closing(UM24C(UM24C_PORT)) as um24c:
@@ -228,6 +217,87 @@ def main():
                 run_energy_case(um24c, output, "ASCON", "Decrypt", payload_size)
 
     print(f"Finished: {ENERGY_RESULT_FILE}")
+
+
+def run_timing_case(output, algorithm, operation, payload_size):
+
+    benchmark_case = (
+        f"^BenchmarkAESASCON{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
+    )
+
+    command = (
+        f"set -a && "
+        f". {REMOTE_ENVIRONMENT_FILE} && "
+        f"set +a && "
+        f"{REMOTE_BINARY}"
+        f" -test.run=^$"
+        f" -test.bench='{benchmark_case}'"
+        f" -test.benchtime={TIMING_DURATION}s"
+        f" -test.count={RUNS}"
+        f" -test.timeout=0"
+    )
+
+    result = subprocess.run(
+        ["ssh", SSH_TARGET, command],
+        stdout=output,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Benchmark Failed: {algorithm} {operation} {payload_size}B\n"
+            f"{result.stderr}"
+        )
+
+
+def orchestrate_timing():
+
+    with TIMING_RESULT_FILE.open("w", encoding="utf-8") as destination_file:
+
+        for payload_size in PAYLOAD_SIZES:
+
+            run_timing_case(destination_file, "AES-GCM", "Encrypt", payload_size)
+            run_timing_case(destination_file, "AES-GCM", "Decrypt", payload_size)
+            run_timing_case(destination_file, "ASCON", "Encrypt", payload_size)
+            run_timing_case(destination_file, "ASCON", "Decrypt", payload_size)
+
+    print(f"Finished: {TIMING_RESULT_FILE}")
+
+
+def generate_report():
+
+    print("Generating AES vs ASCON HTML Report...")
+
+    subprocess.run(
+        [sys.executable, "-m", "report.analysis.aes_ascon_report"],
+        cwd=PROJECT_ROOT,
+        check=True,
+    )
+
+
+def main():
+
+    # Load Environment Variables
+    load_environment_variables()
+
+    # Create Result Directory Under Root
+    RESULT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
+    # Build the Binary
+    build_benchmark_binary()
+
+    # Allow Energy-Baseline to Stabilize after Build
+    time.sleep(5)
+
+    # Run Energy Benchmark
+    orchestrate_energy()
+
+    # Run Timing Benchmark
+    orchestrate_timing()
+
+    # Generate Report
+    generate_report()
 
 
 if __name__ == "__main__":
