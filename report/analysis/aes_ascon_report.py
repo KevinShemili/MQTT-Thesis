@@ -278,7 +278,7 @@ def analyze_aggregations(
         for aggregation in aes_encrypt
     ]
     aes_encrypt_overhead_list = [
-        None if aggregation.out_of_memory else aggregation.mean(WIRE_OVERHEAD_BYTES)
+        None if aggregation.out_of_memory else aggregation.mean(additional_overhead_bytes)
         for aggregation in aes_encrypt
     ]
     aes_encrypt_iterations_list = [
@@ -311,7 +311,7 @@ def analyze_aggregations(
         for aggregation in aes_decrypt
     ]
     aes_decrypt_overhead_list = [
-        None if aggregation.out_of_memory else aggregation.mean(WIRE_OVERHEAD_BYTES)
+        None if aggregation.out_of_memory else aggregation.mean(additional_overhead_bytes)
         for aggregation in aes_decrypt
     ]
     aes_decrypt_iterations_list = [
@@ -344,7 +344,7 @@ def analyze_aggregations(
         for aggregation in ascon_encrypt
     ]
     ascon_encrypt_overhead_list = [
-        None if aggregation.out_of_memory else aggregation.mean(WIRE_OVERHEAD_BYTES)
+        None if aggregation.out_of_memory else aggregation.mean(additional_overhead_bytes)
         for aggregation in ascon_encrypt
     ]
     ascon_encrypt_iterations_list = [
@@ -377,7 +377,7 @@ def analyze_aggregations(
         for aggregation in ascon_decrypt
     ]
     ascon_decrypt_overhead_list = [
-        None if aggregation.out_of_memory else aggregation.mean(WIRE_OVERHEAD_BYTES)
+        None if aggregation.out_of_memory else aggregation.mean(additional_overhead_bytes)
         for aggregation in ascon_decrypt
     ]
     ascon_decrypt_iterations_list = [

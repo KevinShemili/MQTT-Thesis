@@ -3,7 +3,7 @@ from __future__ import annotations
 # Different types of measurements collected by the Go benchmarks
 NS_PER_OP = "ns/op"
 MB_PER_SECOND = "MB/s"
-WIRE_OVERHEAD_BYTES = "wire_overhead_bytes/op"
+additional_overhead_bytes = "additional_overhead_bytes"
 ENVELOPE_BYTES = "envelope_bytes/op"
 RAW_BYTES = "raw_bytes/op"
 CIPHERTEXT_BYTES = "ciphertext_bytes"

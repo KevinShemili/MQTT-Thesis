@@ -58,7 +58,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(
 				float64(wireOverhead),
-				"wire_overhead_bytes/op",
+				"wire_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {
@@ -121,7 +121,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(
 				float64(wireOverhead),
-				"wire_overhead_bytes/op",
+				"wire_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {
@@ -190,7 +190,7 @@ func BenchmarkPayloadScalingEncrypt(benchmark *testing.B) {
 
 			b.ReportMetric(
 				float64(wireOverhead),
-				"wire_overhead_bytes/op",
+				"wire_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {

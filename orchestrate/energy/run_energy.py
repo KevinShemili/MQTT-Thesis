@@ -1,139 +1,103 @@
 import os
-import re
-import shlex
+import sys
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from um24c import UM24C
+# Project Root
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
 
+from um24c.um24c import UM24C
 
-PROJECT_DIRECTORY = Path(__file__).resolve().parents[2]
+# Environment File
+ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-ENVIRONMENT_FILE = PROJECT_DIRECTORY / "environment" / "benchmark.env"
-
-
-# Raspberry Pi
+# Raspberry Pi - SSH
 SSH_TARGET = "pi"
-REMOTE_BENCHMARK_DIR = "/home/thesis/latest/benchmark"
-REMOTE_PACKAGE = "./cmd/energy/aes_ascon"
-REMOTE_BINARY = "/tmp/aes-ascon-energy"
+REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/latest/benchmark"
+REMOTE_ENVIRONMENT_FILE = "/home/thesis/latest/environment/benchmark.env"
+REMOTE_PACKAGE = "./micro/aes_ascon"
+REMOTE_BINARY = "/tmp/aes-ascon-benchmark"
 
 # UM24C Bluetooth serial port
 UM24C_PORT = "COM11"
 
-# Energy experiment durations
-BASELINE_DURATION = 10
-WARMUP_DURATION = 2
-MEASUREMENT_DURATION = 10
-TAIL_DURATION = 2
-
-TOTAL_WORKLOAD_DURATION = (
-    WARMUP_DURATION
-    + MEASUREMENT_DURATION
-    + TAIL_DURATION
-)
-
 # Results
-DEFAULT_RESULT_DIRECTORY = (
-    PROJECT_DIRECTORY
-    / "results"
-    / "aes-ascon"
-    / "with-acceleration"
-)
-ENERGY_RESULT_NAME = "aes_ascon_energy.txt"
+RESULT_DIRECTORY = PROJECT_ROOT / "results" / "aes-ascon"
+ENERGY_RESULT_FILE = RESULT_DIRECTORY / "aes_ascon_energy.txt"
 
 
 def load_environment_variables():
 
-    global RUNS, PAYLOAD_SIZES, KEY_SIZE, TEMPERATURE_THRESHOLD
+    global RUNS
+    global PAYLOAD_SIZES
+    global BASELINE_DURATION
+    global WARMUP_DURATION
+    global MEASUREMENT_DURATION
+    global TAIL_DURATION
+    global TOTAL_WORKLOAD_DURATION
 
     load_dotenv(
         ENVIRONMENT_FILE,
         override=True,
     )
 
-    RUNS = int(
-        os.environ["AES_ASCON_RUNS"]
-    )
+    RUNS = int(os.environ["AES_ASCON_RUNS"])
 
     PAYLOAD_SIZES = [
         int(payload_size)
-        for payload_size in os.environ[
-            "AES_ASCON_PAYLOAD_SIZES"
-        ].split(",")
+        for payload_size in os.environ["AES_ASCON_PAYLOAD_SIZES"].split(",")
     ]
 
-    KEY_SIZE = int(
-        os.environ["AES_ASCON_KEY_SIZE"]
-    )
+    BASELINE_DURATION = int(os.environ["BASELINE_DURATION"])
+    WARMUP_DURATION = int(os.environ["WARMUP_DURATION"])
+    MEASUREMENT_DURATION = int(os.environ["MEASUREMENT_DURATION"])
+    TAIL_DURATION = int(os.environ["TAIL_DURATION"])
 
-    TEMPERATURE_THRESHOLD = int(
-        os.environ["TEMPERATURE_THRESHOLD"]
-    )
+    TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
 
-def collect_power(
-    meter,
-    duration,
-):
+def read_um24c(um24c, duration):
 
     samples = []
 
-    start = time.monotonic_ns()
-    deadline = time.monotonic() + duration
+    start = time.monotonic()
+    deadline = start + duration
 
     while time.monotonic() < deadline:
 
-        voltage, current, power = meter.read()
+        voltage, current, power = um24c.read()
 
-        elapsed_ns = (
-            time.monotonic_ns()
-            - start
-        )
+        elapsed = time.monotonic() - start
 
-        samples.append(
-            (
-                elapsed_ns,
-                voltage,
-                current,
-                power,
-            )
-        )
+        samples.append((elapsed, voltage, current, power))
 
     return samples
 
 
-def write_power_samples(
-    output,
-    samples,
-):
+def write_to_file(output, samples):
 
-    for (
-        elapsed_ns,
-        voltage,
-        current,
-        power,
-    ) in samples:
-
+    for elapsed, voltage, current, power in samples:
         output.write(
-            f"elapsed_ns={elapsed_ns} "
+            f"elapsed_s={elapsed:.6f} "
             f"voltage_v={voltage:.3f} "
             f"current_a={current:.3f} "
             f"power_w={power:.3f}\n"
         )
 
 
-def build_benchmark():
+def build_benchmark_binary():
 
     command = (
-        f"cd {shlex.quote(REMOTE_BENCHMARK_DIR)}"
-        f" && /usr/local/go/bin/go test"
-        f" -c"
-        f" -o {shlex.quote(REMOTE_BINARY)}"
-        f" {shlex.quote(REMOTE_PACKAGE)}"
+        f"cd {REMOTE_BENCHMARK_DIRECTORY }; "
+        f"/usr/local/go/bin/go test -c "
+        f"-o {REMOTE_BINARY} "
+        f"{REMOTE_PACKAGE}"
     )
 
     subprocess.run(
@@ -142,48 +106,30 @@ def build_benchmark():
     )
 
 
-def run_case(
-    meter,
-    output,
-    algorithm,
-    operation,
-    payload_size,
-):
+def run_energy_case(meter, output, algorithm, operation, payload_size):
 
     output.write(
-        f"\n[case "
-        f"algorithm={algorithm} "
-        f"operation={operation} "
-        f"payload_size={payload_size}"
-        f"]\n"
+        f"\n[case algorithm={algorithm} operation={operation} payload_size={payload_size}]\n"
     )
 
-    output.flush()
-
-    benchmark_name = (
-        f"^BenchmarkAESASCONEnergy{operation}$/"
-        f"^{algorithm}$/"
-        f"^{payload_size}B$"
-    )
-
-    payload_sizes = ",".join(
-        str(size)
-        for size in PAYLOAD_SIZES
+    benchmark_case = (
+        f"^BenchmarkAESASCONEnergy{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
-        f"cd {shlex.quote(REMOTE_BENCHMARK_DIR)}"
-        f" && AES_ASCON_PAYLOAD_SIZES={shlex.quote(payload_sizes)}"
-        f" AES_ASCON_KEY_SIZE={KEY_SIZE}"
-        f" TEMPERATURE_THRESHOLD={TEMPERATURE_THRESHOLD}"
-        f" {shlex.quote(REMOTE_BINARY)}"
+        f"set -a && "
+        f". {REMOTE_ENVIRONMENT_FILE} && "
+        f"set +a && "
+        f"{REMOTE_BINARY}"
         f" -test.run=^$"
-        f" -test.bench={shlex.quote(benchmark_name)}"
+        f" -test.bench='{benchmark_case}'"
         f" -test.benchtime={MEASUREMENT_DURATION}s"
         f" -test.count={RUNS}"
         f" -test.timeout=0"
     )
 
+    # Popen -> Ensures call is not blocking and returns control to python
+    # PIPE -> Ensures we can read stdout produced by binary
     process = subprocess.Popen(
         ["ssh", SSH_TARGET, command],
         stdout=subprocess.PIPE,
@@ -191,178 +137,97 @@ def run_case(
         bufsize=1,
     )
 
-    if process.stdout is None:
-        raise RuntimeError(
-            "Could not read Raspberry Pi benchmark output"
-        )
+    stress_sample_future = None
+    stress_samples = None
 
-    power_samples = None
-    completed_runs = 0
+    # Main thread: Reads benchmark stdout
+    # Worker thread: Reads power samples from the UM24C
+    with ThreadPoolExecutor(max_workers=1) as executor:
 
-    for line in process.stdout:
+        # Read the output
+        for line in process.stdout:
 
-        line = line.strip()
+            if "ENRG-START" in line:
+                if stress_sample_future is not None:
+                    raise RuntimeError(
+                        "Received ENRG-START before previous run was completed"
+                    )
 
-        if not line:
-            continue
-
-        print(
-            f"{algorithm} "
-            f"{operation} "
-            f"{payload_size}B: "
-            f"{line}"
-        )
-
-        if line.endswith("RUN START"):
-            power_samples = collect_power(
-                meter=meter,
-                duration=TOTAL_WORKLOAD_DURATION,
-            )
-            continue
-
-        if "ns/op" in line:
-            if power_samples is None:
-                raise RuntimeError(
-                    "Received benchmark result "
-                    "without corresponding power samples"
+                stress_sample_future = executor.submit(
+                    read_um24c,
+                    meter,
+                    TOTAL_WORKLOAD_DURATION,
                 )
+                continue
 
-            match = re.search(
-                r"([0-9]+(?:\.[0-9]+)?)\s+ns/op",
-                line,
-            )
+            if "ns/op" in line:
 
-            if match is None:
-                raise RuntimeError(
-                    f"Could not parse ns/op from: {line}"
-                )
+                if stress_sample_future is None:
+                    raise RuntimeError(
+                        "Received benchmark result without corresponding power samples"
+                    )
 
-            ns_per_op = match.group(1)
+                parts = line.split()
+                ns_per_op = parts[
+                    parts.index("ns/op") - 1
+                ]  # Because value is directly before ns/op
+                throttled = parts[parts.index("throttled") - 1]  # Same convention
 
-            output.write(
-                "\n[run]\n"
-            )
-            output.write(
-                f"ns_per_op={ns_per_op}\n"
-            )
+                # Obtain the samples belonging to this exact run
+                # If sampling is still finishing, this waits for it...
+                stress_samples = stress_sample_future.result()
 
-            write_power_samples(
-                output,
-                power_samples,
-            )
+                output.write("\n[run]\n")
+                output.write(f"ns_per_op={ns_per_op}\n")
+                output.write(f"throttled={throttled}\n")
+                write_to_file(output, stress_samples)
 
-            output.flush()
-
-            power_samples = None
-            completed_runs += 1
+                stress_sample_future = None
 
     if process.wait() != 0:
         raise RuntimeError(
-            f"Benchmark failed: "
-            f"{algorithm} "
-            f"{operation} "
-            f"{payload_size}B"
-        )
-
-    if completed_runs != RUNS:
-        raise RuntimeError(
-            f"Expected {RUNS} benchmark results for "
-            f"{algorithm} {operation} {payload_size}B, "
-            f"but observed {completed_runs}"
+            f"Benchmark failed: " f"{algorithm} " f"{operation} " f"{payload_size}B"
         )
 
 
 def main():
 
+    # Load Environment Variables
     load_environment_variables()
 
-    result_directory = Path(
-        os.environ.get(
-            "AES_ASCON_RESULT_DIR",
-            str(DEFAULT_RESULT_DIRECTORY),
-        )
-    )
-    result_directory.mkdir(parents=True, exist_ok=True)
-    result_file = result_directory / ENERGY_RESULT_NAME
+    # Create Result Directory Under Root
+    RESULT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
-    meter = UM24C(
-        UM24C_PORT
-    )
+    # Build the Binary
+    build_benchmark_binary()
 
-    try:
+    # Allow Time to Stabilize after Build
+    time.sleep(5)
 
-        print(
-            "Collecting idle baseline..."
-        )
+    # ENERGY BENCHMARK
 
-        baseline_samples = collect_power(
-            meter=meter,
-            duration=BASELINE_DURATION,
-        )
+    # Create the UM24C Instance & Ensure Auto Close in Case of Exception
+    with closing(UM24C(UM24C_PORT)) as um24c:
 
-        print(
-            "Building Raspberry Pi energy benchmark..."
-        )
+        print(f"Using UM24C on Port {UM24C_PORT}")
+        print(f"Collection of Idle Baseline Power for {BASELINE_DURATION}s...")
 
-        build_benchmark()
+        # Record Baseline
+        baseline_samples = read_um24c(um24c, BASELINE_DURATION)
 
-        with result_file.open(
-            "w",
-            encoding="utf-8",
-        ) as output:
+        with ENERGY_RESULT_FILE.open("w", encoding="utf-8") as output:
 
-            output.write(
-                "[baseline]\n"
-            )
-
-            write_power_samples(
-                output,
-                baseline_samples,
-            )
+            output.write("[baseline]\n")
+            write_to_file(output, baseline_samples)
 
             for payload_size in PAYLOAD_SIZES:
 
-                run_case(
-                    meter=meter,
-                    output=output,
-                    algorithm="AES-GCM",
-                    operation="Encrypt",
-                    payload_size=payload_size,
-                )
+                run_energy_case(um24c, output, "AES-GCM", "Encrypt", payload_size)
+                run_energy_case(um24c, output, "AES-GCM", "Decrypt", payload_size)
+                run_energy_case(um24c, output, "ASCON", "Encrypt", payload_size)
+                run_energy_case(um24c, output, "ASCON", "Decrypt", payload_size)
 
-                run_case(
-                    meter=meter,
-                    output=output,
-                    algorithm="AES-GCM",
-                    operation="Decrypt",
-                    payload_size=payload_size,
-                )
-
-            for payload_size in PAYLOAD_SIZES:
-
-                run_case(
-                    meter=meter,
-                    output=output,
-                    algorithm="ASCON",
-                    operation="Encrypt",
-                    payload_size=payload_size,
-                )
-
-                run_case(
-                    meter=meter,
-                    output=output,
-                    algorithm="ASCON",
-                    operation="Decrypt",
-                    payload_size=payload_size,
-                )
-
-        print(
-            f"Finished: {result_file}"
-        )
-
-    finally:
-
-        meter.close()
+    print(f"Finished: {ENERGY_RESULT_FILE}")
 
 
 if __name__ == "__main__":

@@ -3,21 +3,16 @@ package aes_ascon
 import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/ascon"
+	"benchmark/micro/aes_ascon/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
 )
 
-type AESASCONConfig struct {
-	PayloadSizes []int
-	AESKeySize   int
-	ASCONKeySize int
-}
-
 func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
-	config := loadAESASCONConfig()
+	config := shared.NewAESASCONConfig()
 
 	for _, payloadSize := range config.PayloadSizes {
 
@@ -49,10 +44,10 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
 			}
 
-			// Wire overhead = authentication tag size + nonce size
+			// Additional Overhead = Nonce Size + Tag Size
 			b.ReportMetric(
 				float64(aes.Overhead()+aes.NonceSize()),
-				"wire_overhead_bytes/op",
+				"additional_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {
@@ -95,10 +90,10 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
 			}
 
-			// Wire overhead = authentication tag size + nonce size
+			// Additional Overhead = Nonce Size + Tag Size
 			b.ReportMetric(
 				float64(ascon.Overhead()+ascon.NonceSize()),
-				"wire_overhead_bytes/op",
+				"additional_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {
@@ -112,7 +107,7 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
 func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
-	config := loadAESASCONConfig()
+	config := shared.NewAESASCONConfig()
 
 	// Scenario 1: AES-GCM Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
@@ -149,10 +144,10 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
 			}
 
-			// Wire overhead = authentication tag size + nonce size
+			// Additional Overhead = Nonce Size + Tag Size
 			b.ReportMetric(
 				float64(aes.Overhead()+aes.NonceSize()),
-				"wire_overhead_bytes/op",
+				"additional_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {
@@ -198,10 +193,10 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
 			}
 
-			// Wire overhead = authentication tag size + nonce size
+			// Additional Overhead = Nonce Size + Tag Size
 			b.ReportMetric(
 				float64(ascon.Overhead()+ascon.NonceSize()),
-				"wire_overhead_bytes/op",
+				"additional_overhead_bytes",
 			)
 
 			if throttle.IsThrottled() {
@@ -210,14 +205,5 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 				b.ReportMetric(0, "throttled")
 			}
 		})
-	}
-}
-
-func loadAESASCONConfig() AESASCONConfig {
-
-	return AESASCONConfig{
-		PayloadSizes: utility.ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES"),
-		AESKeySize:   utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
-		ASCONKeySize: utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}
 }
