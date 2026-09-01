@@ -1,24 +1,28 @@
-from __future__ import annotations
-from .case_aggregation import CaseAggregation
-from .measurement import THROTTLED
+from .energy.energy_aggregation import EnergyAggregation
+from .timing.timing_aggregation import TimingAggregation
 
 
 # Groups together all aggregations for a given benchmark scenario
 class BenchmarkSummary:
 
-    def __init__(self, aggregations: list[CaseAggregation] | None = None) -> None:
-        self.aggregations = [] if aggregations is None else aggregations
+    def __init__(self):
+        self.timing_aggregations: list[TimingAggregation] = []
+        self.energy_aggregations: list[EnergyAggregation] = []
 
-    # Find a specific aggregation based on operation, parameter & parameter value
-    def find_aggregation(
+    # Find a specific timing aggregation
+    def find_timing_aggregation(
         self,
+        algorithm: str,
         operation: str,
         parameter: str,
         parameter_value: int,
-    ) -> CaseAggregation | None:
-        for aggregation in self.aggregations:
+    ) -> TimingAggregation | None:
+
+        for aggregation in self.timing_aggregations:
+
             if (
-                aggregation.operation == operation
+                aggregation.algorithm == algorithm
+                and aggregation.operation == operation
                 and aggregation.parameter == parameter
                 and aggregation.parameter_value == parameter_value
             ):
@@ -26,30 +30,23 @@ class BenchmarkSummary:
 
         return None
 
-    # Given a list of parameter values, return a list of booleans indicating whether each aggregation experienced throttling
-    def get_throttle_flags(
+    # Find a specific energy aggregation
+    def find_energy_aggregation(
         self,
+        algorithm: str,
         operation: str,
         parameter: str,
-        parameter_values: list[int],
-    ) -> list[bool] | None:
+        parameter_value: int,
+    ) -> EnergyAggregation | None:
 
-        aggregations = [
-            self.find_aggregation(operation, parameter, value)
-            for value in parameter_values
-        ]
+        for aggregation in self.energy_aggregations:
 
-        if not any(
-            aggregation is not None
-            and not aggregation.out_of_memory
-            and aggregation.has_measurement(THROTTLED)
-            for aggregation in aggregations
-        ):
-            return None
+            if (
+                aggregation.algorithm == algorithm
+                and aggregation.operation == operation
+                and aggregation.parameter == parameter
+                and aggregation.parameter_value == parameter_value
+            ):
+                return aggregation
 
-        return [
-            aggregation is not None
-            and not aggregation.out_of_memory
-            and aggregation.throttled
-            for aggregation in aggregations
-        ]
+        return None

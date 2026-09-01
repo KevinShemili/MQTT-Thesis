@@ -9,7 +9,7 @@ from report.config import *
 from report.model.benchmark_summary import *
 from report.model.case_aggregation import *
 from report.model.measurement import *
-from report.model.populate_model import *
+from report.analysis.shared.load_summary import *
 from report.render.chart import *
 from report.render.formatting import *
 from report.render.html import *

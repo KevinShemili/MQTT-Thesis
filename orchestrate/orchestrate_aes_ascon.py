@@ -113,7 +113,7 @@ def build_benchmark_binary():
 def run_energy_case(meter, output, algorithm, operation, payload_size):
 
     output.write(
-        f"\n[case algorithm={algorithm} operation={operation} payload_size={payload_size}]\n"
+        f"\n[case algorithm={algorithm} operation={operation} parameter_value={payload_size}]\n"
     )
 
     benchmark_case = (
@@ -181,7 +181,7 @@ def run_energy_case(meter, output, algorithm, operation, payload_size):
                 stress_samples = stress_sample_future.result()
 
                 output.write("\n[run]\n")
-                output.write(f"ns_per_op={ns_per_op}\n")
+                output.write(f"ns/op={ns_per_op}\n")
                 output.write(f"throttled={throttled}\n")
                 write_to_file(output, stress_samples)
 
