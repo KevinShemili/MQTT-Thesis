@@ -19,8 +19,8 @@ ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
 # Raspberry Pi - SSH
 SSH_TARGET = "pi"
-REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/latest/benchmark"
-REMOTE_ENVIRONMENT_FILE = "/home/thesis/latest/environment/benchmark.env"
+REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
+REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_PACKAGE = "./micro/aes_ascon"
 REMOTE_BINARY = "/tmp/aes-ascon-benchmark"
 
