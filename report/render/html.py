@@ -224,7 +224,9 @@ def _build_out_of_memory_case_notice(operations: list[str], cases: list[str]) ->
 
 
 def _build_aes_ascon_tables(
-    payload_sizes: list[int], scope: dict[str, Any], runs: int
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+    runs: int,
 ) -> dict[str, str]:
     headers = [
         "Payload",
@@ -234,126 +236,87 @@ def _build_aes_ascon_tables(
         f"Iters (Σ{runs} runs)",
     ]
     specifications = [
-        ("EncryptAesTable", "aes_encrypt"),
-        ("EncryptAsconTable", "ascon_encrypt"),
-        ("DecryptAesTable", "aes_decrypt"),
-        ("DecryptAsconTable", "ascon_decrypt"),
+        ("EncryptAesTable", ("AES-GCM", "Encrypt")),
+        ("EncryptAsconTable", ("ASCON", "Encrypt")),
+        ("DecryptAesTable", ("AES-GCM", "Decrypt")),
+        ("DecryptAsconTable", ("ASCON", "Decrypt")),
     ]
     tables = {}
-    for placeholder, prefix in specifications:
-        tables[placeholder] = _build_optional_table(
+    for placeholder, case in specifications:
+        values = cases[case]
+        tables[placeholder] = _build_data_table(
             headers,
-            payload_sizes,
-            lambda value: format_byte_size(value, compact=True),
-            _format_optional_mean_ci_column(
-                scope[f"{prefix}_latency_means"],
-                scope[f"{prefix}_latency_cis"],
-            ),
             [
-                _format_optional_mean_ci_column(
-                    scope[f"{prefix}_throughput_means"],
-                    scope[f"{prefix}_throughput_cis"],
+                [format_byte_size(value, compact=True) for value in payload_sizes],
+                _mean_ci_column(
+                    values["latency_means"],
+                    values["latency_cis"],
+                ),
+                _mean_ci_column(
+                    values["throughput_means"],
+                    values["throughput_cis"],
                     decimals=1,
                 ),
-                _format_optional_column(
-                    scope[f"{prefix}_overhead_bytes"], lambda value: f"{value:.0f}"
-                ),
-                _format_optional_column(
-                    scope[f"{prefix}_iterations"], lambda value: f"{value:,}"
-                ),
+                [f"{value:.0f}" for value in values["overhead_bytes"]],
+                [f"{value:,}" for value in values["iterations"]],
             ],
-            scope[f"{prefix}_throttled"],
+            values["timing_throttled"],
         )
 
     return tables
 
 
 def _build_aes_ascon_energy_tables(
-    payload_sizes: list[int], scope: dict[str, Any]
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
     headers = ["Payload", "Energy (µJ/op)"]
     specifications = [
-        ("EncryptAesEnergyTable", "aes_encrypt"),
-        ("EncryptAsconEnergyTable", "ascon_encrypt"),
-        ("DecryptAesEnergyTable", "aes_decrypt"),
-        ("DecryptAsconEnergyTable", "ascon_decrypt"),
+        ("EncryptAesEnergyTable", ("AES-GCM", "Encrypt")),
+        ("EncryptAsconEnergyTable", ("ASCON", "Encrypt")),
+        ("DecryptAesEnergyTable", ("AES-GCM", "Decrypt")),
+        ("DecryptAsconEnergyTable", ("ASCON", "Decrypt")),
     ]
     tables = {}
-    for placeholder, prefix in specifications:
+    for placeholder, case in specifications:
+        values = cases[case]
         tables[placeholder] = _build_data_table(
             headers,
             [
                 [format_byte_size(value, compact=True) for value in payload_sizes],
                 _mean_ci_column(
-                    scope[f"{prefix}_energy_means"],
-                    scope[f"{prefix}_energy_cis"],
+                    values["energy_means"],
+                    values["energy_cis"],
                 ),
             ],
+            values["energy_throttled"],
         )
 
     return tables
 
 
 def write_aes_ascon_report(
-    *,
-    runs: int,
-    t_multiplier: float,
-    total_iterations: int,
-    payload_sizes: list[int],
-    aes_encrypt_latency_means: list[float | None],
-    aes_encrypt_latency_cis: list[float | None],
-    aes_encrypt_throughput_means: list[float | None],
-    aes_encrypt_throughput_cis: list[float | None],
-    aes_encrypt_overhead_bytes: list[float | None],
-    aes_encrypt_iterations: list[int | None],
-    aes_encrypt_throttled: list[bool] | None,
-    ascon_encrypt_latency_means: list[float | None],
-    ascon_encrypt_latency_cis: list[float | None],
-    ascon_encrypt_throughput_means: list[float | None],
-    ascon_encrypt_throughput_cis: list[float | None],
-    ascon_encrypt_overhead_bytes: list[float | None],
-    ascon_encrypt_iterations: list[int | None],
-    ascon_encrypt_throttled: list[bool] | None,
-    aes_decrypt_latency_means: list[float | None],
-    aes_decrypt_latency_cis: list[float | None],
-    aes_decrypt_throughput_means: list[float | None],
-    aes_decrypt_throughput_cis: list[float | None],
-    aes_decrypt_overhead_bytes: list[float | None],
-    aes_decrypt_iterations: list[int | None],
-    aes_decrypt_throttled: list[bool] | None,
-    ascon_decrypt_latency_means: list[float | None],
-    ascon_decrypt_latency_cis: list[float | None],
-    ascon_decrypt_throughput_means: list[float | None],
-    ascon_decrypt_throughput_cis: list[float | None],
-    ascon_decrypt_overhead_bytes: list[float | None],
-    ascon_decrypt_iterations: list[int | None],
-    ascon_decrypt_throttled: list[bool] | None,
-    aes_encrypt_energy_means: list[float],
-    aes_encrypt_energy_cis: list[float],
-    ascon_encrypt_energy_means: list[float],
-    ascon_encrypt_energy_cis: list[float],
-    aes_decrypt_energy_means: list[float],
-    aes_decrypt_energy_cis: list[float],
-    ascon_decrypt_energy_means: list[float],
-    ascon_decrypt_energy_cis: list[float],
-    out_of_memory_operations: list[str],
-    out_of_memory_cases: list[str],
-    latency_plot: str,
-    throughput_plot: str,
-    energy_plot: str,
+    report_data: dict[str, Any],
     template_path: str,
     report_path: str,
 ) -> None:
+    payload_sizes = report_data["payload_sizes"]
+    cases = report_data["cases"]
+    plots = report_data["plots"]
+
     placeholders = {
-        **build_html_generic_data(runs, t_multiplier, total_iterations),
-        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
-            out_of_memory_operations, out_of_memory_cases
+        **build_html_generic_data(
+            report_data["runs"],
+            report_data["t_multiplier"],
+            report_data["total_iterations"],
         ),
-        **_build_aes_ascon_tables(payload_sizes, locals(), runs),
-        **_build_aes_ascon_energy_tables(payload_sizes, locals()),
-        "LatencyPlot": latency_plot,
-        "ThroughputPlot": throughput_plot,
-        "EnergyPlot": energy_plot,
+        **_build_aes_ascon_tables(payload_sizes, cases, report_data["runs"]),
+        **_build_aes_ascon_energy_tables(payload_sizes, cases),
+        "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
+        "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
+        "LatencyPlot": plots["latency"],
+        "ThroughputPlot": plots["throughput"],
+        "EnergyPlot": plots["energy"],
     }
 
     build_html_report(template_path, report_path, placeholders)

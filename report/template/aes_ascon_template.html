@@ -272,28 +272,6 @@
             text-align: center;
         }
 
-        .failure-notice {
-            border-color: #e7bcc6;
-            background: linear-gradient(180deg, #fff8f9 0%, var(--surface) 60%);
-        }
-
-        .failure-notice .section-heading h2 {
-            color: var(--rose);
-        }
-
-        .failure-notice .section-heading p {
-            max-width: 720px;
-        }
-
-        .failure-notice td {
-            text-align: left;
-            white-space: normal;
-        }
-
-        .failure-notice th {
-            text-align: left;
-        }
-
         .table-note {
             margin: 10px 14px 12px;
             color: var(--muted);
@@ -369,8 +347,6 @@
             <div class="eyebrow">Microbenchmark Scenario 4</div>
             <h1>AES-GCM vs. ASCON under Payload Size Scaling</h1>
         </header>
-
-        {{OutOfMemoryNotice}}
 
         <section class="metadata" aria-label="Benchmark metadata">
             <div class="metric">
@@ -476,7 +452,7 @@
             <div class="section-heading">
                 <h2>Energy Results</h2>
                 <p>Idle power is subtracted from each load measurement. Only power samples in the steady-state
-                    interval [2 s, 12 s) are included.</p>
+                    interval [{{EnergyWindowStart}} s, {{EnergyWindowEnd}} s) are included.</p>
             </div>
 
             <div class="plot-stack">

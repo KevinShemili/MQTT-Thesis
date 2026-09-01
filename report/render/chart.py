@@ -1,8 +1,10 @@
 import matplotlib
-import matplotlib.pyplot as plt
-from report.render import formatting
 
 matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+
+from report.render import formatting
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -291,78 +293,74 @@ def _plot_prefixed_operation_comparison(
     )
 
 
-def plot_aes_ascon_latency(
+def _plot_aes_ascon_results(
     payload_sizes: list[int],
-    aes_encrypt_means: list[float],
-    aes_encrypt_cis: list[float],
-    ascon_encrypt_means: list[float],
-    ascon_encrypt_cis: list[float],
-    aes_decrypt_means: list[float],
-    aes_decrypt_cis: list[float],
-    ascon_decrypt_means: list[float],
-    ascon_decrypt_cis: list[float],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    title: str,
+    y_label: str,
     output_path: str,
 ) -> None:
-    _plot_prefixed_operation_comparison(
+    panels = []
+
+    for operation in ("Encrypt", "Decrypt"):
+        series = []
+
+        for algorithm, color in (("AES-GCM", AMBER), ("ASCON", VIOLET)):
+            means, confidence_intervals = results[(algorithm, operation)]
+            series.append((algorithm, means, confidence_intervals, color))
+
+        panels.append((operation, series))
+
+    _plot_operation_comparison(
         payload_sizes,
-        locals(),
-        [("AES-GCM", "aes", AMBER), ("ASCON", "ascon", VIOLET)],
-        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
-        "AES-GCM vs. ASCON: Latency vs. Payload Size",
+        panels,
+        title,
         "Payload size",
-        "Latency (µs) ± 95% CI",
+        y_label,
         output_path,
         byte_tick_step=16 * KILOBYTE,
+    )
+
+
+def plot_aes_ascon_latency(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_aes_ascon_results(
+        payload_sizes,
+        results,
+        "AES-GCM vs. ASCON: Latency vs. Payload Size",
+        "Latency (µs) ± 95% CI",
+        output_path,
     )
 
 
 def plot_aes_ascon_throughput(
     payload_sizes: list[int],
-    aes_encrypt_means: list[float],
-    aes_encrypt_cis: list[float],
-    ascon_encrypt_means: list[float],
-    ascon_encrypt_cis: list[float],
-    aes_decrypt_means: list[float],
-    aes_decrypt_cis: list[float],
-    ascon_decrypt_means: list[float],
-    ascon_decrypt_cis: list[float],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_prefixed_operation_comparison(
+    _plot_aes_ascon_results(
         payload_sizes,
-        locals(),
-        [("AES-GCM", "aes", AMBER), ("ASCON", "ascon", VIOLET)],
-        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        results,
         "AES-GCM vs. ASCON: Throughput vs. Payload Size",
-        "Payload size",
         "Throughput (MB/s) ± 95% CI",
         output_path,
-        byte_tick_step=16 * KILOBYTE,
     )
 
 
 def plot_aes_ascon_energy(
     payload_sizes: list[int],
-    aes_encrypt_means: list[float],
-    aes_encrypt_cis: list[float],
-    ascon_encrypt_means: list[float],
-    ascon_encrypt_cis: list[float],
-    aes_decrypt_means: list[float],
-    aes_decrypt_cis: list[float],
-    ascon_decrypt_means: list[float],
-    ascon_decrypt_cis: list[float],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_prefixed_operation_comparison(
+    _plot_aes_ascon_results(
         payload_sizes,
-        locals(),
-        [("AES-GCM", "aes", AMBER), ("ASCON", "ascon", VIOLET)],
-        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        results,
         "AES-GCM vs. ASCON: Energy per Operation vs. Payload Size",
-        "Payload size",
         "Energy (µJ/op) ± 95% CI",
         output_path,
-        byte_tick_step=16 * KILOBYTE,
     )
 
 
