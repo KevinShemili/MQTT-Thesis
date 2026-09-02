@@ -157,6 +157,10 @@
             gap: 18px;
         }
 
+        .plot-stack+.operation-group {
+            margin-top: 22px;
+        }
+
         .plot-card {
             overflow: hidden;
             border: 1px solid var(--border);
@@ -268,28 +272,6 @@
             text-align: center;
         }
 
-        .failure-notice {
-            border-color: #e7bcc6;
-            background: linear-gradient(180deg, #fff8f9 0%, var(--surface) 60%);
-        }
-
-        .failure-notice .section-heading h2 {
-            color: var(--rose);
-        }
-
-        .failure-notice .section-heading p {
-            max-width: 720px;
-        }
-
-        .failure-notice td {
-            text-align: left;
-            white-space: normal;
-        }
-
-        .failure-notice th {
-            text-align: left;
-        }
-
         .table-note {
             margin: 10px 14px 12px;
             color: var(--muted);
@@ -365,8 +347,6 @@
             <div class="eyebrow">Microbenchmark Scenario 3</div>
             <h1>Envelope Serialization under Attribute Scaling</h1>
         </header>
-
-        {{OutOfMemoryNotice}}
 
         <section class="metadata" aria-label="Benchmark metadata">
             <div class="metric">
@@ -478,6 +458,86 @@
 
                         <div class="table-wrapper">
                             {{DeserializeCborKeyAsIntTable}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Energy Results</h2>
+                <p>Idle power is subtracted from each load measurement. Only power samples in the steady-state
+                    interval [{{EnergyWindowStart}} s, {{EnergyWindowEnd}} s) are included.</p>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Energy per Operation vs. Policy Attributes</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{EnergyPlot}}" alt="JSON and CBOR energy per operation over policy attribute count">
+                    </div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Serialize</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>JSON: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{SerializeJsonEnergyTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CBOR: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{SerializeCborEnergyTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CBOR (Int Keys): Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{SerializeCborKeyAsIntEnergyTable}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Deserialize</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>JSON: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{DeserializeJsonEnergyTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CBOR: Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{DeserializeCborEnergyTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CBOR (Int Keys): Energy per Operation</h3>
+
+                        <div class="table-wrapper">
+                            {{DeserializeCborKeyAsIntEnergyTable}}
                         </div>
                     </div>
                 </div>

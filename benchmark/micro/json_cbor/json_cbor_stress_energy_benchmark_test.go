@@ -9,9 +9,15 @@ import (
 	"benchmark/utility"
 	"fmt"
 	"testing"
+	"time"
 )
 
-func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
+var (
+	warmupDuration = time.Duration(utility.ParseIntFromEnv("WARMUP_DURATION")) * time.Second
+	tailDuration   = time.Duration(utility.ParseIntFromEnv("TAIL_DURATION")) * time.Second
+)
+
+func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
 
@@ -49,25 +55,28 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
-			// Serialized size is fixed for this benchmark case, so measure once
-			// outside the timed loop
-			jsonEnvelopeSize := len(envelope.SerializeJSON(env))
-
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := thermal.NewThrottleWatch()
 
+			// Let orchestrator know that the workload has started
+			fmt.Println("ENRG-START")
+
+			// Warm up in plain loop as we do not want results recorded
+			warmupDeadline := time.Now().Add(warmupDuration)
+			for time.Now().Before(warmupDeadline) {
+				envelope.SerializeJSON(env)
+			}
+
+			// Actually measure this region
 			for b.Loop() {
 				envelope.SerializeJSON(env)
 			}
 
-			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
+			// Keep same workload running after measured region
+			tailDeadline := time.Now().Add(tailDuration)
+			for time.Now().Before(tailDeadline) {
+				envelope.SerializeJSON(env)
+			}
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -87,16 +96,16 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Instantiate AES-GCM cipher
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aesGcm := aes.NewAES(symmetricKey)
+			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
 			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Encrypt payload
-			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
+			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
 
 			// Build policy for given attribute count
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -111,25 +120,28 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
-			// Serialized size is fixed for this benchmark case, so measure once
-			// outside the timed loop
-			cborEnvelopeSize := len(envelope.SerializeCBOR(env))
-
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := thermal.NewThrottleWatch()
 
+			// Let orchestrator know that the workload has started
+			fmt.Println("ENRG-START")
+
+			// Warm up in plain loop as we do not want results recorded
+			warmupDeadline := time.Now().Add(warmupDuration)
+			for time.Now().Before(warmupDeadline) {
+				envelope.SerializeCBOR(env)
+			}
+
+			// Actually measure this region
 			for b.Loop() {
 				envelope.SerializeCBOR(env)
 			}
 
-			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
+			// Keep same workload running after measured region
+			tailDeadline := time.Now().Add(tailDuration)
+			for time.Now().Before(tailDeadline) {
+				envelope.SerializeCBOR(env)
+			}
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -149,16 +161,16 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Instantiate AES-GCM cipher
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aesGcm := aes.NewAES(symmetricKey)
+			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
 			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Encrypt payload
-			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
+			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
 
 			// Build policy for given attribute count
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -173,25 +185,28 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
-			// Serialized size is fixed for this benchmark case, so measure once
-			// outside the timed loop
-			cborEnvelopeSize := len(envelope.SerializeCBORKeyAsInt(env))
-
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := thermal.NewThrottleWatch()
 
+			// Let orchestrator know that the workload has started
+			fmt.Println("ENRG-START")
+
+			// Warm up in plain loop as we do not want results recorded
+			warmupDeadline := time.Now().Add(warmupDuration)
+			for time.Now().Before(warmupDeadline) {
+				envelope.SerializeCBORKeyAsInt(env)
+			}
+
+			// Actually measure this region
 			for b.Loop() {
 				envelope.SerializeCBORKeyAsInt(env)
 			}
 
-			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
+			// Keep same workload running after measured region
+			tailDeadline := time.Now().Add(tailDuration)
+			for time.Now().Before(tailDeadline) {
+				envelope.SerializeCBORKeyAsInt(env)
+			}
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -202,7 +217,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 	}
 }
 
-func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
+func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
 
@@ -216,16 +231,16 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			// Instantiate AES-GCM cipher
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aesGcm := aes.NewAES(symmetricKey)
+			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
 			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Encrypt payload
-			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
+			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
 
 			// Build policy for given attribute count
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -240,24 +255,31 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
-			// Serialize outside timed loop so only deserialization is measured
+			// Serialize outside measured workload so only deserialization is measured
 			serializedEnvelope := envelope.SerializeJSON(env)
 
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := thermal.NewThrottleWatch()
 
+			// Let orchestrator know that the workload has started
+			fmt.Println("ENRG-START")
+
+			// Warm up in plain loop as we do not want results recorded
+			warmupDeadline := time.Now().Add(warmupDuration)
+			for time.Now().Before(warmupDeadline) {
+				envelope.DeserializeJSON(serializedEnvelope)
+			}
+
+			// Actually measure this region
 			for b.Loop() {
 				envelope.DeserializeJSON(serializedEnvelope)
 			}
 
-			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
+			// Keep same workload running after measured region
+			tailDeadline := time.Now().Add(tailDuration)
+			for time.Now().Before(tailDeadline) {
+				envelope.DeserializeJSON(serializedEnvelope)
+			}
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -277,16 +299,16 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			// Instantiate AES-GCM cipher
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aesGcm := aes.NewAES(symmetricKey)
+			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
 			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Encrypt payload
-			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
+			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
 
 			// Build policy for given attribute count
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -301,24 +323,31 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
-			// Serialize outside timed loop so only deserialization is measured
+			// Serialize outside measured workload so only deserialization is measured
 			serializedEnvelope := envelope.SerializeCBOR(env)
 
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := thermal.NewThrottleWatch()
 
+			// Let orchestrator know that the workload has started
+			fmt.Println("ENRG-START")
+
+			// Warm up in plain loop as we do not want results recorded
+			warmupDeadline := time.Now().Add(warmupDuration)
+			for time.Now().Before(warmupDeadline) {
+				envelope.DeserializeCBOR(serializedEnvelope)
+			}
+
+			// Actually measure this region
 			for b.Loop() {
 				envelope.DeserializeCBOR(serializedEnvelope)
 			}
 
-			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
+			// Keep same workload running after measured region
+			tailDeadline := time.Now().Add(tailDuration)
+			for time.Now().Before(tailDeadline) {
+				envelope.DeserializeCBOR(serializedEnvelope)
+			}
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -338,16 +367,16 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			// Instantiate AES-GCM cipher
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aesGcm := aes.NewAES(symmetricKey)
+			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
 			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
+			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Encrypt payload
-			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
+			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
 
 			// Build policy for given attribute count
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -362,24 +391,31 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
-			// Serialize outside timed loop so only deserialization is measured
+			// Serialize outside measured workload so only deserialization is measured
 			serializedEnvelope := envelope.SerializeCBORKeyAsInt(env)
 
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
 			throttle := thermal.NewThrottleWatch()
 
+			// Let orchestrator know that the workload has started
+			fmt.Println("ENRG-START")
+
+			// Warm up in plain loop as we do not want results recorded
+			warmupDeadline := time.Now().Add(warmupDuration)
+			for time.Now().Before(warmupDeadline) {
+				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
+			}
+
+			// Actually measure this region
 			for b.Loop() {
 				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
 			}
 
-			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
+			// Keep same workload running after measured region
+			tailDeadline := time.Now().Add(tailDuration)
+			for time.Now().Before(tailDeadline) {
+				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
+			}
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")

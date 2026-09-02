@@ -446,33 +446,49 @@ def _configure_sweep_axis(
     axis.legend(fontsize=10)
 
 
-def plot_json_cbor_latency(
+def _plot_json_cbor_results(
     attribute_counts: list[int],
-    json_serialize_means: list[float],
-    json_serialize_cis: list[float],
-    cbor_serialize_means: list[float],
-    cbor_serialize_cis: list[float],
-    cbor_int_serialize_means: list[float],
-    cbor_int_serialize_cis: list[float],
-    json_deserialize_means: list[float],
-    json_deserialize_cis: list[float],
-    cbor_deserialize_means: list[float],
-    cbor_deserialize_cis: list[float],
-    cbor_int_deserialize_means: list[float],
-    cbor_int_deserialize_cis: list[float],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    title: str,
+    y_label: str,
     output_path: str,
 ) -> None:
-    _plot_prefixed_operation_comparison(
+    panels = []
+
+    formats = (
+        ("JSON", "JSON", AMBER),
+        ("CBOR", "CBOR", VIOLET),
+        ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
+    )
+
+    for operation in ("Serialize", "Deserialize"):
+        series = []
+
+        for format_name, label, color in formats:
+            means, confidence_intervals = results[(format_name, operation)]
+            series.append((label, means, confidence_intervals, color))
+
+        panels.append((operation, series))
+
+    _plot_operation_comparison(
         attribute_counts,
-        locals(),
-        [
-            ("JSON", "json", AMBER),
-            ("CBOR", "cbor", VIOLET),
-            ("CBOR (int keys)", "cbor_int", TEAL),
-        ],
-        [("Serialize", "serialize"), ("Deserialize", "deserialize")],
-        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
+        panels,
+        title,
         "Attribute Count",
+        y_label,
+        output_path,
+    )
+
+
+def plot_json_cbor_latency(
+    attribute_counts: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_json_cbor_results(
+        attribute_counts,
+        results,
+        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
         "Latency (µs) ± 95% CI",
         output_path,
     )
@@ -480,15 +496,7 @@ def plot_json_cbor_latency(
 
 def plot_json_cbor_size(
     attribute_counts: list[int],
-    json_envelope_means: list[float],
-    json_envelope_cis: list[float],
-    json_overhead_bytes: list[float],
-    cbor_envelope_means: list[float],
-    cbor_envelope_cis: list[float],
-    cbor_overhead_bytes: list[float],
-    cbor_int_envelope_means: list[float],
-    cbor_int_envelope_cis: list[float],
-    cbor_int_overhead_bytes: list[float],
+    results: dict[str, tuple[list[float], list[float], list[float]]],
     output_path: str,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
@@ -497,17 +505,13 @@ def plot_json_cbor_size(
         fontsize=13,
     )
 
-    for label, envelope_means, envelope_cis, overhead_bytes, color in (
-        ("JSON", json_envelope_means, json_envelope_cis, json_overhead_bytes, AMBER),
-        ("CBOR", cbor_envelope_means, cbor_envelope_cis, cbor_overhead_bytes, VIOLET),
-        (
-            "CBOR (int keys)",
-            cbor_int_envelope_means,
-            cbor_int_envelope_cis,
-            cbor_int_overhead_bytes,
-            TEAL,
-        ),
+    for format_name, label, color in (
+        ("JSON", "JSON", AMBER),
+        ("CBOR", "CBOR", VIOLET),
+        ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
     ):
+        envelope_means, envelope_cis, overhead_bytes = results[format_name]
+
         draw_summary(
             axes[0],
             attribute_counts,
@@ -515,6 +519,7 @@ def plot_json_cbor_size(
             envelope_cis,
             label,
             color,
+            with_ci=True,
         )
 
         axes[1].plot(
@@ -540,6 +545,20 @@ def plot_json_cbor_size(
 
     figure.tight_layout()
     save_figure(figure, output_path)
+
+
+def plot_json_cbor_energy(
+    attribute_counts: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_json_cbor_results(
+        attribute_counts,
+        results,
+        "JSON vs. CBOR vs. CBOR (Int Keys): Energy per Operation vs. Policy Attributes",
+        "Energy (µJ/op) ± 95% CI",
+        output_path,
+    )
 
 
 def _plot_latency_size_sweep(

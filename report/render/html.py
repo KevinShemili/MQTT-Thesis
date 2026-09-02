@@ -323,119 +323,101 @@ def write_aes_ascon_report(
 
 
 def _build_json_cbor_tables(
-    attribute_counts: list[int], scope: dict[str, Any], runs: int
+    attribute_counts: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+    runs: int,
 ) -> dict[str, str]:
     headers = [
         "Attributes",
-        "Latency (ns/op)",
+        "Latency (µs/op)",
         "Raw (B)",
         "Envelope Size (B)",
         "Format Overhead (%)",
         f"Iters (Σ{runs} runs)",
     ]
     specifications = [
-        ("SerializeJsonTable", "json_serialize"),
-        ("SerializeCborTable", "cbor_serialize"),
-        ("SerializeCborKeyAsIntTable", "cbor_int_serialize"),
-        ("DeserializeJsonTable", "json_deserialize"),
-        ("DeserializeCborTable", "cbor_deserialize"),
-        ("DeserializeCborKeyAsIntTable", "cbor_int_deserialize"),
+        ("SerializeJsonTable", ("JSON", "Serialize")),
+        ("SerializeCborTable", ("CBOR", "Serialize")),
+        ("SerializeCborKeyAsIntTable", ("CBORKeyAsInt", "Serialize")),
+        ("DeserializeJsonTable", ("JSON", "Deserialize")),
+        ("DeserializeCborTable", ("CBOR", "Deserialize")),
+        ("DeserializeCborKeyAsIntTable", ("CBORKeyAsInt", "Deserialize")),
     ]
     tables = {}
-    for placeholder, prefix in specifications:
-        tables[placeholder] = _build_optional_table(
+    for placeholder, case in specifications:
+        values = cases[case]
+        tables[placeholder] = _build_data_table(
             headers,
-            attribute_counts,
-            str,
-            _format_optional_mean_ci_column(
-                scope[f"{prefix}_latency_means"],
-                scope[f"{prefix}_latency_cis"],
-            ),
             [
-                _format_optional_column(
-                    scope[f"{prefix}_raw_sizes"], lambda value: f"{value:,.0f}"
+                [str(value) for value in attribute_counts],
+                _mean_ci_column(
+                    values["latency_means"],
+                    values["latency_cis"],
                 ),
-                _format_optional_column(
-                    scope[f"{prefix}_envelope_sizes"],
-                    lambda value: f"{value:,.0f}",
-                ),
-                _format_optional_column(
-                    scope[f"{prefix}_overhead_percents"],
-                    lambda value: f"{value:.2f}%",
-                ),
-                _format_optional_column(
-                    scope[f"{prefix}_iterations"], lambda value: f"{value:,}"
+                [f"{value:,.0f}" for value in values["raw_size_means"]],
+                [f"{value:,.0f}" for value in values["envelope_size_means"]],
+                [f"{value:.2f}%" for value in values["overhead_percents"]],
+                [f"{value:,}" for value in values["iterations"]],
+            ],
+            values["timing_throttled"],
+        )
+
+    return tables
+
+
+def _build_json_cbor_energy_tables(
+    attribute_counts: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    headers = ["Attributes", "Energy (µJ/op)"]
+    specifications = [
+        ("SerializeJsonEnergyTable", ("JSON", "Serialize")),
+        ("SerializeCborEnergyTable", ("CBOR", "Serialize")),
+        ("SerializeCborKeyAsIntEnergyTable", ("CBORKeyAsInt", "Serialize")),
+        ("DeserializeJsonEnergyTable", ("JSON", "Deserialize")),
+        ("DeserializeCborEnergyTable", ("CBOR", "Deserialize")),
+        ("DeserializeCborKeyAsIntEnergyTable", ("CBORKeyAsInt", "Deserialize")),
+    ]
+    tables = {}
+    for placeholder, case in specifications:
+        values = cases[case]
+        tables[placeholder] = _build_data_table(
+            headers,
+            [
+                [str(value) for value in attribute_counts],
+                _mean_ci_column(
+                    values["energy_means"],
+                    values["energy_cis"],
                 ),
             ],
-            scope[f"{prefix}_throttled"],
+            values["energy_throttled"],
         )
 
     return tables
 
 
 def write_json_cbor_report(
-    *,
-    runs: int,
-    t_multiplier: float,
-    total_iterations: int,
-    attribute_counts: list[int],
-    json_serialize_latency_means: list[float | None],
-    json_serialize_latency_cis: list[float | None],
-    json_serialize_raw_sizes: list[float | None],
-    json_serialize_envelope_sizes: list[float | None],
-    json_serialize_overhead_percents: list[float | None],
-    json_serialize_iterations: list[int | None],
-    json_serialize_throttled: list[bool] | None,
-    cbor_serialize_latency_means: list[float | None],
-    cbor_serialize_latency_cis: list[float | None],
-    cbor_serialize_raw_sizes: list[float | None],
-    cbor_serialize_envelope_sizes: list[float | None],
-    cbor_serialize_overhead_percents: list[float | None],
-    cbor_serialize_iterations: list[int | None],
-    cbor_serialize_throttled: list[bool] | None,
-    cbor_int_serialize_latency_means: list[float | None],
-    cbor_int_serialize_latency_cis: list[float | None],
-    cbor_int_serialize_raw_sizes: list[float | None],
-    cbor_int_serialize_envelope_sizes: list[float | None],
-    cbor_int_serialize_overhead_percents: list[float | None],
-    cbor_int_serialize_iterations: list[int | None],
-    cbor_int_serialize_throttled: list[bool] | None,
-    json_deserialize_latency_means: list[float | None],
-    json_deserialize_latency_cis: list[float | None],
-    json_deserialize_raw_sizes: list[float | None],
-    json_deserialize_envelope_sizes: list[float | None],
-    json_deserialize_overhead_percents: list[float | None],
-    json_deserialize_iterations: list[int | None],
-    json_deserialize_throttled: list[bool] | None,
-    cbor_deserialize_latency_means: list[float | None],
-    cbor_deserialize_latency_cis: list[float | None],
-    cbor_deserialize_raw_sizes: list[float | None],
-    cbor_deserialize_envelope_sizes: list[float | None],
-    cbor_deserialize_overhead_percents: list[float | None],
-    cbor_deserialize_iterations: list[int | None],
-    cbor_deserialize_throttled: list[bool] | None,
-    cbor_int_deserialize_latency_means: list[float | None],
-    cbor_int_deserialize_latency_cis: list[float | None],
-    cbor_int_deserialize_raw_sizes: list[float | None],
-    cbor_int_deserialize_envelope_sizes: list[float | None],
-    cbor_int_deserialize_overhead_percents: list[float | None],
-    cbor_int_deserialize_iterations: list[int | None],
-    cbor_int_deserialize_throttled: list[bool] | None,
-    out_of_memory_operations: list[str],
-    out_of_memory_cases: list[str],
-    latency_plot: str,
-    size_plot: str,
+    report_data: dict[str, Any],
     template_path: str,
     report_path: str,
 ) -> None:
+    attribute_counts = report_data["attribute_counts"]
+    cases = report_data["cases"]
+    plots = report_data["plots"]
+
     placeholders = {
-        **build_html_generic_data(runs, t_multiplier, total_iterations),
-        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
-            out_of_memory_operations, out_of_memory_cases
+        **build_html_generic_data(
+            report_data["runs"],
+            report_data["t_multiplier"],
+            report_data["total_iterations"],
         ),
-        **_build_json_cbor_tables(attribute_counts, locals(), runs),
-        "LatencyPlot": latency_plot,
-        "SizePlot": size_plot,
+        **_build_json_cbor_tables(attribute_counts, cases, report_data["runs"]),
+        **_build_json_cbor_energy_tables(attribute_counts, cases),
+        "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
+        "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
+        "LatencyPlot": plots["latency"],
+        "SizePlot": plots["size"],
+        "EnergyPlot": plots["energy"],
     }
 
     build_html_report(template_path, report_path, placeholders)

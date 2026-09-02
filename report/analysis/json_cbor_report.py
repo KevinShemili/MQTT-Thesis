@@ -1,643 +1,306 @@
 import os
 from pathlib import Path
-from typing import cast
 
-from scipy import stats
+from dotenv import load_dotenv
 
-from report.config import *
-from report.model.benchmark_summary import *
-from report.model.case_aggregation import *
-from report.model.measurement import *
-from report.analysis.shared.load_summary import *
-from report.render.chart import *
-from report.render.formatting import *
-from report.render.html import *
+from report.analysis.shared.load_summary import load_summary
+from report.analysis.shared.statistics import (
+    confidence_interval_multiplier,
+    energy_statistics,
+    timing_statistics,
+)
+from report.config import REPORT_NAME, TEMPLATE_DIR, parse_int_env, parse_int_list_env
+from report.model.benchmark_summary import BenchmarkSummary
+from report.model.energy.energy_aggregation import EnergyAggregation
+from report.model.energy.energy_case import THROTTLED as ENERGY_THROTTLED
+from report.model.timing.timing_aggregation import TimingAggregation
+from report.model.timing.timing_case import (
+    ENVELOPE_BYTES,
+    NS_PER_OP,
+    RAW_BYTES,
+    THROTTLED as TIMING_THROTTLED,
+)
+from report.render.chart import (
+    plot_json_cbor_energy,
+    plot_json_cbor_latency,
+    plot_json_cbor_size,
+)
+from report.render.formatting import NS_PER_MICROSECOND
+from report.render.html import write_json_cbor_report
 
-NO_MEASUREMENT = float("nan")
-
-SCENARIO = "json-cbor"
-HTML_TEMPLATE_NAME = "json_cbor_template.html"
-
-LATENCY_PLOT = "plot.png"
-SIZE_PLOT = "size.png"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
 BENCHMARK_PREFIX = "BenchmarkEnvelope"
+PARAMETER = "attribute_count"
+PARAMETER_SUFFIX = "Attrs"
+
+TIMING_RESULT_NAME = "timing.txt"
+ENERGY_RESULT_NAME = "energy.txt"
+REPORT_TEMPLATE_NAME = "json_cbor_template.html"
+
+LATENCY_PLOT = "latency.png"
+SIZE_PLOT = "size.png"
+ENERGY_PLOT = "energy.png"
+
+MICROJOULES_PER_JOULE = 1_000_000
 
 
-def collect_aggregations(
-    results: BenchmarkSummary,
+def collect_timing_aggregations(
+    summary: BenchmarkSummary,
+    format_name: str,
+    operation: str,
     attribute_counts: list[int],
-) -> tuple[
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-]:
-    json_serialize = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Serialize", "JSON", attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    json_deserialize = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Deserialize", "JSON", attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    cbor_serialize = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Serialize", "CBOR", attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    cbor_deserialize = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Deserialize", "CBOR", attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    cbor_int_serialize = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Serialize", "CBORKeyAsInt", attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    cbor_int_deserialize = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Deserialize", "CBORKeyAsInt", attribute_count),
-        )
-        for attribute_count in attribute_counts
+) -> list[TimingAggregation]:
+
+    matching_aggregations = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.timing_aggregations
+        if aggregation.algorithm == format_name
+        and aggregation.operation == operation
+        and aggregation.parameter == PARAMETER
+    }
+
+    return [
+        matching_aggregations[attribute_count] for attribute_count in attribute_counts
     ]
 
-    return (
-        json_serialize,
-        json_deserialize,
-        cbor_serialize,
-        cbor_deserialize,
-        cbor_int_serialize,
-        cbor_int_deserialize,
+
+def collect_energy_aggregations(
+    summary: BenchmarkSummary,
+    format_name: str,
+    operation: str,
+    attribute_counts: list[int],
+) -> list[EnergyAggregation]:
+
+    matching_aggregations = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.energy_aggregations
+        if aggregation.algorithm == format_name
+        and aggregation.operation == operation
+        and aggregation.parameter == PARAMETER
+    }
+
+    return [
+        matching_aggregations[attribute_count] for attribute_count in attribute_counts
+    ]
+
+
+def collect_iterations(
+    aggregations: list[TimingAggregation],
+) -> list[int]:
+
+    return [
+        sum(case.iterations for case in aggregation.cases)
+        for aggregation in aggregations
+    ]
+
+
+def collect_timing_throttle_flags(
+    aggregations: list[TimingAggregation],
+) -> list[bool]:
+
+    return [
+        any(case.measurements[TIMING_THROTTLED] > 0 for case in aggregation.cases)
+        for aggregation in aggregations
+    ]
+
+
+def collect_energy_throttle_flags(
+    aggregations: list[EnergyAggregation],
+) -> list[bool]:
+
+    return [
+        any(case.measurements[ENERGY_THROTTLED] > 0 for case in aggregation.cases)
+        for aggregation in aggregations
+    ]
+
+
+def to_microseconds(values: list[float]) -> list[float]:
+    return [value / NS_PER_MICROSECOND for value in values]
+
+
+def to_microjoules(values: list[float]) -> list[float]:
+    return [value * MICROJOULES_PER_JOULE for value in values]
+
+
+def analyze_case(
+    timing_aggregations: list[TimingAggregation],
+    energy_aggregations: list[EnergyAggregation],
+):
+
+    latency_means, latency_cis = timing_statistics(
+        timing_aggregations,
+        NS_PER_OP,
     )
 
-
-def analyze_aggregations(
-    json_serialize: list[CaseAggregation],
-    json_deserialize: list[CaseAggregation],
-    cbor_serialize: list[CaseAggregation],
-    cbor_deserialize: list[CaseAggregation],
-    cbor_int_serialize: list[CaseAggregation],
-    cbor_int_deserialize: list[CaseAggregation],
-) -> tuple[list[float | None] | list[int | None], ...]:
-    json_serialize_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in json_serialize
-    ]
-    json_serialize_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in json_serialize
-    ]
-    json_serialize_raw_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(RAW_BYTES)
-        for aggregation in json_serialize
-    ]
-    json_serialize_envelope_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(ENVELOPE_BYTES)
-        for aggregation in json_serialize
-    ]
-    json_serialize_envelope_size_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(ENVELOPE_BYTES)
-        )
-        for aggregation in json_serialize
-    ]
-    json_size_difference_list = [
-        None if envelope is None or raw is None else envelope - raw
-        for envelope, raw in zip(
-            json_serialize_envelope_size_list,
-            json_serialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    json_serialize_overhead_percent_list = [
-        None if overhead is None or raw is None else overhead / raw * 100.0
-        for overhead, raw in zip(
-            json_size_difference_list,
-            json_serialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    json_serialize_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in json_serialize
-    ]
-
-    json_deserialize_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in json_deserialize
-    ]
-    json_deserialize_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in json_deserialize
-    ]
-    json_deserialize_raw_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(RAW_BYTES)
-        for aggregation in json_deserialize
-    ]
-    json_deserialize_envelope_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(ENVELOPE_BYTES)
-        for aggregation in json_deserialize
-    ]
-    json_deserialize_overhead_percent_list = [
-        (None if envelope is None or raw is None else (envelope - raw) / raw * 100.0)
-        for envelope, raw in zip(
-            json_deserialize_envelope_size_list,
-            json_deserialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    json_deserialize_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in json_deserialize
-    ]
-
-    cbor_serialize_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in cbor_serialize
-    ]
-    cbor_serialize_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in cbor_serialize
-    ]
-    cbor_serialize_raw_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(RAW_BYTES)
-        for aggregation in cbor_serialize
-    ]
-    cbor_serialize_envelope_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(ENVELOPE_BYTES)
-        for aggregation in cbor_serialize
-    ]
-    cbor_serialize_envelope_size_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(ENVELOPE_BYTES)
-        )
-        for aggregation in cbor_serialize
-    ]
-    cbor_size_difference_list = [
-        None if envelope is None or raw is None else envelope - raw
-        for envelope, raw in zip(
-            cbor_serialize_envelope_size_list,
-            cbor_serialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    cbor_serialize_overhead_percent_list = [
-        None if overhead is None or raw is None else overhead / raw * 100.0
-        for overhead, raw in zip(
-            cbor_size_difference_list,
-            cbor_serialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    cbor_serialize_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in cbor_serialize
-    ]
-
-    cbor_deserialize_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in cbor_deserialize
-    ]
-    cbor_deserialize_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in cbor_deserialize
-    ]
-    cbor_deserialize_raw_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(RAW_BYTES)
-        for aggregation in cbor_deserialize
-    ]
-    cbor_deserialize_envelope_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(ENVELOPE_BYTES)
-        for aggregation in cbor_deserialize
-    ]
-    cbor_deserialize_overhead_percent_list = [
-        (None if envelope is None or raw is None else (envelope - raw) / raw * 100.0)
-        for envelope, raw in zip(
-            cbor_deserialize_envelope_size_list,
-            cbor_deserialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    cbor_deserialize_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in cbor_deserialize
-    ]
-
-    cbor_int_serialize_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in cbor_int_serialize
-    ]
-    cbor_int_serialize_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in cbor_int_serialize
-    ]
-    cbor_int_serialize_raw_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(RAW_BYTES)
-        for aggregation in cbor_int_serialize
-    ]
-    cbor_int_serialize_envelope_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(ENVELOPE_BYTES)
-        for aggregation in cbor_int_serialize
-    ]
-    cbor_int_serialize_envelope_size_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(ENVELOPE_BYTES)
-        )
-        for aggregation in cbor_int_serialize
-    ]
-    cbor_int_size_difference_list = [
-        None if envelope is None or raw is None else envelope - raw
-        for envelope, raw in zip(
-            cbor_int_serialize_envelope_size_list,
-            cbor_int_serialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    cbor_int_serialize_overhead_percent_list = [
-        None if overhead is None or raw is None else overhead / raw * 100.0
-        for overhead, raw in zip(
-            cbor_int_size_difference_list,
-            cbor_int_serialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    cbor_int_serialize_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in cbor_int_serialize
-    ]
-
-    cbor_int_deserialize_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in cbor_int_deserialize
-    ]
-    cbor_int_deserialize_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in cbor_int_deserialize
-    ]
-    cbor_int_deserialize_raw_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(RAW_BYTES)
-        for aggregation in cbor_int_deserialize
-    ]
-    cbor_int_deserialize_envelope_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(ENVELOPE_BYTES)
-        for aggregation in cbor_int_deserialize
-    ]
-    cbor_int_deserialize_overhead_percent_list = [
-        (None if envelope is None or raw is None else (envelope - raw) / raw * 100.0)
-        for envelope, raw in zip(
-            cbor_int_deserialize_envelope_size_list,
-            cbor_int_deserialize_raw_size_list,
-            strict=True,
-        )
-    ]
-    cbor_int_deserialize_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in cbor_int_deserialize
-    ]
-
-    return (
-        json_serialize_latency_list,
-        json_serialize_latency_ci_list,
-        json_serialize_raw_size_list,
-        json_serialize_envelope_size_list,
-        json_serialize_envelope_size_ci_list,
-        json_size_difference_list,
-        json_serialize_overhead_percent_list,
-        json_serialize_iteration_list,
-        json_deserialize_latency_list,
-        json_deserialize_latency_ci_list,
-        json_deserialize_raw_size_list,
-        json_deserialize_envelope_size_list,
-        json_deserialize_overhead_percent_list,
-        json_deserialize_iteration_list,
-        cbor_serialize_latency_list,
-        cbor_serialize_latency_ci_list,
-        cbor_serialize_raw_size_list,
-        cbor_serialize_envelope_size_list,
-        cbor_serialize_envelope_size_ci_list,
-        cbor_size_difference_list,
-        cbor_serialize_overhead_percent_list,
-        cbor_serialize_iteration_list,
-        cbor_deserialize_latency_list,
-        cbor_deserialize_latency_ci_list,
-        cbor_deserialize_raw_size_list,
-        cbor_deserialize_envelope_size_list,
-        cbor_deserialize_overhead_percent_list,
-        cbor_deserialize_iteration_list,
-        cbor_int_serialize_latency_list,
-        cbor_int_serialize_latency_ci_list,
-        cbor_int_serialize_raw_size_list,
-        cbor_int_serialize_envelope_size_list,
-        cbor_int_serialize_envelope_size_ci_list,
-        cbor_int_size_difference_list,
-        cbor_int_serialize_overhead_percent_list,
-        cbor_int_serialize_iteration_list,
-        cbor_int_deserialize_latency_list,
-        cbor_int_deserialize_latency_ci_list,
-        cbor_int_deserialize_raw_size_list,
-        cbor_int_deserialize_envelope_size_list,
-        cbor_int_deserialize_overhead_percent_list,
-        cbor_int_deserialize_iteration_list,
+    raw_size_means, raw_size_cis = timing_statistics(
+        timing_aggregations,
+        RAW_BYTES,
     )
+
+    envelope_size_means, envelope_size_cis = timing_statistics(
+        timing_aggregations,
+        ENVELOPE_BYTES,
+    )
+
+    energy_means, energy_cis = energy_statistics(
+        energy_aggregations,
+    )
+
+    overhead_bytes = [
+        envelope_size - raw_size
+        for envelope_size, raw_size in zip(
+            envelope_size_means,
+            raw_size_means,
+            strict=True,
+        )
+    ]
+
+    overhead_percents = [
+        overhead / raw_size * 100.0
+        for overhead, raw_size in zip(
+            overhead_bytes,
+            raw_size_means,
+            strict=True,
+        )
+    ]
+
+    return {
+        "latency_means": to_microseconds(latency_means),
+        "latency_cis": to_microseconds(latency_cis),
+        "raw_size_means": raw_size_means,
+        "raw_size_cis": raw_size_cis,
+        "envelope_size_means": envelope_size_means,
+        "envelope_size_cis": envelope_size_cis,
+        "overhead_bytes": overhead_bytes,
+        "overhead_percents": overhead_percents,
+        "energy_means": to_microjoules(energy_means),
+        "energy_cis": to_microjoules(energy_cis),
+        "iterations": collect_iterations(timing_aggregations),
+        "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
+        "energy_throttled": collect_energy_throttle_flags(energy_aggregations),
+    }
 
 
 def main() -> None:
+
+    load_dotenv(
+        ENVIRONMENT_FILE,
+        override=True,
+    )
+
     runs = parse_int_env("JSON_CBOR_RUNS")
     attribute_counts = parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS")
+    warmup_duration = parse_int_env("WARMUP_DURATION")
+    measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
-    result_dir = Path(
-        os.environ.get("JSON_CBOR_RESULT_DIR", f"{DEFAULT_RESULT_ROOT}/{SCENARIO}")
-    )
-    bench_output = result_dir / BENCH_OUTPUT_NAME
-    case_status = result_dir / CASE_STATUS_NAME
-    template_path = Path(TEMPLATE_DIR) / HTML_TEMPLATE_NAME
-    report_path = result_dir / REPORT_NAME
+    result_directory = PROJECT_ROOT / os.environ["JSON_CBOR_RESULT_DIR"]
+    timing_result_file = result_directory / TIMING_RESULT_NAME
+    energy_result_file = result_directory / ENERGY_RESULT_NAME
+    template_path = Path(TEMPLATE_DIR) / REPORT_TEMPLATE_NAME
+    report_path = result_directory / REPORT_NAME
 
-    results = BenchmarkSummary()
-    load_results(results, str(bench_output), BENCHMARK_PREFIX, "Attrs")
-    load_out_of_memory_status(results, str(case_status))
-
-    (
-        json_serialize,
-        json_deserialize,
-        cbor_serialize,
-        cbor_deserialize,
-        cbor_int_serialize,
-        cbor_int_deserialize,
-    ) = collect_aggregations(results, attribute_counts)
-
-    (
-        json_serialize_latency_list,
-        json_serialize_latency_ci_list,
-        json_serialize_raw_size_list,
-        json_serialize_envelope_size_list,
-        json_serialize_envelope_size_ci_list,
-        json_size_difference_list,
-        json_serialize_overhead_percent_list,
-        json_serialize_iteration_list,
-        json_deserialize_latency_list,
-        json_deserialize_latency_ci_list,
-        json_deserialize_raw_size_list,
-        json_deserialize_envelope_size_list,
-        json_deserialize_overhead_percent_list,
-        json_deserialize_iteration_list,
-        cbor_serialize_latency_list,
-        cbor_serialize_latency_ci_list,
-        cbor_serialize_raw_size_list,
-        cbor_serialize_envelope_size_list,
-        cbor_serialize_envelope_size_ci_list,
-        cbor_size_difference_list,
-        cbor_serialize_overhead_percent_list,
-        cbor_serialize_iteration_list,
-        cbor_deserialize_latency_list,
-        cbor_deserialize_latency_ci_list,
-        cbor_deserialize_raw_size_list,
-        cbor_deserialize_envelope_size_list,
-        cbor_deserialize_overhead_percent_list,
-        cbor_deserialize_iteration_list,
-        cbor_int_serialize_latency_list,
-        cbor_int_serialize_latency_ci_list,
-        cbor_int_serialize_raw_size_list,
-        cbor_int_serialize_envelope_size_list,
-        cbor_int_serialize_envelope_size_ci_list,
-        cbor_int_size_difference_list,
-        cbor_int_serialize_overhead_percent_list,
-        cbor_int_serialize_iteration_list,
-        cbor_int_deserialize_latency_list,
-        cbor_int_deserialize_latency_ci_list,
-        cbor_int_deserialize_raw_size_list,
-        cbor_int_deserialize_envelope_size_list,
-        cbor_int_deserialize_overhead_percent_list,
-        cbor_int_deserialize_iteration_list,
-    ) = analyze_aggregations(
-        json_serialize,
-        json_deserialize,
-        cbor_serialize,
-        cbor_deserialize,
-        cbor_int_serialize,
-        cbor_int_deserialize,
+    summary = load_summary(
+        timing_filepath=str(timing_result_file),
+        energy_filepath=str(energy_result_file),
+        case_prefix=BENCHMARK_PREFIX,
+        parameter=PARAMETER,
+        warmup_duration=warmup_duration,
+        measurement_duration=measurement_duration,
+        parameter_suffix=PARAMETER_SUFFIX,
     )
 
-    total_benchmark_iterations = sum(
-        aggregation.iterations
-        for aggregation in results.aggregations
-        if not aggregation.out_of_memory
-    )
-    out_of_memory_aggregations = [
-        aggregation for aggregation in results.aggregations if aggregation.out_of_memory
-    ]
+    case_results = {}
+
+    for format_name in ("JSON", "CBOR", "CBORKeyAsInt"):
+        for operation in ("Serialize", "Deserialize"):
+
+            timing_aggregations = collect_timing_aggregations(
+                summary,
+                format_name,
+                operation,
+                attribute_counts,
+            )
+
+            energy_aggregations = collect_energy_aggregations(
+                summary,
+                format_name,
+                operation,
+                attribute_counts,
+            )
+
+            case_results[(format_name, operation)] = analyze_case(
+                timing_aggregations,
+                energy_aggregations,
+            )
+
+    latency_results = {
+        case: (
+            values["latency_means"],
+            values["latency_cis"],
+        )
+        for case, values in case_results.items()
+    }
+
+    size_results = {
+        format_name: (
+            case_results[(format_name, "Serialize")]["envelope_size_means"],
+            case_results[(format_name, "Serialize")]["envelope_size_cis"],
+            case_results[(format_name, "Serialize")]["overhead_bytes"],
+        )
+        for format_name in ("JSON", "CBOR", "CBORKeyAsInt")
+    }
+
+    energy_results = {
+        case: (
+            values["energy_means"],
+            values["energy_cis"],
+        )
+        for case, values in case_results.items()
+    }
 
     plot_json_cbor_latency(
         attribute_counts,
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in json_serialize_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in json_serialize_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_serialize_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_serialize_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_int_serialize_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_int_serialize_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in json_deserialize_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in json_deserialize_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_deserialize_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_deserialize_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_int_deserialize_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cbor_int_deserialize_latency_ci_list
-        ],
-        str(result_dir / LATENCY_PLOT),
+        latency_results,
+        str(result_directory / LATENCY_PLOT),
     )
 
     plot_json_cbor_size(
         attribute_counts,
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in json_serialize_envelope_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in json_serialize_envelope_size_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in json_size_difference_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cbor_serialize_envelope_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cbor_serialize_envelope_size_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cbor_size_difference_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cbor_int_serialize_envelope_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cbor_int_serialize_envelope_size_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cbor_int_size_difference_list
-        ],
-        str(result_dir / SIZE_PLOT),
+        size_results,
+        str(result_directory / SIZE_PLOT),
     )
 
+    plot_json_cbor_energy(
+        attribute_counts,
+        energy_results,
+        str(result_directory / ENERGY_PLOT),
+    )
+
+    total_iterations = sum(
+        sum(values["iterations"]) for values in case_results.values()
+    )
+
+    report_data = {
+        "runs": runs,
+        "t_multiplier": confidence_interval_multiplier(runs),
+        "total_iterations": total_iterations,
+        "attribute_counts": attribute_counts,
+        "energy_window_start": warmup_duration,
+        "energy_window_end": warmup_duration + measurement_duration,
+        "cases": case_results,
+        "plots": {
+            "latency": LATENCY_PLOT,
+            "size": SIZE_PLOT,
+            "energy": ENERGY_PLOT,
+        },
+    }
+
     write_json_cbor_report(
-        runs=runs,
-        t_multiplier=float(stats.t.ppf(0.975, runs - 1)),
-        total_iterations=total_benchmark_iterations,
-        attribute_counts=attribute_counts,
-        json_serialize_latency_means=json_serialize_latency_list,
-        json_serialize_latency_cis=json_serialize_latency_ci_list,
-        json_serialize_raw_sizes=json_serialize_raw_size_list,
-        json_serialize_envelope_sizes=json_serialize_envelope_size_list,
-        json_serialize_overhead_percents=json_serialize_overhead_percent_list,
-        json_serialize_iterations=json_serialize_iteration_list,
-        json_serialize_throttled=results.get_throttle_flags(
-            "Serialize", "JSON", attribute_counts
-        ),
-        cbor_serialize_latency_means=cbor_serialize_latency_list,
-        cbor_serialize_latency_cis=cbor_serialize_latency_ci_list,
-        cbor_serialize_raw_sizes=cbor_serialize_raw_size_list,
-        cbor_serialize_envelope_sizes=cbor_serialize_envelope_size_list,
-        cbor_serialize_overhead_percents=cbor_serialize_overhead_percent_list,
-        cbor_serialize_iterations=cbor_serialize_iteration_list,
-        cbor_serialize_throttled=results.get_throttle_flags(
-            "Serialize", "CBOR", attribute_counts
-        ),
-        cbor_int_serialize_latency_means=cbor_int_serialize_latency_list,
-        cbor_int_serialize_latency_cis=cbor_int_serialize_latency_ci_list,
-        cbor_int_serialize_raw_sizes=cbor_int_serialize_raw_size_list,
-        cbor_int_serialize_envelope_sizes=cbor_int_serialize_envelope_size_list,
-        cbor_int_serialize_overhead_percents=cbor_int_serialize_overhead_percent_list,
-        cbor_int_serialize_iterations=cbor_int_serialize_iteration_list,
-        cbor_int_serialize_throttled=results.get_throttle_flags(
-            "Serialize", "CBORKeyAsInt", attribute_counts
-        ),
-        json_deserialize_latency_means=json_deserialize_latency_list,
-        json_deserialize_latency_cis=json_deserialize_latency_ci_list,
-        json_deserialize_raw_sizes=json_deserialize_raw_size_list,
-        json_deserialize_envelope_sizes=json_deserialize_envelope_size_list,
-        json_deserialize_overhead_percents=json_deserialize_overhead_percent_list,
-        json_deserialize_iterations=json_deserialize_iteration_list,
-        json_deserialize_throttled=results.get_throttle_flags(
-            "Deserialize", "JSON", attribute_counts
-        ),
-        cbor_deserialize_latency_means=cbor_deserialize_latency_list,
-        cbor_deserialize_latency_cis=cbor_deserialize_latency_ci_list,
-        cbor_deserialize_raw_sizes=cbor_deserialize_raw_size_list,
-        cbor_deserialize_envelope_sizes=cbor_deserialize_envelope_size_list,
-        cbor_deserialize_overhead_percents=cbor_deserialize_overhead_percent_list,
-        cbor_deserialize_iterations=cbor_deserialize_iteration_list,
-        cbor_deserialize_throttled=results.get_throttle_flags(
-            "Deserialize", "CBOR", attribute_counts
-        ),
-        cbor_int_deserialize_latency_means=cbor_int_deserialize_latency_list,
-        cbor_int_deserialize_latency_cis=cbor_int_deserialize_latency_ci_list,
-        cbor_int_deserialize_raw_sizes=cbor_int_deserialize_raw_size_list,
-        cbor_int_deserialize_envelope_sizes=cbor_int_deserialize_envelope_size_list,
-        cbor_int_deserialize_overhead_percents=cbor_int_deserialize_overhead_percent_list,
-        cbor_int_deserialize_iterations=cbor_int_deserialize_iteration_list,
-        cbor_int_deserialize_throttled=results.get_throttle_flags(
-            "Deserialize", "CBORKeyAsInt", attribute_counts
-        ),
-        out_of_memory_operations=[
-            aggregation.operation for aggregation in out_of_memory_aggregations
-        ],
-        out_of_memory_cases=[
-            f"{aggregation.parameter}/{aggregation.parameter_value}"
-            for aggregation in out_of_memory_aggregations
-        ],
-        latency_plot=LATENCY_PLOT,
-        size_plot=SIZE_PLOT,
-        template_path=str(template_path),
-        report_path=str(report_path),
+        report_data,
+        str(template_path),
+        str(report_path),
     )
 
 
