@@ -364,64 +364,85 @@ def plot_aes_ascon_energy(
     )
 
 
-def plot_payload_scaling_latency(
+def _plot_payload_scaling_results(
     payload_sizes: list[int],
-    psk_encrypt_means: list[float],
-    psk_encrypt_cis: list[float],
-    rsa_encrypt_means: list[float],
-    rsa_encrypt_cis: list[float],
-    cpabe_encrypt_means: list[float],
-    cpabe_encrypt_cis: list[float],
-    psk_decrypt_means: list[float],
-    psk_decrypt_cis: list[float],
-    rsa_decrypt_means: list[float],
-    rsa_decrypt_cis: list[float],
-    cpabe_decrypt_means: list[float],
-    cpabe_decrypt_cis: list[float],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    title: str,
+    y_label: str,
     output_path: str,
+    zoom_first_panel: bool = False,
 ) -> None:
-    _plot_prefixed_operation_comparison(
+    panels = []
+
+    schemes = (
+        ("PSK", "PSK", TEAL),
+        ("RSA", "RSA", VIOLET),
+        ("CPABE", "CP-ABE", CRIMSON),
+    )
+
+    for operation in ("Encrypt", "Decrypt"):
+        series = []
+
+        for scheme, label, color in schemes:
+            means, confidence_intervals = results[(scheme, operation)]
+            series.append((label, means, confidence_intervals, color))
+
+        panels.append((operation, series))
+
+    _plot_operation_comparison(
         payload_sizes,
-        locals(),
-        [("PSK", "psk", TEAL), ("RSA", "rsa", VIOLET), ("CPABE", "cpabe", CRIMSON)],
-        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
-        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
+        panels,
+        title,
         "Payload Size",
-        "Latency (µs) ± 95% CI",
+        y_label,
         output_path,
         byte_tick_step=4 * MEGABYTE,
         legend_location="upper left",
+        zoom_first_panel=zoom_first_panel,
+    )
+
+
+def plot_payload_scaling_latency(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_payload_scaling_results(
+        payload_sizes,
+        results,
+        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
+        "Latency (µs) ± 95% CI",
+        output_path,
         zoom_first_panel=True,
     )
 
 
 def plot_payload_scaling_throughput(
     payload_sizes: list[int],
-    psk_encrypt_means: list[float],
-    psk_encrypt_cis: list[float],
-    rsa_encrypt_means: list[float],
-    rsa_encrypt_cis: list[float],
-    cpabe_encrypt_means: list[float],
-    cpabe_encrypt_cis: list[float],
-    psk_decrypt_means: list[float],
-    psk_decrypt_cis: list[float],
-    rsa_decrypt_means: list[float],
-    rsa_decrypt_cis: list[float],
-    cpabe_decrypt_means: list[float],
-    cpabe_decrypt_cis: list[float],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_prefixed_operation_comparison(
+    _plot_payload_scaling_results(
         payload_sizes,
-        locals(),
-        [("PSK", "psk", TEAL), ("RSA", "rsa", VIOLET), ("CPABE", "cpabe", CRIMSON)],
-        [("Encrypt", "encrypt"), ("Decrypt", "decrypt")],
+        results,
         "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
-        "Payload Size",
         "Throughput (MB/s) ± 95% CI",
         output_path,
-        byte_tick_step=4 * MEGABYTE,
-        legend_location="upper left",
+    )
+
+
+def plot_payload_scaling_energy(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_payload_scaling_results(
+        payload_sizes,
+        results,
+        "PSK vs. RSA vs. CP-ABE: Energy per Operation vs. Payload Size",
+        "Energy (µJ/op) ± 95% CI",
+        output_path,
+        zoom_first_panel=True,
     )
 
 

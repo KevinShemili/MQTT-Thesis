@@ -1,667 +1,331 @@
 import os
 from pathlib import Path
-from typing import cast
 
-import numpy as np
-from scipy import stats
+from dotenv import load_dotenv
 
-from report.config import *
-from report.model.benchmark_summary import *
-from report.model.case_aggregation import *
-from report.model.measurement import *
-from report.analysis.shared.load_summary import *
-from report.render.chart import *
-from report.render.formatting import *
-from report.render.html import *
+from report.analysis.shared.load_summary import load_summary
+from report.analysis.shared.statistics import (
+    confidence_interval_multiplier,
+    energy_statistics,
+    timing_statistics,
+)
+from report.config import REPORT_NAME, TEMPLATE_DIR, parse_int_env, parse_int_list_env
+from report.model.benchmark_summary import BenchmarkSummary
+from report.model.energy.energy_aggregation import EnergyAggregation
+from report.model.energy.energy_case import THROTTLED as ENERGY_THROTTLED
+from report.model.timing.timing_aggregation import TimingAggregation
+from report.model.timing.timing_case import (
+    ADDITIONAL_OVERHEAD_BYTES,
+    MB_PER_SECOND,
+    NS_PER_OP,
+    THROTTLED as TIMING_THROTTLED,
+)
+from report.render.chart import (
+    plot_payload_scaling_energy,
+    plot_payload_scaling_latency,
+    plot_payload_scaling_throughput,
+)
+from report.render.formatting import NS_PER_MICROSECOND
+from report.render.html import write_payload_scaling_report
 
-NO_MEASUREMENT = float("nan")
-
-SCENARIO = "payload-scaling"
-HTML_TEMPLATE_NAME = "payload_scaling_template.html"
-
-LATENCY_PLOT = "plot.png"
-THROUGHPUT_PLOT = "throughput.png"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
 BENCHMARK_PREFIX = "BenchmarkPayloadScaling"
+PARAMETER = "payload_size"
+PARAMETER_SUFFIX = "B"
+
+TIMING_RESULT_NAME = "timing.txt"
+ENERGY_RESULT_NAME = "energy.txt"
+REPORT_TEMPLATE_NAME = "payload_scaling_template.html"
+
+LATENCY_PLOT = "latency.png"
+THROUGHPUT_PLOT = "throughput.png"
+ENERGY_PLOT = "energy.png"
+
+MICROJOULES_PER_JOULE = 1_000_000
 
 
-def collect_aggregations(
-    results: BenchmarkSummary,
+def collect_timing_aggregations(
+    summary: BenchmarkSummary,
+    scheme: str,
+    operation: str,
     payload_sizes: list[int],
-) -> tuple[
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-    list[CaseAggregation],
-]:
-    psk_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Encrypt", "PSK", payload_size),
-        )
-        for payload_size in payload_sizes
-    ]
-    psk_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Decrypt", "PSK", payload_size),
-        )
-        for payload_size in payload_sizes
-    ]
-    rsa_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Encrypt", "RSA", payload_size),
-        )
-        for payload_size in payload_sizes
-    ]
-    rsa_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Decrypt", "RSA", payload_size),
-        )
-        for payload_size in payload_sizes
-    ]
-    cpabe_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Encrypt", "CPABE", payload_size),
-        )
-        for payload_size in payload_sizes
-    ]
-    cpabe_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Decrypt", "CPABE", payload_size),
-        )
-        for payload_size in payload_sizes
+) -> list[TimingAggregation]:
+
+    matching_aggregations = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.timing_aggregations
+        if aggregation.algorithm == scheme
+        and aggregation.operation == operation
+        and aggregation.parameter == PARAMETER
+    }
+
+    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
+
+
+def collect_energy_aggregations(
+    summary: BenchmarkSummary,
+    scheme: str,
+    operation: str,
+    payload_sizes: list[int],
+) -> list[EnergyAggregation]:
+
+    matching_aggregations = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.energy_aggregations
+        if aggregation.algorithm == scheme
+        and aggregation.operation == operation
+        and aggregation.parameter == PARAMETER
+    }
+
+    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
+
+
+def collect_overhead(
+    aggregations: list[TimingAggregation],
+) -> list[float]:
+
+    return [
+        aggregation.cases[0].measurements[ADDITIONAL_OVERHEAD_BYTES]
+        for aggregation in aggregations
     ]
 
-    return (
-        psk_encrypt,
-        psk_decrypt,
-        rsa_encrypt,
-        rsa_decrypt,
-        cpabe_encrypt,
-        cpabe_decrypt,
+
+def collect_iterations(
+    aggregations: list[TimingAggregation],
+) -> list[int]:
+
+    return [
+        sum(case.iterations for case in aggregation.cases)
+        for aggregation in aggregations
+    ]
+
+
+def collect_timing_throttle_flags(
+    aggregations: list[TimingAggregation],
+) -> list[bool]:
+
+    return [
+        any(case.measurements[TIMING_THROTTLED] > 0 for case in aggregation.cases)
+        for aggregation in aggregations
+    ]
+
+
+def collect_energy_throttle_flags(
+    aggregations: list[EnergyAggregation],
+) -> list[bool]:
+
+    return [
+        any(case.measurements[ENERGY_THROTTLED] > 0 for case in aggregation.cases)
+        for aggregation in aggregations
+    ]
+
+
+def to_microseconds(values: list[float]) -> list[float]:
+    return [value / NS_PER_MICROSECOND for value in values]
+
+
+def to_microjoules(values: list[float]) -> list[float]:
+    return [value * MICROJOULES_PER_JOULE for value in values]
+
+
+def analyze_case(
+    timing_aggregations: list[TimingAggregation],
+    energy_aggregations: list[EnergyAggregation],
+):
+
+    latency_means, latency_cis = timing_statistics(
+        timing_aggregations,
+        NS_PER_OP,
     )
 
-
-def analyze_aggregations(
-    psk_encrypt: list[CaseAggregation],
-    psk_decrypt: list[CaseAggregation],
-    rsa_encrypt: list[CaseAggregation],
-    rsa_decrypt: list[CaseAggregation],
-    cpabe_encrypt: list[CaseAggregation],
-    cpabe_decrypt: list[CaseAggregation],
-    payload_sizes: list[int],
-) -> tuple[
-    list[float | None] | list[int | None],
-    ...,
-]:
-    psk_encrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in psk_encrypt
-    ]
-    psk_encrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in psk_encrypt
-    ]
-    psk_encrypt_throughput_list = [
-        None if aggregation.out_of_memory else aggregation.mean(MB_PER_SECOND)
-        for aggregation in psk_encrypt
-    ]
-    psk_encrypt_throughput_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(MB_PER_SECOND)
-        )
-        for aggregation in psk_encrypt
-    ]
-    psk_encrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in psk_encrypt
-    ]
-
-    psk_decrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in psk_decrypt
-    ]
-    psk_decrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in psk_decrypt
-    ]
-    psk_decrypt_throughput_list = [
-        None if aggregation.out_of_memory else aggregation.mean(MB_PER_SECOND)
-        for aggregation in psk_decrypt
-    ]
-    psk_decrypt_throughput_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(MB_PER_SECOND)
-        )
-        for aggregation in psk_decrypt
-    ]
-    psk_decrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in psk_decrypt
-    ]
-
-    psk_completed_overheads = [
-        aggregation.mean(WIRE_OVERHEAD_BYTES)
-        for aggregation in psk_encrypt
-        if not aggregation.out_of_memory
-    ]
-    if psk_completed_overheads:
-        psk_overhead_bytes = int(round(np.mean(psk_completed_overheads)))
-        psk_wire_size_list = [
-            payload_size + psk_overhead_bytes for payload_size in payload_sizes
-        ]
-        psk_overhead_percent_list = [
-            psk_overhead_bytes / payload_size * 100.0 for payload_size in payload_sizes
-        ]
-    else:
-        psk_wire_size_list = [None] * len(payload_sizes)
-        psk_overhead_percent_list = [None] * len(payload_sizes)
-
-    rsa_encrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in rsa_encrypt
-    ]
-    rsa_encrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in rsa_encrypt
-    ]
-    rsa_encrypt_throughput_list = [
-        None if aggregation.out_of_memory else aggregation.mean(MB_PER_SECOND)
-        for aggregation in rsa_encrypt
-    ]
-    rsa_encrypt_throughput_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(MB_PER_SECOND)
-        )
-        for aggregation in rsa_encrypt
-    ]
-    rsa_encrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in rsa_encrypt
-    ]
-
-    rsa_decrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in rsa_decrypt
-    ]
-    rsa_decrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in rsa_decrypt
-    ]
-    rsa_decrypt_throughput_list = [
-        None if aggregation.out_of_memory else aggregation.mean(MB_PER_SECOND)
-        for aggregation in rsa_decrypt
-    ]
-    rsa_decrypt_throughput_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(MB_PER_SECOND)
-        )
-        for aggregation in rsa_decrypt
-    ]
-    rsa_decrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in rsa_decrypt
-    ]
-
-    rsa_completed_overheads = [
-        aggregation.mean(WIRE_OVERHEAD_BYTES)
-        for aggregation in rsa_encrypt
-        if not aggregation.out_of_memory
-    ]
-    if rsa_completed_overheads:
-        rsa_overhead_bytes = int(round(np.mean(rsa_completed_overheads)))
-        rsa_wire_size_list = [
-            payload_size + rsa_overhead_bytes for payload_size in payload_sizes
-        ]
-        rsa_overhead_percent_list = [
-            rsa_overhead_bytes / payload_size * 100.0 for payload_size in payload_sizes
-        ]
-    else:
-        rsa_wire_size_list = [None] * len(payload_sizes)
-        rsa_overhead_percent_list = [None] * len(payload_sizes)
-
-    cpabe_encrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in cpabe_encrypt
-    ]
-    cpabe_encrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in cpabe_encrypt
-    ]
-    cpabe_encrypt_throughput_list = [
-        None if aggregation.out_of_memory else aggregation.mean(MB_PER_SECOND)
-        for aggregation in cpabe_encrypt
-    ]
-    cpabe_encrypt_throughput_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(MB_PER_SECOND)
-        )
-        for aggregation in cpabe_encrypt
-    ]
-    cpabe_encrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in cpabe_encrypt
-    ]
-
-    cpabe_decrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in cpabe_decrypt
-    ]
-    cpabe_decrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in cpabe_decrypt
-    ]
-    cpabe_decrypt_throughput_list = [
-        None if aggregation.out_of_memory else aggregation.mean(MB_PER_SECOND)
-        for aggregation in cpabe_decrypt
-    ]
-    cpabe_decrypt_throughput_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(MB_PER_SECOND)
-        )
-        for aggregation in cpabe_decrypt
-    ]
-    cpabe_decrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in cpabe_decrypt
-    ]
-
-    cpabe_completed_overheads = [
-        aggregation.mean(WIRE_OVERHEAD_BYTES)
-        for aggregation in cpabe_encrypt
-        if not aggregation.out_of_memory
-    ]
-    if cpabe_completed_overheads:
-        cpabe_overhead_bytes = int(round(np.mean(cpabe_completed_overheads)))
-        cpabe_wire_size_list = [
-            payload_size + cpabe_overhead_bytes for payload_size in payload_sizes
-        ]
-        cpabe_overhead_percent_list = [
-            cpabe_overhead_bytes / payload_size * 100.0
-            for payload_size in payload_sizes
-        ]
-    else:
-        cpabe_wire_size_list = [None] * len(payload_sizes)
-        cpabe_overhead_percent_list = [None] * len(payload_sizes)
-
-    return (
-        psk_encrypt_latency_list,
-        psk_encrypt_latency_ci_list,
-        psk_encrypt_throughput_list,
-        psk_encrypt_throughput_ci_list,
-        psk_encrypt_iteration_list,
-        psk_decrypt_latency_list,
-        psk_decrypt_latency_ci_list,
-        psk_decrypt_throughput_list,
-        psk_decrypt_throughput_ci_list,
-        psk_decrypt_iteration_list,
-        psk_wire_size_list,
-        psk_overhead_percent_list,
-        rsa_encrypt_latency_list,
-        rsa_encrypt_latency_ci_list,
-        rsa_encrypt_throughput_list,
-        rsa_encrypt_throughput_ci_list,
-        rsa_encrypt_iteration_list,
-        rsa_decrypt_latency_list,
-        rsa_decrypt_latency_ci_list,
-        rsa_decrypt_throughput_list,
-        rsa_decrypt_throughput_ci_list,
-        rsa_decrypt_iteration_list,
-        rsa_wire_size_list,
-        rsa_overhead_percent_list,
-        cpabe_encrypt_latency_list,
-        cpabe_encrypt_latency_ci_list,
-        cpabe_encrypt_throughput_list,
-        cpabe_encrypt_throughput_ci_list,
-        cpabe_encrypt_iteration_list,
-        cpabe_decrypt_latency_list,
-        cpabe_decrypt_latency_ci_list,
-        cpabe_decrypt_throughput_list,
-        cpabe_decrypt_throughput_ci_list,
-        cpabe_decrypt_iteration_list,
-        cpabe_wire_size_list,
-        cpabe_overhead_percent_list,
+    throughput_means, throughput_cis = timing_statistics(
+        timing_aggregations,
+        MB_PER_SECOND,
     )
+
+    energy_means, energy_cis = energy_statistics(
+        energy_aggregations,
+    )
+
+    return {
+        "latency_means": to_microseconds(latency_means),
+        "latency_cis": to_microseconds(latency_cis),
+        "throughput_means": throughput_means,
+        "throughput_cis": throughput_cis,
+        "energy_means": to_microjoules(energy_means),
+        "energy_cis": to_microjoules(energy_cis),
+        "iterations": collect_iterations(timing_aggregations),
+        "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
+        "energy_throttled": collect_energy_throttle_flags(energy_aggregations),
+    }
+
+
+def calculate_wire_data(
+    payload_sizes: list[int],
+    encrypt_aggregations: list[TimingAggregation],
+):
+
+    overhead_bytes = collect_overhead(encrypt_aggregations)
+
+    wire_sizes = [
+        payload_size + overhead
+        for payload_size, overhead in zip(
+            payload_sizes,
+            overhead_bytes,
+            strict=True,
+        )
+    ]
+
+    overhead_percents = [
+        overhead / payload_size * 100.0
+        for payload_size, overhead in zip(
+            payload_sizes,
+            overhead_bytes,
+            strict=True,
+        )
+    ]
+
+    return overhead_bytes, wire_sizes, overhead_percents
 
 
 def main() -> None:
+
+    load_dotenv(
+        ENVIRONMENT_FILE,
+        override=True,
+    )
+
     runs = parse_int_env("PAYLOAD_SCALING_RUNS")
     payload_sizes = parse_int_list_env("PAYLOAD_SCALING_PAYLOAD_SIZES")
+    warmup_duration = parse_int_env("WARMUP_DURATION")
+    measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
-    result_dir = Path(
-        os.environ.get(
-            "PAYLOAD_SCALING_RESULT_DIR", f"{DEFAULT_RESULT_ROOT}/{SCENARIO}"
+    result_directory = PROJECT_ROOT / os.environ["PAYLOAD_SCALING_RESULT_DIR"]
+    timing_result_file = result_directory / TIMING_RESULT_NAME
+    energy_result_file = result_directory / ENERGY_RESULT_NAME
+    template_path = Path(TEMPLATE_DIR) / REPORT_TEMPLATE_NAME
+    report_path = result_directory / REPORT_NAME
+
+    summary = load_summary(
+        timing_filepath=str(timing_result_file),
+        energy_filepath=str(energy_result_file),
+        case_prefix=BENCHMARK_PREFIX,
+        parameter=PARAMETER,
+        warmup_duration=warmup_duration,
+        measurement_duration=measurement_duration,
+        parameter_suffix=PARAMETER_SUFFIX,
+    )
+
+    case_results = {}
+    wire_data = {}
+
+    for scheme in ("PSK", "RSA", "CPABE"):
+        for operation in ("Encrypt", "Decrypt"):
+
+            timing_aggregations = collect_timing_aggregations(
+                summary,
+                scheme,
+                operation,
+                payload_sizes,
+            )
+
+            energy_aggregations = collect_energy_aggregations(
+                summary,
+                scheme,
+                operation,
+                payload_sizes,
+            )
+
+            case_results[(scheme, operation)] = analyze_case(
+                timing_aggregations,
+                energy_aggregations,
+            )
+
+            if operation == "Encrypt":
+                wire_data[scheme] = calculate_wire_data(
+                    payload_sizes,
+                    timing_aggregations,
+                )
+
+    for scheme in ("PSK", "RSA", "CPABE"):
+        overhead_bytes, wire_sizes, overhead_percents = wire_data[scheme]
+
+        for operation in ("Encrypt", "Decrypt"):
+            case_results[(scheme, operation)].update(
+                {
+                    "overhead_bytes": overhead_bytes,
+                    "wire_sizes": wire_sizes,
+                    "overhead_percents": overhead_percents,
+                }
+            )
+
+    latency_results = {
+        case: (
+            values["latency_means"],
+            values["latency_cis"],
         )
-    )
-    bench_output = result_dir / BENCH_OUTPUT_NAME
-    case_status = result_dir / CASE_STATUS_NAME
-    template_path = Path(TEMPLATE_DIR) / HTML_TEMPLATE_NAME
-    report_path = result_dir / REPORT_NAME
+        for case, values in case_results.items()
+    }
 
-    results = BenchmarkSummary()
-    load_results(results, str(bench_output), BENCHMARK_PREFIX, "B")
-    load_out_of_memory_status(results, str(case_status))
+    throughput_results = {
+        case: (
+            values["throughput_means"],
+            values["throughput_cis"],
+        )
+        for case, values in case_results.items()
+    }
 
-    (
-        psk_encrypt,
-        psk_decrypt,
-        rsa_encrypt,
-        rsa_decrypt,
-        cpabe_encrypt,
-        cpabe_decrypt,
-    ) = collect_aggregations(results, payload_sizes)
-
-    (
-        psk_encrypt_latency_list,
-        psk_encrypt_latency_ci_list,
-        psk_encrypt_throughput_list,
-        psk_encrypt_throughput_ci_list,
-        psk_encrypt_iteration_list,
-        psk_decrypt_latency_list,
-        psk_decrypt_latency_ci_list,
-        psk_decrypt_throughput_list,
-        psk_decrypt_throughput_ci_list,
-        psk_decrypt_iteration_list,
-        psk_wire_size_list,
-        psk_overhead_percent_list,
-        rsa_encrypt_latency_list,
-        rsa_encrypt_latency_ci_list,
-        rsa_encrypt_throughput_list,
-        rsa_encrypt_throughput_ci_list,
-        rsa_encrypt_iteration_list,
-        rsa_decrypt_latency_list,
-        rsa_decrypt_latency_ci_list,
-        rsa_decrypt_throughput_list,
-        rsa_decrypt_throughput_ci_list,
-        rsa_decrypt_iteration_list,
-        rsa_wire_size_list,
-        rsa_overhead_percent_list,
-        cpabe_encrypt_latency_list,
-        cpabe_encrypt_latency_ci_list,
-        cpabe_encrypt_throughput_list,
-        cpabe_encrypt_throughput_ci_list,
-        cpabe_encrypt_iteration_list,
-        cpabe_decrypt_latency_list,
-        cpabe_decrypt_latency_ci_list,
-        cpabe_decrypt_throughput_list,
-        cpabe_decrypt_throughput_ci_list,
-        cpabe_decrypt_iteration_list,
-        cpabe_wire_size_list,
-        cpabe_overhead_percent_list,
-    ) = analyze_aggregations(
-        psk_encrypt,
-        psk_decrypt,
-        rsa_encrypt,
-        rsa_decrypt,
-        cpabe_encrypt,
-        cpabe_decrypt,
-        payload_sizes,
-    )
-
-    total_benchmark_iterations = sum(
-        aggregation.iterations
-        for aggregation in results.aggregations
-        if not aggregation.out_of_memory
-    )
-    out_of_memory_aggregations = [
-        aggregation for aggregation in results.aggregations if aggregation.out_of_memory
-    ]
+    energy_results = {
+        case: (
+            values["energy_means"],
+            values["energy_cis"],
+        )
+        for case, values in case_results.items()
+    }
 
     plot_payload_scaling_latency(
         payload_sizes,
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in psk_encrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in psk_encrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_encrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_encrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_encrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_encrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in psk_decrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in psk_decrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_decrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_decrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_decrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_decrypt_latency_ci_list
-        ],
-        str(result_dir / LATENCY_PLOT),
+        latency_results,
+        str(result_directory / LATENCY_PLOT),
     )
 
     plot_payload_scaling_throughput(
         payload_sizes,
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in psk_encrypt_throughput_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in psk_encrypt_throughput_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in rsa_encrypt_throughput_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in rsa_encrypt_throughput_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cpabe_encrypt_throughput_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cpabe_encrypt_throughput_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in psk_decrypt_throughput_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in psk_decrypt_throughput_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in rsa_decrypt_throughput_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in rsa_decrypt_throughput_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cpabe_decrypt_throughput_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in cpabe_decrypt_throughput_ci_list
-        ],
-        str(result_dir / THROUGHPUT_PLOT),
+        throughput_results,
+        str(result_directory / THROUGHPUT_PLOT),
     )
 
+    plot_payload_scaling_energy(
+        payload_sizes,
+        energy_results,
+        str(result_directory / ENERGY_PLOT),
+    )
+
+    total_iterations = sum(
+        sum(values["iterations"]) for values in case_results.values()
+    )
+
+    report_data = {
+        "runs": runs,
+        "t_multiplier": confidence_interval_multiplier(runs),
+        "total_iterations": total_iterations,
+        "payload_sizes": payload_sizes,
+        "energy_window_start": warmup_duration,
+        "energy_window_end": warmup_duration + measurement_duration,
+        "cases": case_results,
+        "plots": {
+            "latency": LATENCY_PLOT,
+            "throughput": THROUGHPUT_PLOT,
+            "energy": ENERGY_PLOT,
+        },
+    }
+
     write_payload_scaling_report(
-        runs=runs,
-        t_multiplier=float(stats.t.ppf(0.975, runs - 1)),
-        total_iterations=total_benchmark_iterations,
-        payload_sizes=payload_sizes,
-        psk_wire_sizes=psk_wire_size_list,
-        psk_overhead_percents=psk_overhead_percent_list,
-        rsa_wire_sizes=rsa_wire_size_list,
-        rsa_overhead_percents=rsa_overhead_percent_list,
-        cpabe_wire_sizes=cpabe_wire_size_list,
-        cpabe_overhead_percents=cpabe_overhead_percent_list,
-        psk_encrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in psk_encrypt_latency_list
-        ],
-        psk_encrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in psk_encrypt_latency_ci_list
-        ],
-        psk_encrypt_throughput_means=psk_encrypt_throughput_list,
-        psk_encrypt_throughput_cis=psk_encrypt_throughput_ci_list,
-        psk_encrypt_iterations=psk_encrypt_iteration_list,
-        psk_encrypt_throttled=results.get_throttle_flags(
-            "Encrypt", "PSK", payload_sizes
-        ),
-        rsa_encrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_encrypt_latency_list
-        ],
-        rsa_encrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_encrypt_latency_ci_list
-        ],
-        rsa_encrypt_throughput_means=rsa_encrypt_throughput_list,
-        rsa_encrypt_throughput_cis=rsa_encrypt_throughput_ci_list,
-        rsa_encrypt_iterations=rsa_encrypt_iteration_list,
-        rsa_encrypt_throttled=results.get_throttle_flags(
-            "Encrypt", "RSA", payload_sizes
-        ),
-        cpabe_encrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_encrypt_latency_list
-        ],
-        cpabe_encrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_encrypt_latency_ci_list
-        ],
-        cpabe_encrypt_throughput_means=cpabe_encrypt_throughput_list,
-        cpabe_encrypt_throughput_cis=cpabe_encrypt_throughput_ci_list,
-        cpabe_encrypt_iterations=cpabe_encrypt_iteration_list,
-        cpabe_encrypt_throttled=results.get_throttle_flags(
-            "Encrypt", "CPABE", payload_sizes
-        ),
-        psk_decrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in psk_decrypt_latency_list
-        ],
-        psk_decrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in psk_decrypt_latency_ci_list
-        ],
-        psk_decrypt_throughput_means=psk_decrypt_throughput_list,
-        psk_decrypt_throughput_cis=psk_decrypt_throughput_ci_list,
-        psk_decrypt_iterations=psk_decrypt_iteration_list,
-        psk_decrypt_throttled=results.get_throttle_flags(
-            "Decrypt", "PSK", payload_sizes
-        ),
-        rsa_decrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_decrypt_latency_list
-        ],
-        rsa_decrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in rsa_decrypt_latency_ci_list
-        ],
-        rsa_decrypt_throughput_means=rsa_decrypt_throughput_list,
-        rsa_decrypt_throughput_cis=rsa_decrypt_throughput_ci_list,
-        rsa_decrypt_iterations=rsa_decrypt_iteration_list,
-        rsa_decrypt_throttled=results.get_throttle_flags(
-            "Decrypt", "RSA", payload_sizes
-        ),
-        cpabe_decrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_decrypt_latency_list
-        ],
-        cpabe_decrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in cpabe_decrypt_latency_ci_list
-        ],
-        cpabe_decrypt_throughput_means=cpabe_decrypt_throughput_list,
-        cpabe_decrypt_throughput_cis=cpabe_decrypt_throughput_ci_list,
-        cpabe_decrypt_iterations=cpabe_decrypt_iteration_list,
-        cpabe_decrypt_throttled=results.get_throttle_flags(
-            "Decrypt", "CPABE", payload_sizes
-        ),
-        out_of_memory_operations=[
-            aggregation.operation for aggregation in out_of_memory_aggregations
-        ],
-        out_of_memory_cases=[
-            f"{aggregation.parameter}/{aggregation.parameter_value}"
-            for aggregation in out_of_memory_aggregations
-        ],
-        latency_plot=LATENCY_PLOT,
-        throughput_plot=THROUGHPUT_PLOT,
-        template_path=str(template_path),
-        report_path=str(report_path),
+        report_data,
+        str(template_path),
+        str(report_path),
     )
 
 

@@ -423,8 +423,10 @@ def write_json_cbor_report(
     build_html_report(template_path, report_path, placeholders)
 
 
-def _build_payload_tables(
-    payload_sizes: list[int], scope: dict[str, Any], runs: int
+def _build_payload_scaling_tables(
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+    runs: int,
 ) -> dict[str, str]:
     headers = [
         "Raw Size",
@@ -435,108 +437,99 @@ def _build_payload_tables(
         f"Iters (Σ{runs} runs)",
     ]
     specifications = [
-        ("EncryptPskTable", "psk_encrypt", "psk"),
-        ("EncryptRsaTable", "rsa_encrypt", "rsa"),
-        ("EncryptCpabeTable", "cpabe_encrypt", "cpabe"),
-        ("DecryptPskTable", "psk_decrypt", "psk"),
-        ("DecryptRsaTable", "rsa_decrypt", "rsa"),
-        ("DecryptCpabeTable", "cpabe_decrypt", "cpabe"),
+        ("EncryptPskTable", ("PSK", "Encrypt")),
+        ("EncryptRsaTable", ("RSA", "Encrypt")),
+        ("EncryptCpabeTable", ("CPABE", "Encrypt")),
+        ("DecryptPskTable", ("PSK", "Decrypt")),
+        ("DecryptRsaTable", ("RSA", "Decrypt")),
+        ("DecryptCpabeTable", ("CPABE", "Decrypt")),
     ]
     tables = {}
-    for placeholder, case, scheme in specifications:
-        tables[placeholder] = _build_optional_table(
+    for placeholder, case in specifications:
+        values = cases[case]
+        tables[placeholder] = _build_data_table(
             headers,
-            payload_sizes,
-            format_byte_size,
-            _format_optional_mean_ci_column(
-                scope[f"{case}_latency_means"], scope[f"{case}_latency_cis"]
-            ),
             [
-                _format_optional_mean_ci_column(
-                    scope[f"{case}_throughput_means"],
-                    scope[f"{case}_throughput_cis"],
+                [format_byte_size(value) for value in payload_sizes],
+                _mean_ci_column(
+                    values["latency_means"],
+                    values["latency_cis"],
+                ),
+                _mean_ci_column(
+                    values["throughput_means"],
+                    values["throughput_cis"],
                     decimals=1,
                 ),
-                _format_optional_column(
-                    scope[f"{scheme}_wire_sizes"], format_byte_size
-                ),
-                _format_optional_column(
-                    scope[f"{scheme}_overhead_percents"],
-                    lambda value: (f"{value:.2f}%" if value >= 0.01 else "&lt;0.01%"),
-                ),
-                _format_optional_column(
-                    scope[f"{case}_iterations"], lambda value: f"{value:,}"
+                [format_byte_size(round(value)) for value in values["wire_sizes"]],
+                [
+                    f"{value:.2f}%" if value >= 0.01 else "&lt;0.01%"
+                    for value in values["overhead_percents"]
+                ],
+                [f"{value:,}" for value in values["iterations"]],
+            ],
+            values["timing_throttled"],
+        )
+
+    return tables
+
+
+def _build_payload_scaling_energy_tables(
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    headers = ["Raw Size", "Energy (µJ/op)"]
+    specifications = [
+        ("EncryptPskEnergyTable", ("PSK", "Encrypt")),
+        ("EncryptRsaEnergyTable", ("RSA", "Encrypt")),
+        ("EncryptCpabeEnergyTable", ("CPABE", "Encrypt")),
+        ("DecryptPskEnergyTable", ("PSK", "Decrypt")),
+        ("DecryptRsaEnergyTable", ("RSA", "Decrypt")),
+        ("DecryptCpabeEnergyTable", ("CPABE", "Decrypt")),
+    ]
+    tables = {}
+    for placeholder, case in specifications:
+        values = cases[case]
+        tables[placeholder] = _build_data_table(
+            headers,
+            [
+                [format_byte_size(value) for value in payload_sizes],
+                _mean_ci_column(
+                    values["energy_means"],
+                    values["energy_cis"],
                 ),
             ],
-            scope[f"{case}_throttled"],
+            values["energy_throttled"],
         )
 
     return tables
 
 
 def write_payload_scaling_report(
-    *,
-    runs: int,
-    t_multiplier: float,
-    total_iterations: int,
-    payload_sizes: list[int],
-    psk_wire_sizes: list[int | None],
-    psk_overhead_percents: list[float | None],
-    rsa_wire_sizes: list[int | None],
-    rsa_overhead_percents: list[float | None],
-    cpabe_wire_sizes: list[int | None],
-    cpabe_overhead_percents: list[float | None],
-    psk_encrypt_latency_means: list[float | None],
-    psk_encrypt_latency_cis: list[float | None],
-    psk_encrypt_throughput_means: list[float | None],
-    psk_encrypt_throughput_cis: list[float | None],
-    psk_encrypt_iterations: list[int | None],
-    psk_encrypt_throttled: list[bool] | None,
-    rsa_encrypt_latency_means: list[float | None],
-    rsa_encrypt_latency_cis: list[float | None],
-    rsa_encrypt_throughput_means: list[float | None],
-    rsa_encrypt_throughput_cis: list[float | None],
-    rsa_encrypt_iterations: list[int | None],
-    rsa_encrypt_throttled: list[bool] | None,
-    cpabe_encrypt_latency_means: list[float | None],
-    cpabe_encrypt_latency_cis: list[float | None],
-    cpabe_encrypt_throughput_means: list[float | None],
-    cpabe_encrypt_throughput_cis: list[float | None],
-    cpabe_encrypt_iterations: list[int | None],
-    cpabe_encrypt_throttled: list[bool] | None,
-    psk_decrypt_latency_means: list[float | None],
-    psk_decrypt_latency_cis: list[float | None],
-    psk_decrypt_throughput_means: list[float | None],
-    psk_decrypt_throughput_cis: list[float | None],
-    psk_decrypt_iterations: list[int | None],
-    psk_decrypt_throttled: list[bool] | None,
-    rsa_decrypt_latency_means: list[float | None],
-    rsa_decrypt_latency_cis: list[float | None],
-    rsa_decrypt_throughput_means: list[float | None],
-    rsa_decrypt_throughput_cis: list[float | None],
-    rsa_decrypt_iterations: list[int | None],
-    rsa_decrypt_throttled: list[bool] | None,
-    cpabe_decrypt_latency_means: list[float | None],
-    cpabe_decrypt_latency_cis: list[float | None],
-    cpabe_decrypt_throughput_means: list[float | None],
-    cpabe_decrypt_throughput_cis: list[float | None],
-    cpabe_decrypt_iterations: list[int | None],
-    cpabe_decrypt_throttled: list[bool] | None,
-    out_of_memory_operations: list[str],
-    out_of_memory_cases: list[str],
-    latency_plot: str,
-    throughput_plot: str,
+    report_data: dict[str, Any],
     template_path: str,
     report_path: str,
 ) -> None:
+    payload_sizes = report_data["payload_sizes"]
+    cases = report_data["cases"]
+    plots = report_data["plots"]
+
     placeholders = {
-        **build_html_generic_data(runs, t_multiplier, total_iterations),
-        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
-            out_of_memory_operations, out_of_memory_cases
+        **build_html_generic_data(
+            report_data["runs"],
+            report_data["t_multiplier"],
+            report_data["total_iterations"],
         ),
-        **_build_payload_tables(payload_sizes, locals(), runs),
-        "LatencyPlot": latency_plot,
-        "ThroughputPlot": throughput_plot,
+        **_build_payload_scaling_tables(
+            payload_sizes,
+            cases,
+            report_data["runs"],
+        ),
+        **_build_payload_scaling_energy_tables(payload_sizes, cases),
+        "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
+        "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
+        "LatencyPlot": plots["latency"],
+        "ThroughputPlot": plots["throughput"],
+        "EnergyPlot": plots["energy"],
     }
 
     build_html_report(template_path, report_path, placeholders)
