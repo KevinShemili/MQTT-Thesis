@@ -7,7 +7,6 @@ RAW_BYTES = "raw_bytes"
 CIPHERTEXT_BYTES = "ciphertext_bytes"
 TOTAL_CIPHERTEXT_BYTES = "total_ciphertext_bytes"
 STORED_KEY_BYTES = "stored_key_bytes"
-PEAK_RSS_BYTES = "peak_rss_bytes"
 THROTTLED = "throttled"
 
 

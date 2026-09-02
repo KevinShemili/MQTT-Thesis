@@ -1,1642 +1,669 @@
 import os
 from pathlib import Path
-from typing import cast
 
-from scipy import stats
+from dotenv import load_dotenv
 
-from report.config import *
-from report.model.benchmark_summary import *
-from report.model.case_aggregation import *
-from report.model.measurement import *
-from report.analysis.shared.load_summary import *
-from report.render.chart import *
-from report.render.formatting import *
-from report.render.html import *
+from report.analysis.shared.load_summary import load_summary
+from report.analysis.shared.statistics import (
+    confidence_interval_multiplier,
+    energy_statistics,
+    linear_regression_statistics,
+    memory_case_statistics,
+    memory_statistics,
+    timing_distribution_statistics,
+    timing_statistics,
+)
+from report.config import REPORT_NAME, TEMPLATE_DIR, parse_int_env, parse_int_list_env
+from report.model.benchmark_summary import BenchmarkSummary
+from report.model.energy.energy_aggregation import EnergyAggregation
+from report.model.energy.energy_case import (
+    THROTTLED as ENERGY_THROTTLED,
+    EnergySample,
+)
+from report.model.memory.memory_aggregation import MemoryAggregation
+from report.model.memory.memory_case import PEAK_RSS_BYTES
+from report.model.timing.timing_aggregation import TimingAggregation
+from report.model.timing.timing_case import (
+    CIPHERTEXT_BYTES,
+    NS_PER_OP,
+    STORED_KEY_BYTES,
+    THROTTLED as TIMING_THROTTLED,
+    TOTAL_CIPHERTEXT_BYTES,
+)
+from report.render.chart import (
+    plot_attribute_key_scaling_energy,
+    plot_attribute_key_scaling_memory,
+    plot_ciphertext_size_crossover,
+    plot_cpabe_attributes,
+    plot_decrypt_latency_comparison,
+    plot_encrypt_decrypt_asymmetry,
+    plot_encrypt_latency_crossover,
+    plot_rsa_key_bits,
+    plot_rsa_subscribers,
+)
+from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
+from report.render.html import write_attribute_key_scaling_report
 
-NS_PER_MILLISECOND = 1000000.0
-NO_MEASUREMENT = float("nan")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-SCENARIO = "attribute-key-scaling"
 BENCHMARK_PREFIX = "BenchmarkAttributeKeyScaling"
-TEMPLATE_NAME = "attribute_key_scaling_template.html"
+
+TIMING_RESULT_NAME = "timing.txt"
+MEMORY_RESULT_NAME = "memory.txt"
+ENERGY_RESULT_NAME = "energy.txt"
+REPORT_TEMPLATE_NAME = "attribute_key_scaling_template.html"
 
 CPABE_PLOT = "cpabe_attributes.png"
 RSA_SUBSCRIBERS_PLOT = "rsa_subscribers.png"
 RSA_KEY_BITS_PLOT = "rsa_key_bits.png"
-CIPHERTEXT_SIZE_CROSSOVER_PLOT = "ciphertext_size_crossover.png"
-ASYMMETRY_PLOT = "encrypt_decrypt_asymmetry.png"
-ENCRYPT_LATENCY_CROSSOVER_PLOT = "encrypt_latency_crossover.png"
-DECRYPT_LATENCY_CROSSOVER_PLOT = "decrypt_latency_crossover.png"
+ENERGY_PLOT = "energy.png"
 PEAK_MEMORY_PLOT = "peak_memory.png"
+CIPHERTEXT_SIZE_CROSSOVER_PLOT = "ciphertext_size_crossover.png"
+ENCRYPT_LATENCY_CROSSOVER_PLOT = "encrypt_latency_crossover.png"
+DECRYPT_LATENCY_COMPARISON_PLOT = "decrypt_latency_comparison.png"
+ASYMMETRY_PLOT = "encrypt_decrypt_asymmetry.png"
 
 CPABE_ATTRIBUTES = "CPABEAttributes"
 RSA_SUBSCRIBERS = "RSASubscribers"
 RSA_KEY_BITS = "RSAKeyBits"
 
-MINIMUM_FIT_POINTS = 3
+PARAMETER_BY_ALGORITHM = {
+    CPABE_ATTRIBUTES: "attribute_count",
+    RSA_SUBSCRIBERS: "subscriber_count",
+    RSA_KEY_BITS: "rsa_key_bits",
+}
+
+NS_PER_MILLISECOND = 1_000_000.0
+MICROJOULES_PER_JOULE = 1_000_000.0
 
 
 def collect_timing_aggregations(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-):
-    scaling_attribute_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Encrypt", CPABE_ATTRIBUTES, attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    scaling_attribute_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Decrypt", CPABE_ATTRIBUTES, attribute_count),
-        )
-        for attribute_count in attribute_counts
-    ]
-    scaling_subscriber_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Encrypt", RSA_SUBSCRIBERS, subscriber_count),
-        )
-        for subscriber_count in subscriber_counts
-    ]
-    scaling_key_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Encrypt", RSA_KEY_BITS, rsa_key_bits),
-        )
-        for rsa_key_bits in rsa_key_sizes
-    ]
-    scaling_key_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("Decrypt", RSA_KEY_BITS, rsa_key_bits),
-        )
-        for rsa_key_bits in rsa_key_sizes
-    ]
-    scaling_key_generation = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("KeyGen", RSA_KEY_BITS, rsa_key_bits),
-        )
-        for rsa_key_bits in rsa_key_sizes
-    ]
-
-    return (
-        scaling_attribute_encrypt,
-        scaling_attribute_decrypt,
-        scaling_subscriber_encrypt,
-        scaling_key_encrypt,
-        scaling_key_decrypt,
-        scaling_key_generation,
-    )
+    summary: BenchmarkSummary,
+    algorithm: str,
+    operation: str,
+    parameter: str,
+    parameter_values: list[int],
+) -> list[TimingAggregation]:
+    matching = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.timing_aggregations
+        if aggregation.algorithm == algorithm
+        and aggregation.operation == operation
+        and aggregation.parameter == parameter
+    }
+    return [matching[parameter_value] for parameter_value in parameter_values]
 
 
 def collect_memory_aggregations(
-    results: BenchmarkSummary,
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-):
-    memory_baseline = cast(
-        CaseAggregation,
-        results.find_aggregation("MemoryBaseline", "Runtime", 0),
-    )
-    assert not memory_baseline.out_of_memory
-
-    scaling_attribute_memory_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation(
-                "MemoryEncrypt", CPABE_ATTRIBUTES, attribute_count
-            ),
-        )
-        for attribute_count in attribute_counts
-    ]
-    scaling_attribute_memory_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation(
-                "MemoryDecrypt", CPABE_ATTRIBUTES, attribute_count
-            ),
-        )
-        for attribute_count in attribute_counts
-    ]
-    scaling_subscriber_memory_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation(
-                "MemoryEncrypt", RSA_SUBSCRIBERS, subscriber_count
-            ),
-        )
-        for subscriber_count in subscriber_counts
-    ]
-    scaling_key_memory_encrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("MemoryEncrypt", RSA_KEY_BITS, rsa_key_bits),
-        )
-        for rsa_key_bits in rsa_key_sizes
-    ]
-    scaling_key_memory_decrypt = [
-        cast(
-            CaseAggregation,
-            results.find_aggregation("MemoryDecrypt", RSA_KEY_BITS, rsa_key_bits),
-        )
-        for rsa_key_bits in rsa_key_sizes
-    ]
-
-    return (
-        memory_baseline,
-        scaling_attribute_memory_encrypt,
-        scaling_attribute_memory_decrypt,
-        scaling_subscriber_memory_encrypt,
-        scaling_key_memory_encrypt,
-        scaling_key_memory_decrypt,
-    )
+    summary: BenchmarkSummary,
+    algorithm: str,
+    operation: str,
+    parameter: str,
+    parameter_values: list[int],
+) -> list[MemoryAggregation]:
+    matching = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.memory_aggregations
+        if aggregation.algorithm == algorithm
+        and aggregation.operation == operation
+        and aggregation.parameter == parameter
+    }
+    return [matching[parameter_value] for parameter_value in parameter_values]
 
 
-def analyze_timing_aggregations(
-    scaling_attribute_encrypt: list[CaseAggregation],
-    scaling_attribute_decrypt: list[CaseAggregation],
-    scaling_subscriber_encrypt: list[CaseAggregation],
-    scaling_key_encrypt: list[CaseAggregation],
-    scaling_key_decrypt: list[CaseAggregation],
-    scaling_key_generation: list[CaseAggregation],
-):
-    # Scaling Attribute Calculations
-    # 1. Latency of Encrypt and Decrypt
-    scaling_attribute_encrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in scaling_attribute_encrypt
-    ]
-    scaling_attribute_encrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in scaling_attribute_encrypt
-    ]
-    scaling_attribute_decrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in scaling_attribute_decrypt
-    ]
-    scaling_attribute_decrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in scaling_attribute_decrypt
-    ]
-    # 2. Size of Ciphertext
-    scaling_attribute_ciphertext_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(CIPHERTEXT_BYTES)
-        for aggregation in scaling_attribute_encrypt
-    ]
-    scaling_attribute_ciphertext_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(CIPHERTEXT_BYTES)
-        )
-        for aggregation in scaling_attribute_encrypt
-    ]
-    # 3. Size of Stored Key
-    scaling_attribute_stored_key_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(STORED_KEY_BYTES)
-        for aggregation in scaling_attribute_decrypt
-    ]
-    scaling_attribute_stored_key_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(STORED_KEY_BYTES)
-        )
-        for aggregation in scaling_attribute_decrypt
-    ]
-    # 4. Iterations of Encrypt and Decrypt
-    scaling_attribute_encrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in scaling_attribute_encrypt
-    ]
-    scaling_attribute_decrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in scaling_attribute_decrypt
+def collect_energy_aggregations(
+    summary: BenchmarkSummary,
+    algorithm: str,
+    operation: str,
+    parameter: str,
+    parameter_values: list[int],
+) -> list[EnergyAggregation]:
+    matching = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.energy_aggregations
+        if aggregation.algorithm == algorithm
+        and aggregation.operation == operation
+        and aggregation.parameter == parameter
+    }
+    return [matching[parameter_value] for parameter_value in parameter_values]
+
+
+def collect_iterations(aggregations: list[TimingAggregation]) -> list[int]:
+    return [
+        sum(case.iterations for case in aggregation.cases)
+        for aggregation in aggregations
     ]
 
-    # Scaling Subscriber Calculations
-    # 1. Latency of Encrypt
-    scaling_subscriber_encrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in scaling_subscriber_encrypt
-    ]
-    scaling_subscriber_encrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in scaling_subscriber_encrypt
-    ]
-    # 2. Size of Ciphertext
-    # 2.1. Single ciphertext
-    scaling_subscriber_ciphertext_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(CIPHERTEXT_BYTES)
-        for aggregation in scaling_subscriber_encrypt
-    ]
-    scaling_subscriber_ciphertext_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(CIPHERTEXT_BYTES)
-        )
-        for aggregation in scaling_subscriber_encrypt
-    ]
-    # 2.2. Total ciphertext size
-    scaling_subscriber_total_ciphertext_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(TOTAL_CIPHERTEXT_BYTES)
-        for aggregation in scaling_subscriber_encrypt
-    ]
-    scaling_subscriber_total_ciphertext_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(TOTAL_CIPHERTEXT_BYTES)
-        )
-        for aggregation in scaling_subscriber_encrypt
-    ]
-    # 3. Iterations of Encrypt
-    scaling_subscriber_encrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in scaling_subscriber_encrypt
+
+def collect_timing_throttle_flags(
+    aggregations: list[TimingAggregation],
+) -> list[bool]:
+    return [
+        any(case.measurements[TIMING_THROTTLED] > 0 for case in aggregation.cases)
+        for aggregation in aggregations
     ]
 
-    # Key Scaling Calculations
-    # 1. Latency of Encrypt and Decrypt
-    scaling_key_encrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in scaling_key_encrypt
-    ]
-    scaling_key_encrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in scaling_key_encrypt
-    ]
-    scaling_key_decrypt_latency_list = [
-        None if aggregation.out_of_memory else aggregation.mean(NS_PER_OP)
-        for aggregation in scaling_key_decrypt
-    ]
-    scaling_key_decrypt_latency_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(NS_PER_OP)
-        )
-        for aggregation in scaling_key_decrypt
-    ]
-    # 2. Size of Ciphertext
-    scaling_key_ciphertext_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(CIPHERTEXT_BYTES)
-        for aggregation in scaling_key_encrypt
-    ]
-    scaling_key_ciphertext_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(CIPHERTEXT_BYTES)
-        )
-        for aggregation in scaling_key_encrypt
-    ]
-    # 3. Iterations of Encrypt and Decrypt
-    scaling_key_encrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in scaling_key_encrypt
-    ]
-    scaling_key_decrypt_iteration_list = [
-        None if aggregation.out_of_memory else aggregation.iterations
-        for aggregation in scaling_key_decrypt
+
+def collect_energy_throttle_flags(
+    aggregations: list[EnergyAggregation],
+) -> list[bool]:
+    return [
+        any(case.measurements[ENERGY_THROTTLED] > 0 for case in aggregation.cases)
+        for aggregation in aggregations
     ]
 
-    # Key Generation Calculations
-    # 1. Median, Minimum, Maximum, First Quartile, Third Quartile, IQR
-    scaling_key_generation_median_list = [
-        None if aggregation.out_of_memory else aggregation.median(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
-    scaling_key_generation_minimum_list = [
-        None if aggregation.out_of_memory else aggregation.minimum(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
-    scaling_key_generation_maximum_list = [
-        None if aggregation.out_of_memory else aggregation.maximum(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
-    scaling_key_generation_first_quartile_list = [
-        None if aggregation.out_of_memory else aggregation.first_quartile(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
-    scaling_key_generation_third_quartile_list = [
-        None if aggregation.out_of_memory else aggregation.third_quartile(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
-    scaling_key_generation_iqr_list = [
-        None if aggregation.out_of_memory else aggregation.iqr(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
-    # 2. Size of Stored Key
-    scaling_key_generation_stored_key_size_list = [
-        None if aggregation.out_of_memory else aggregation.mean(STORED_KEY_BYTES)
-        for aggregation in scaling_key_generation
-    ]
-    scaling_key_generation_stored_key_ci_list = [
-        (
-            None
-            if aggregation.out_of_memory
-            else aggregation.confidence_interval(STORED_KEY_BYTES)
-        )
-        for aggregation in scaling_key_generation
-    ]
-    # 3. Sample Count
-    scaling_key_generation_sample_count_list = [
-        None if aggregation.out_of_memory else aggregation.get_sample_count(NS_PER_OP)
-        for aggregation in scaling_key_generation
-    ]
 
-    return (
-        scaling_attribute_encrypt_latency_list,
-        scaling_attribute_encrypt_latency_ci_list,
-        scaling_attribute_decrypt_latency_list,
-        scaling_attribute_decrypt_latency_ci_list,
-        scaling_attribute_ciphertext_size_list,
-        scaling_attribute_ciphertext_ci_list,
-        scaling_attribute_stored_key_size_list,
-        scaling_attribute_stored_key_ci_list,
-        scaling_attribute_encrypt_iteration_list,
-        scaling_attribute_decrypt_iteration_list,
-        scaling_subscriber_encrypt_latency_list,
-        scaling_subscriber_encrypt_latency_ci_list,
-        scaling_subscriber_ciphertext_size_list,
-        scaling_subscriber_ciphertext_ci_list,
-        scaling_subscriber_total_ciphertext_size_list,
-        scaling_subscriber_total_ciphertext_ci_list,
-        scaling_subscriber_encrypt_iteration_list,
-        scaling_key_encrypt_latency_list,
-        scaling_key_encrypt_latency_ci_list,
-        scaling_key_decrypt_latency_list,
-        scaling_key_decrypt_latency_ci_list,
-        scaling_key_ciphertext_size_list,
-        scaling_key_ciphertext_ci_list,
-        scaling_key_encrypt_iteration_list,
-        scaling_key_decrypt_iteration_list,
-        scaling_key_generation_median_list,
-        scaling_key_generation_minimum_list,
-        scaling_key_generation_maximum_list,
-        scaling_key_generation_first_quartile_list,
-        scaling_key_generation_third_quartile_list,
-        scaling_key_generation_iqr_list,
-        scaling_key_generation_stored_key_size_list,
-        scaling_key_generation_stored_key_ci_list,
-        scaling_key_generation_sample_count_list,
+def to_microseconds(values: list[float]) -> list[float]:
+    return [value / NS_PER_MICROSECOND for value in values]
+
+
+def to_milliseconds(values: list[float]) -> list[float]:
+    return [value / NS_PER_MILLISECOND for value in values]
+
+
+def to_microjoules(values: list[float]) -> list[float]:
+    return [value * MICROJOULES_PER_JOULE for value in values]
+
+
+def to_megabytes(values: list[float]) -> list[float]:
+    return [value / MEGABYTE for value in values]
+
+
+def add_timing_measurement(
+    result: dict,
+    aggregations: list[TimingAggregation],
+    measurement: str,
+    name: str,
+) -> None:
+    means, confidence_intervals = timing_statistics(aggregations, measurement)
+    result[f"{name}_means"] = means
+    result[f"{name}_cis"] = confidence_intervals
+
+
+def analyze_case(
+    timing_aggregations: list[TimingAggregation],
+    energy_aggregations: list[EnergyAggregation],
+    energy_baseline_samples: list[EnergySample],
+) -> dict:
+    latency_means, latency_cis = timing_statistics(timing_aggregations, NS_PER_OP)
+    energy_means, energy_cis = energy_statistics(
+        energy_aggregations,
+        energy_baseline_samples,
     )
 
+    return {
+        "latency_means": to_microseconds(latency_means),
+        "latency_cis": to_microseconds(latency_cis),
+        "energy_means": to_microjoules(energy_means),
+        "energy_cis": to_microjoules(energy_cis),
+        "iterations": collect_iterations(timing_aggregations),
+        "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
+        "energy_throttled": collect_energy_throttle_flags(energy_aggregations),
+    }
 
-def analyze_memory_aggregations(
-    memory_baseline: CaseAggregation,
-    scaling_attribute_memory_encrypt: list[CaseAggregation],
-    scaling_attribute_memory_decrypt: list[CaseAggregation],
-    scaling_subscriber_memory_encrypt: list[CaseAggregation],
-    scaling_key_memory_encrypt: list[CaseAggregation],
-    scaling_key_memory_decrypt: list[CaseAggregation],
-    fixed_rsa_key_index: int,
-):
-    # Baseline Memory Calculations
-    baseline_memory = memory_baseline.mean(PEAK_RSS_BYTES)
-    baseline_memory_ci = memory_baseline.confidence_interval(PEAK_RSS_BYTES)
 
-    # Attribute Scaling Memory Calculations
-    # 1. Peak Memory of Encrypt and Decrypt
-    scaling_attribute_memory_encrypt_list = [
-        aggregation.mean(PEAK_RSS_BYTES)
-        for aggregation in scaling_attribute_memory_encrypt
-    ]
-    scaling_attribute_memory_encrypt_ci_list = [
-        aggregation.confidence_interval(PEAK_RSS_BYTES)
-        for aggregation in scaling_attribute_memory_encrypt
-    ]
-    scaling_attribute_memory_decrypt_list = [
-        aggregation.mean(PEAK_RSS_BYTES)
-        for aggregation in scaling_attribute_memory_decrypt
-    ]
-    scaling_attribute_memory_decrypt_ci_list = [
-        aggregation.confidence_interval(PEAK_RSS_BYTES)
-        for aggregation in scaling_attribute_memory_decrypt
-    ]
-    # 2. Sample Count
-    scaling_attribute_memory_sample_count_list = [
-        aggregation.get_sample_count(PEAK_RSS_BYTES)
-        for aggregation in scaling_attribute_memory_decrypt
-    ]
-
-    # Subscriber Scaling Memory Calculations
-    # 1. Peak Memory of Encrypt
-    scaling_subscriber_memory_encrypt_list = [
-        aggregation.mean(PEAK_RSS_BYTES)
-        for aggregation in scaling_subscriber_memory_encrypt
-    ]
-    scaling_subscriber_memory_encrypt_ci_list = [
-        aggregation.confidence_interval(PEAK_RSS_BYTES)
-        for aggregation in scaling_subscriber_memory_encrypt
-    ]
-    # 2. Sample Count
-    scaling_subscriber_memory_sample_count_list = [
-        aggregation.get_sample_count(PEAK_RSS_BYTES)
-        for aggregation in scaling_subscriber_memory_encrypt
-    ]
-
-    # Key Scaling Memory Calculations
-    # 1. Peak Memory of Encrypt and Decrypt
-    scaling_key_memory_encrypt_list = [
-        aggregation.mean(PEAK_RSS_BYTES) for aggregation in scaling_key_memory_encrypt
-    ]
-    scaling_key_memory_encrypt_ci_list = [
-        aggregation.confidence_interval(PEAK_RSS_BYTES)
-        for aggregation in scaling_key_memory_encrypt
-    ]
-    scaling_key_memory_decrypt_list = [
-        aggregation.mean(PEAK_RSS_BYTES) for aggregation in scaling_key_memory_decrypt
-    ]
-    scaling_key_memory_decrypt_ci_list = [
-        aggregation.confidence_interval(PEAK_RSS_BYTES)
-        for aggregation in scaling_key_memory_decrypt
-    ]
-    # 2. Sample Count
-    scaling_key_memory_sample_count_list = [
-        aggregation.get_sample_count(PEAK_RSS_BYTES)
-        for aggregation in scaling_key_memory_decrypt
-    ]
-
-    # TBD ----
-    scaling_subscriber_fixed_memory_decrypt = scaling_key_memory_decrypt[
-        fixed_rsa_key_index
-    ]
-    scaling_subscriber_memory_decrypt = (
-        None
-        if scaling_subscriber_fixed_memory_decrypt.out_of_memory
-        else scaling_subscriber_fixed_memory_decrypt.mean(PEAK_RSS_BYTES)
+def analyze_keygen_case(
+    timing_aggregations: list[TimingAggregation],
+    energy_aggregations: list[EnergyAggregation],
+    energy_baseline_samples: list[EnergySample],
+) -> dict:
+    result = analyze_case(
+        timing_aggregations,
+        energy_aggregations,
+        energy_baseline_samples,
     )
-    scaling_subscriber_memory_decrypt_ci = (
-        None
-        if scaling_subscriber_fixed_memory_decrypt.out_of_memory
-        else scaling_subscriber_fixed_memory_decrypt.confidence_interval(PEAK_RSS_BYTES)
+    (
+        medians,
+        minimums,
+        maximums,
+        first_quartiles,
+        third_quartiles,
+        interquartile_ranges,
+    ) = timing_distribution_statistics(timing_aggregations, NS_PER_OP)
+
+    result.update(
+        {
+            "medians": to_milliseconds(medians),
+            "minimums": to_milliseconds(minimums),
+            "maximums": to_milliseconds(maximums),
+            "first_quartiles": to_milliseconds(first_quartiles),
+            "third_quartiles": to_milliseconds(third_quartiles),
+            "iqrs": to_milliseconds(interquartile_ranges),
+            "sample_counts": [
+                len(aggregation.cases) for aggregation in timing_aggregations
+            ],
+        }
     )
-    # ----
-
-    return (
-        baseline_memory,
-        baseline_memory_ci,
-        scaling_attribute_memory_encrypt_list,
-        scaling_attribute_memory_encrypt_ci_list,
-        scaling_attribute_memory_decrypt_list,
-        scaling_attribute_memory_decrypt_ci_list,
-        scaling_attribute_memory_sample_count_list,
-        scaling_subscriber_memory_encrypt_list,
-        scaling_subscriber_memory_encrypt_ci_list,
-        scaling_subscriber_memory_sample_count_list,
-        scaling_key_memory_encrypt_list,
-        scaling_key_memory_encrypt_ci_list,
-        scaling_key_memory_decrypt_list,
-        scaling_key_memory_decrypt_ci_list,
-        scaling_key_memory_sample_count_list,
-        scaling_subscriber_memory_decrypt,
-        scaling_subscriber_memory_decrypt_ci,
-    )
+    add_timing_measurement(result, timing_aggregations, STORED_KEY_BYTES, "stored_key")
+    return result
 
 
-def fit_linear_regression(
-    x_values: list[float],
-    y_values: list[float],
-):
-    result = stats.linregress(x_values, y_values)
-
-    slope_ci = float(stats.t.ppf(0.975, len(x_values) - 2) * result.stderr)
-
-    return (
-        result.slope,
-        result.intercept,
-        result.rvalue**2,
-        slope_ci,
-    )
+def analyze_memory_case(aggregations: list[MemoryAggregation]) -> dict:
+    means, confidence_intervals = memory_statistics(aggregations, PEAK_RSS_BYTES)
+    return {
+        "means": to_megabytes(means),
+        "cis": to_megabytes(confidence_intervals),
+        "sample_counts": [len(aggregation.cases) for aggregation in aggregations],
+    }
 
 
-def obtain_fits(
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    scaling_attribute_encrypt_latency_list: list[float | None],
-    scaling_attribute_decrypt_latency_list: list[float | None],
-    scaling_attribute_ciphertext_size_list: list[float | None],
-    scaling_attribute_stored_key_size_list: list[float | None],
-    scaling_subscriber_encrypt_latency_list: list[float | None],
-):
-    # CP-ABE Encrypt Latency Fit
-    cpabe_encrypt_fit_x = [
-        attribute_count
-        for attribute_count, latency in zip(
-            attribute_counts,
-            scaling_attribute_encrypt_latency_list,
-            strict=True,
-        )
-        if latency is not None
-    ]
-    cpabe_encrypt_fit_y = [
-        latency
-        for latency in scaling_attribute_encrypt_latency_list
-        if latency is not None
-    ]
-    cpabe_encrypt_fit = (
-        None
-        if len(cpabe_encrypt_fit_x) < MINIMUM_FIT_POINTS
-        else fit_linear_regression(cpabe_encrypt_fit_x, cpabe_encrypt_fit_y)
-    )
-
-    # CP-ABE Decrypt Latency Fit
-    cpabe_decrypt_fit_x = [
-        attribute_count
-        for attribute_count, latency in zip(
-            attribute_counts,
-            scaling_attribute_decrypt_latency_list,
-            strict=True,
-        )
-        if latency is not None
-    ]
-    cpabe_decrypt_fit_y = [
-        latency
-        for latency in scaling_attribute_decrypt_latency_list
-        if latency is not None
-    ]
-    cpabe_decrypt_fit = (
-        None
-        if len(cpabe_decrypt_fit_x) < MINIMUM_FIT_POINTS
-        else fit_linear_regression(cpabe_decrypt_fit_x, cpabe_decrypt_fit_y)
-    )
-
-    # CP-ABE Ciphertext Size Fit
-    cpabe_ciphertext_fit_x = [
-        attribute_count
-        for attribute_count, ciphertext_size in zip(
-            attribute_counts,
-            scaling_attribute_ciphertext_size_list,
-            strict=True,
-        )
-        if ciphertext_size is not None
-    ]
-    cpabe_ciphertext_fit_y = [
-        ciphertext_size
-        for ciphertext_size in scaling_attribute_ciphertext_size_list
-        if ciphertext_size is not None
-    ]
-    cpabe_ciphertext_fit = (
-        None
-        if len(cpabe_ciphertext_fit_x) < MINIMUM_FIT_POINTS
-        else fit_linear_regression(cpabe_ciphertext_fit_x, cpabe_ciphertext_fit_y)
-    )
-
-    # CP-ABE Stored Key Size Fit
-    cpabe_stored_key_fit_x = [
-        attribute_count
-        for attribute_count, stored_key_size in zip(
-            attribute_counts,
-            scaling_attribute_stored_key_size_list,
-            strict=True,
-        )
-        if stored_key_size is not None
-    ]
-    cpabe_stored_key_fit_y = [
-        stored_key_size
-        for stored_key_size in scaling_attribute_stored_key_size_list
-        if stored_key_size is not None
-    ]
-    cpabe_stored_key_fit = (
-        None
-        if len(cpabe_stored_key_fit_x) < MINIMUM_FIT_POINTS
-        else fit_linear_regression(cpabe_stored_key_fit_x, cpabe_stored_key_fit_y)
-    )
-
-    # RSA Subscriber Encrypt Latency Fit
-    subscriber_encrypt_fit_x = [
-        subscriber_count
-        for subscriber_count, latency in zip(
-            subscriber_counts,
-            scaling_subscriber_encrypt_latency_list,
-            strict=True,
-        )
-        if latency is not None
-    ]
-    subscriber_encrypt_fit_y = [
-        latency
-        for latency in scaling_subscriber_encrypt_latency_list
-        if latency is not None
-    ]
-    subscriber_encrypt_fit = (
-        None
-        if len(subscriber_encrypt_fit_x) < MINIMUM_FIT_POINTS
-        else fit_linear_regression(subscriber_encrypt_fit_x, subscriber_encrypt_fit_y)
-    )
-
-    return (
-        cpabe_encrypt_fit,
-        cpabe_decrypt_fit,
-        cpabe_ciphertext_fit,
-        cpabe_stored_key_fit,
-        subscriber_encrypt_fit,
-    )
+def memory_change(values: list[float]) -> dict:
+    first = values[0]
+    last = values[-1]
+    return {
+        "first": first,
+        "last": last,
+        "absolute_change": last - first,
+        "percent_change": (last / first - 1.0) * 100.0,
+    }
 
 
-def obtain_crossovers(
-    scaling_attribute_ciphertext_size_list: list[float | None],
-    scaling_subscriber_ciphertext_size_list: list[float | None],
-    scaling_attribute_encrypt_latency_list: list[float | None],
-    scaling_attribute_decrypt_latency_list: list[float | None],
-    scaling_subscriber_fixed_decrypt_latency: float | None,
-    subscriber_encrypt_fit: tuple[float, float, float, float] | None,
-):
-    # Calculate Ciphertext Crossover
-    # 1. Take any ciphertext size from the subscriber sweep, since it is constant across all subscriber counts
-    bytes_per_subscriber = scaling_subscriber_ciphertext_size_list[0]
-
-    # 2. Take the lowest and highest ciphertext sizes from the attribute sweep
-    cpabe_low_ciphertext = scaling_attribute_ciphertext_size_list[0]
-    cpabe_high_ciphertext = scaling_attribute_ciphertext_size_list[-1]
-
-    # 3. Check we do not have null values due to OOM
-    if (
-        bytes_per_subscriber is not None
-        and cpabe_low_ciphertext is not None
-        and cpabe_high_ciphertext is not None
-    ):
-        # 4. How many equal sized RSA ciphertexts fit into the CP-ABE ciphertext?
-        # - Lower Bound
-        ciphertext_crossover_low = cpabe_low_ciphertext / bytes_per_subscriber
-
-        # - Upper Bound
-        ciphertext_crossover_high = cpabe_high_ciphertext / bytes_per_subscriber
-    else:
-        ciphertext_crossover_low = None
-        ciphertext_crossover_high = None
-
-    # Calculate Encrypt Latency Crossover
-    # 1. Take lowest and highest encrypt latencies from the attribute sweep
-    cpabe_low_encrypt_latency = scaling_attribute_encrypt_latency_list[0]
-    cpabe_high_encrypt_latency = scaling_attribute_encrypt_latency_list[-1]
-
-    # 2. Check we do not have null values due to OOM
-    if (
-        subscriber_encrypt_fit is not None
-        and cpabe_low_encrypt_latency is not None
-        and cpabe_high_encrypt_latency is not None
-    ):
-        # 3. At what subscriber count does RSA latency equal this CP-ABE latency?
-        # - Lower Bound
-        latency_crossover_low = (
-            cpabe_low_encrypt_latency - subscriber_encrypt_fit[1]
-        ) / subscriber_encrypt_fit[0]
-
-        # - Upper Bound
-        latency_crossover_high = (
-            cpabe_high_encrypt_latency - subscriber_encrypt_fit[1]
-        ) / subscriber_encrypt_fit[0]
-    else:
-        latency_crossover_low = None
-        latency_crossover_high = None
-
-    # Calculate Decrypt Latency Penalty
-    # 1. Take lowest and highest decrypt latencies from the attribute sweep
-    cpabe_low_decrypt_latency = scaling_attribute_decrypt_latency_list[0]
-    cpabe_high_decrypt_latency = scaling_attribute_decrypt_latency_list[-1]
-
-    # 2. Check we do not have null values due to OOM
-    if scaling_subscriber_fixed_decrypt_latency is None:
-        decrypt_penalty_low = None
-        decrypt_penalty_high = None
-    else:
-        # 3. How many times slower is CP-ABE decrypt than RSA decrypt?
-        # - Lower Bound
-        decrypt_penalty_low = (
-            None
-            if cpabe_low_decrypt_latency is None
-            else cpabe_low_decrypt_latency / scaling_subscriber_fixed_decrypt_latency
-        )
-
-        # - Upper Bound
-        decrypt_penalty_high = (
-            None
-            if cpabe_high_decrypt_latency is None
-            else cpabe_high_decrypt_latency / scaling_subscriber_fixed_decrypt_latency
-        )
-
-    return (
-        bytes_per_subscriber,
-        cpabe_low_ciphertext,
-        cpabe_high_ciphertext,
-        ciphertext_crossover_low,
-        ciphertext_crossover_high,
-        cpabe_low_encrypt_latency,
-        cpabe_high_encrypt_latency,
-        latency_crossover_low,
-        latency_crossover_high,
-        decrypt_penalty_low,
-        decrypt_penalty_high,
-    )
-
-
-def obtain_rss_change(
-    scaling_attribute_memory_encrypt_list: list[float],
-    scaling_attribute_memory_decrypt_list: list[float],
-    scaling_subscriber_memory_encrypt_list: list[float],
-    scaling_key_memory_encrypt_list: list[float],
-    scaling_key_memory_decrypt_list: list[float],
-):
-    # Peak Memory Change Calculations
-
-    # CP-ABE Encrypt
-    cpabe_encrypt_memory_first = scaling_attribute_memory_encrypt_list[0]
-    cpabe_encrypt_memory_last = scaling_attribute_memory_encrypt_list[-1]
-    cpabe_encrypt_memory_absolute_change = (
-        cpabe_encrypt_memory_last - cpabe_encrypt_memory_first
-    )
-    cpabe_encrypt_memory_percent_change = (
-        cpabe_encrypt_memory_last / cpabe_encrypt_memory_first - 1
-    ) * 100.0
-
-    # CP-ABE Decrypt
-    cpabe_decrypt_memory_first = scaling_attribute_memory_decrypt_list[0]
-    cpabe_decrypt_memory_last = scaling_attribute_memory_decrypt_list[-1]
-    cpabe_decrypt_memory_absolute_change = (
-        cpabe_decrypt_memory_last - cpabe_decrypt_memory_first
-    )
-    cpabe_decrypt_memory_percent_change = (
-        cpabe_decrypt_memory_last / cpabe_decrypt_memory_first - 1
-    ) * 100.0
-
-    # RSA Subscriber Encrypt
-    subscriber_encrypt_memory_first = scaling_subscriber_memory_encrypt_list[0]
-    subscriber_encrypt_memory_last = scaling_subscriber_memory_encrypt_list[-1]
-    subscriber_encrypt_memory_absolute_change = (
-        subscriber_encrypt_memory_last - subscriber_encrypt_memory_first
-    )
-    subscriber_encrypt_memory_percent_change = (
-        subscriber_encrypt_memory_last / subscriber_encrypt_memory_first - 1
-    ) * 100.0
-
-    # RSA Key Size Encrypt
-    rsa_encrypt_memory_first = scaling_key_memory_encrypt_list[0]
-    rsa_encrypt_memory_last = scaling_key_memory_encrypt_list[-1]
-    rsa_encrypt_memory_absolute_change = (
-        rsa_encrypt_memory_last - rsa_encrypt_memory_first
-    )
-    rsa_encrypt_memory_percent_change = (
-        rsa_encrypt_memory_last / rsa_encrypt_memory_first - 1
-    ) * 100.0
-
-    # RSA Key Size Decrypt
-    rsa_decrypt_memory_first = scaling_key_memory_decrypt_list[0]
-    rsa_decrypt_memory_last = scaling_key_memory_decrypt_list[-1]
-    rsa_decrypt_memory_absolute_change = (
-        rsa_decrypt_memory_last - rsa_decrypt_memory_first
-    )
-    rsa_decrypt_memory_percent_change = (
-        rsa_decrypt_memory_last / rsa_decrypt_memory_first - 1
-    ) * 100.0
-
-    return (
-        cpabe_encrypt_memory_first,
-        cpabe_encrypt_memory_last,
-        cpabe_encrypt_memory_absolute_change,
-        cpabe_encrypt_memory_percent_change,
-        cpabe_decrypt_memory_first,
-        cpabe_decrypt_memory_last,
-        cpabe_decrypt_memory_absolute_change,
-        cpabe_decrypt_memory_percent_change,
-        subscriber_encrypt_memory_first,
-        subscriber_encrypt_memory_last,
-        subscriber_encrypt_memory_absolute_change,
-        subscriber_encrypt_memory_percent_change,
-        rsa_encrypt_memory_first,
-        rsa_encrypt_memory_last,
-        rsa_encrypt_memory_absolute_change,
-        rsa_encrypt_memory_percent_change,
-        rsa_decrypt_memory_first,
-        rsa_decrypt_memory_last,
-        rsa_decrypt_memory_absolute_change,
-        rsa_decrypt_memory_percent_change,
-    )
+def slower_operation(
+    encrypt_latency: float, decrypt_latency: float
+) -> tuple[str, float]:
+    if encrypt_latency >= decrypt_latency:
+        return "Encrypt", encrypt_latency / decrypt_latency
+    return "Decrypt", decrypt_latency / encrypt_latency
 
 
 def main() -> None:
-    timing_runs = parse_int_env("ATTRIBUTE_KEY_SCALING_RUNS")
+    load_dotenv(ENVIRONMENT_FILE, override=True)
+
+    runs = parse_int_env("ATTRIBUTE_KEY_SCALING_RUNS")
     attribute_counts = parse_int_list_env("ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT")
     subscriber_counts = parse_int_list_env("ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT")
-    rsa_key_sizes = parse_int_list_env("ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES")
-    fixed_rsa_key_size = parse_int_env("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
+    rsa_key_bits = parse_int_list_env("ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES")
+    fixed_rsa_key_bits = parse_int_env("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
+    warmup_duration = parse_int_env("WARMUP_DURATION")
+    measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
-    result_dir = Path(
-        os.environ.get(
-            "ATTRIBUTE_KEY_SCALING_RESULT_DIR", f"{DEFAULT_RESULT_ROOT}/{SCENARIO}"
+    result_directory = PROJECT_ROOT / os.environ["ATTRIBUTE_KEY_SCALING_RESULT_DIR"]
+    template_path = Path(TEMPLATE_DIR) / REPORT_TEMPLATE_NAME
+    report_path = result_directory / REPORT_NAME
+
+    summary = load_summary(
+        timing_filepath=str(result_directory / TIMING_RESULT_NAME),
+        memory_filepath=str(result_directory / MEMORY_RESULT_NAME),
+        energy_filepath=str(result_directory / ENERGY_RESULT_NAME),
+        case_prefix=BENCHMARK_PREFIX,
+        parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
+        warmup_duration=warmup_duration,
+        measurement_duration=measurement_duration,
+    )
+
+    parameter_values_by_algorithm = {
+        CPABE_ATTRIBUTES: attribute_counts,
+        RSA_SUBSCRIBERS: subscriber_counts,
+        RSA_KEY_BITS: rsa_key_bits,
+    }
+    case_order = (
+        (CPABE_ATTRIBUTES, "Encrypt"),
+        (CPABE_ATTRIBUTES, "Decrypt"),
+        (RSA_SUBSCRIBERS, "Encrypt"),
+        (RSA_KEY_BITS, "Encrypt"),
+        (RSA_KEY_BITS, "Decrypt"),
+        (RSA_KEY_BITS, "KeyGen"),
+    )
+
+    case_results = {}
+    for algorithm, operation in case_order:
+        parameter = PARAMETER_BY_ALGORITHM[algorithm]
+        parameter_values = parameter_values_by_algorithm[algorithm]
+        timing_aggregations = collect_timing_aggregations(
+            summary,
+            algorithm,
+            operation,
+            parameter,
+            parameter_values,
         )
-    )
-    bench_output = result_dir / BENCH_OUTPUT_NAME
-    memory_output = result_dir / MEMORY_OUTPUT_NAME
-    case_status = result_dir / CASE_STATUS_NAME
-    template_path = Path(TEMPLATE_DIR) / TEMPLATE_NAME
-    report_path = result_dir / REPORT_NAME
-
-    results = BenchmarkSummary()
-    load_results(results, str(bench_output), BENCHMARK_PREFIX)
-    load_results(results, str(memory_output), BENCHMARK_PREFIX)
-    load_out_of_memory_status(results, str(case_status))
-
-    min_attributes = attribute_counts[0]
-    max_attributes = attribute_counts[-1]
-
-    # Timing Aggregations
-    (
-        scaling_attribute_encrypt,
-        scaling_attribute_decrypt,
-        scaling_subscriber_encrypt,
-        scaling_key_encrypt,
-        scaling_key_decrypt,
-        scaling_key_generation,
-    ) = collect_timing_aggregations(
-        results,
-        attribute_counts,
-        subscriber_counts,
-        rsa_key_sizes,
-    )
-
-    # Memory Aggregations
-    (
-        memory_baseline,
-        scaling_attribute_memory_encrypt,
-        scaling_attribute_memory_decrypt,
-        scaling_subscriber_memory_encrypt,
-        scaling_key_memory_encrypt,
-        scaling_key_memory_decrypt,
-    ) = collect_memory_aggregations(
-        results,
-        attribute_counts,
-        subscriber_counts,
-        rsa_key_sizes,
-    )
-
-    # If OOM happened in Memory Aggregations, halt report
-    assert not any(
-        aggregation.out_of_memory
-        for aggregations in (
-            scaling_attribute_memory_encrypt,
-            scaling_attribute_memory_decrypt,
-            scaling_subscriber_memory_encrypt,
-            scaling_key_memory_encrypt,
-            scaling_key_memory_decrypt,
+        energy_aggregations = collect_energy_aggregations(
+            summary,
+            algorithm,
+            operation,
+            parameter,
+            parameter_values,
         )
-        for aggregation in aggregations
+
+        if operation == "KeyGen":
+            result = analyze_keygen_case(
+                timing_aggregations,
+                energy_aggregations,
+                summary.energy_baseline_samples,
+            )
+        else:
+            result = analyze_case(
+                timing_aggregations,
+                energy_aggregations,
+                summary.energy_baseline_samples,
+            )
+
+        if (algorithm, operation) in (
+            (CPABE_ATTRIBUTES, "Encrypt"),
+            (RSA_SUBSCRIBERS, "Encrypt"),
+            (RSA_KEY_BITS, "Encrypt"),
+        ):
+            add_timing_measurement(
+                result, timing_aggregations, CIPHERTEXT_BYTES, "ciphertext"
+            )
+        if (algorithm, operation) == (RSA_SUBSCRIBERS, "Encrypt"):
+            add_timing_measurement(
+                result,
+                timing_aggregations,
+                TOTAL_CIPHERTEXT_BYTES,
+                "total_ciphertext",
+            )
+        if (algorithm, operation) == (CPABE_ATTRIBUTES, "Decrypt"):
+            add_timing_measurement(
+                result, timing_aggregations, STORED_KEY_BYTES, "stored_key"
+            )
+
+        case_results[(algorithm, operation)] = result
+
+    baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
+        summary.memory_baseline_cases,
+        PEAK_RSS_BYTES,
     )
 
-    # Obtain Timing Aggregation Analysis
-    (
-        scaling_attribute_encrypt_latency_list,
-        scaling_attribute_encrypt_latency_ci_list,
-        scaling_attribute_decrypt_latency_list,
-        scaling_attribute_decrypt_latency_ci_list,
-        scaling_attribute_ciphertext_size_list,
-        scaling_attribute_ciphertext_ci_list,
-        scaling_attribute_stored_key_size_list,
-        scaling_attribute_stored_key_ci_list,
-        scaling_attribute_encrypt_iteration_list,
-        scaling_attribute_decrypt_iteration_list,
-        scaling_subscriber_encrypt_latency_list,
-        scaling_subscriber_encrypt_latency_ci_list,
-        scaling_subscriber_ciphertext_size_list,
-        scaling_subscriber_ciphertext_ci_list,
-        scaling_subscriber_total_ciphertext_size_list,
-        scaling_subscriber_total_ciphertext_ci_list,
-        scaling_subscriber_encrypt_iteration_list,
-        scaling_key_encrypt_latency_list,
-        scaling_key_encrypt_latency_ci_list,
-        scaling_key_decrypt_latency_list,
-        scaling_key_decrypt_latency_ci_list,
-        scaling_key_ciphertext_size_list,
-        scaling_key_ciphertext_ci_list,
-        scaling_key_encrypt_iteration_list,
-        scaling_key_decrypt_iteration_list,
-        scaling_key_generation_median_list,
-        scaling_key_generation_minimum_list,
-        scaling_key_generation_maximum_list,
-        scaling_key_generation_first_quartile_list,
-        scaling_key_generation_third_quartile_list,
-        scaling_key_generation_iqr_list,
-        scaling_key_generation_stored_key_size_list,
-        scaling_key_generation_stored_key_ci_list,
-        scaling_key_generation_sample_count_list,
-    ) = analyze_timing_aggregations(
-        scaling_attribute_encrypt,
-        scaling_attribute_decrypt,
-        scaling_subscriber_encrypt,
-        scaling_key_encrypt,
-        scaling_key_decrypt,
-        scaling_key_generation,
+    memory_results = {}
+    memory_order = (
+        (CPABE_ATTRIBUTES, "Encrypt"),
+        (CPABE_ATTRIBUTES, "Decrypt"),
+        (RSA_SUBSCRIBERS, "Encrypt"),
+        (RSA_KEY_BITS, "Encrypt"),
+        (RSA_KEY_BITS, "Decrypt"),
     )
+    for algorithm, operation in memory_order:
+        aggregations = collect_memory_aggregations(
+            summary,
+            algorithm,
+            f"Memory{operation}",
+            PARAMETER_BY_ALGORITHM[algorithm],
+            parameter_values_by_algorithm[algorithm],
+        )
+        memory_results[(algorithm, operation)] = analyze_memory_case(aggregations)
 
-    # Instead of having a decrypt sweep based on subscriber count in RSA,
-    # we use the already calculated decrypt latency from the key scaling sweep
-    fixed_rsa_key_index = rsa_key_sizes.index(fixed_rsa_key_size)
-    rsa_decrypt_reference = scaling_key_decrypt[fixed_rsa_key_index]
-    scaling_subscriber_fixed_decrypt_latency = (
-        None
-        if rsa_decrypt_reference.out_of_memory
-        else rsa_decrypt_reference.mean(NS_PER_OP)
-    )
-
-    # Fit Linear Regression
-    (
-        cpabe_encrypt_fit,
-        cpabe_decrypt_fit,
-        cpabe_ciphertext_fit,
-        cpabe_stored_key_fit,
-        subscriber_encrypt_fit,
-    ) = obtain_fits(
-        attribute_counts,
-        subscriber_counts,
-        scaling_attribute_encrypt_latency_list,
-        scaling_attribute_decrypt_latency_list,
-        scaling_attribute_ciphertext_size_list,
-        scaling_attribute_stored_key_size_list,
-        scaling_subscriber_encrypt_latency_list,
-    )
-
-    # Obtain Crossovers and Penalties
-    (
-        bytes_per_subscriber,
-        cpabe_low_ciphertext,
-        cpabe_high_ciphertext,
-        ciphertext_crossover_low,
-        ciphertext_crossover_high,
-        cpabe_low_encrypt_latency,
-        cpabe_high_encrypt_latency,
-        latency_crossover_low,
-        latency_crossover_high,
-        decrypt_penalty_low,
-        decrypt_penalty_high,
-    ) = obtain_crossovers(
-        scaling_attribute_ciphertext_size_list,
-        scaling_subscriber_ciphertext_size_list,
-        scaling_attribute_encrypt_latency_list,
-        scaling_attribute_decrypt_latency_list,
-        scaling_subscriber_fixed_decrypt_latency,
-        subscriber_encrypt_fit,
-    )
-
-    # Analyze Memory Aggregations
-    (
-        baseline_memory,
-        baseline_memory_ci,
-        scaling_attribute_memory_encrypt_list,
-        scaling_attribute_memory_encrypt_ci_list,
-        scaling_attribute_memory_decrypt_list,
-        scaling_attribute_memory_decrypt_ci_list,
-        scaling_attribute_memory_sample_count_list,
-        scaling_subscriber_memory_encrypt_list,
-        scaling_subscriber_memory_encrypt_ci_list,
-        scaling_subscriber_memory_sample_count_list,
-        scaling_key_memory_encrypt_list,
-        scaling_key_memory_encrypt_ci_list,
-        scaling_key_memory_decrypt_list,
-        scaling_key_memory_decrypt_ci_list,
-        scaling_key_memory_sample_count_list,
-        scaling_subscriber_memory_decrypt,
-        scaling_subscriber_memory_decrypt_ci,
-    ) = analyze_memory_aggregations(
-        memory_baseline,
-        scaling_attribute_memory_encrypt,
-        scaling_attribute_memory_decrypt,
-        scaling_subscriber_memory_encrypt,
-        scaling_key_memory_encrypt,
-        scaling_key_memory_decrypt,
-        fixed_rsa_key_index,
-    )
-
-    # Calculate RSS Change
-    (
-        cpabe_encrypt_memory_first,
-        cpabe_encrypt_memory_last,
-        cpabe_encrypt_memory_absolute_change,
-        cpabe_encrypt_memory_percent_change,
-        cpabe_decrypt_memory_first,
-        cpabe_decrypt_memory_last,
-        cpabe_decrypt_memory_absolute_change,
-        cpabe_decrypt_memory_percent_change,
-        subscriber_encrypt_memory_first,
-        subscriber_encrypt_memory_last,
-        subscriber_encrypt_memory_absolute_change,
-        subscriber_encrypt_memory_percent_change,
-        rsa_encrypt_memory_first,
-        rsa_encrypt_memory_last,
-        rsa_encrypt_memory_absolute_change,
-        rsa_encrypt_memory_percent_change,
-        rsa_decrypt_memory_first,
-        rsa_decrypt_memory_last,
-        rsa_decrypt_memory_absolute_change,
-        rsa_decrypt_memory_percent_change,
-    ) = obtain_rss_change(
-        scaling_attribute_memory_encrypt_list,
-        scaling_attribute_memory_decrypt_list,
-        scaling_subscriber_memory_encrypt_list,
-        scaling_key_memory_encrypt_list,
-        scaling_key_memory_decrypt_list,
-    )
-
-    timing_iterations = sum(
-        aggregation.iterations
-        for aggregation in results.aggregations
-        if aggregation.operation in ("Encrypt", "Decrypt", "KeyGen")
-        and not aggregation.out_of_memory
-    )
-    out_of_memory_aggregations = [
-        aggregation for aggregation in results.aggregations if aggregation.out_of_memory
+    fixed_rsa_index = rsa_key_bits.index(fixed_rsa_key_bits)
+    fixed_rsa_decrypt_latency = case_results[(RSA_KEY_BITS, "Decrypt")][
+        "latency_means"
+    ][fixed_rsa_index]
+    fixed_rsa_decrypt_memory = memory_results[(RSA_KEY_BITS, "Decrypt")]["means"][
+        fixed_rsa_index
+    ]
+    fixed_rsa_decrypt_memory_ci = memory_results[(RSA_KEY_BITS, "Decrypt")]["cis"][
+        fixed_rsa_index
     ]
 
-    # Draw Scaling Attribute Plots
-    plot_cpabe_attribute_sweep(
-        attribute_counts,
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_encrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_encrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_decrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_decrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_attribute_ciphertext_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_attribute_ciphertext_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_attribute_stored_key_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_attribute_stored_key_ci_list
-        ],
-        str(result_dir / CPABE_PLOT),
-    )
-
-    # Draw Scaling Subscriber Plots
-    plot_rsa_subscriber_sweep(
-        subscriber_counts,
-        fixed_rsa_key_size,
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_subscriber_encrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_subscriber_encrypt_latency_ci_list
-        ],
-        (
-            None
-            if scaling_subscriber_fixed_decrypt_latency is None
-            else scaling_subscriber_fixed_decrypt_latency / NS_PER_MICROSECOND
-        ),
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_subscriber_ciphertext_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_subscriber_ciphertext_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_subscriber_total_ciphertext_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_subscriber_total_ciphertext_ci_list
-        ],
-        str(result_dir / RSA_SUBSCRIBERS_PLOT),
-    )
-
-    # Draw Scaling Key Size Plots
-    plot_rsa_key_size_sweep(
-        rsa_key_sizes,
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_median_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_minimum_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_maximum_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_first_quartile_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_third_quartile_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_encrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_encrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_decrypt_latency_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_decrypt_latency_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_key_ciphertext_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_key_ciphertext_ci_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_key_generation_stored_key_size_list
-        ],
-        [
-            NO_MEASUREMENT if value is None else value
-            for value in scaling_key_generation_stored_key_ci_list
-        ],
-        str(result_dir / RSA_KEY_BITS_PLOT),
-    )
-
-    # Draw Ciphertext Crossover Plot
-    if (
-        ciphertext_crossover_low is not None
-        and ciphertext_crossover_high is not None
-        and cpabe_low_ciphertext is not None
-        and cpabe_high_ciphertext is not None
-    ):
-        plot_ciphertext_size_crossover(
-            subscriber_counts,
-            [
-                NO_MEASUREMENT if value is None else value
-                for value in scaling_subscriber_total_ciphertext_size_list
-            ],
-            [
-                NO_MEASUREMENT if value is None else value
-                for value in scaling_subscriber_total_ciphertext_ci_list
-            ],
-            min_attributes,
-            cpabe_low_ciphertext,
-            ciphertext_crossover_low,
-            max_attributes,
-            cpabe_high_ciphertext,
-            ciphertext_crossover_high,
-            str(result_dir / CIPHERTEXT_SIZE_CROSSOVER_PLOT),
-        )
-        bandwidth_crossover_plot = CIPHERTEXT_SIZE_CROSSOVER_PLOT
-    else:
-        bandwidth_crossover_plot = None
-
-    # Encrypt latency crossover plot
-    if (
-        subscriber_encrypt_fit is not None
-        and latency_crossover_low is not None
-        and latency_crossover_high is not None
-        and cpabe_low_encrypt_latency is not None
-        and cpabe_high_encrypt_latency is not None
-    ):
-        projection_start_subscribers = float(subscriber_counts[-1])
-        projection_end_subscribers = latency_crossover_high * 1.15
-        projection_start_latency = (
-            subscriber_encrypt_fit[1]
-            + subscriber_encrypt_fit[0] * projection_start_subscribers
-        )
-        projection_end_latency = (
-            subscriber_encrypt_fit[1]
-            + subscriber_encrypt_fit[0] * projection_end_subscribers
-        )
-        plot_encrypt_latency_crossover(
-            subscriber_counts,
-            [
-                NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-                for value in scaling_subscriber_encrypt_latency_list
-            ],
-            [
-                NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-                for value in scaling_subscriber_encrypt_latency_ci_list
-            ],
-            projection_start_subscribers,
-            projection_start_latency / NS_PER_MICROSECOND,
-            projection_end_subscribers,
-            projection_end_latency / NS_PER_MICROSECOND,
-            min_attributes,
-            cpabe_low_encrypt_latency / NS_PER_MICROSECOND,
-            latency_crossover_low,
-            max_attributes,
-            cpabe_high_encrypt_latency / NS_PER_MICROSECOND,
-            latency_crossover_high,
-            str(result_dir / ENCRYPT_LATENCY_CROSSOVER_PLOT),
-        )
-        encrypt_crossover_plot = ENCRYPT_LATENCY_CROSSOVER_PLOT
-    else:
-        encrypt_crossover_plot = None
-
-    decrypt_crossover_available = any(
-        value is not None for value in scaling_key_decrypt_latency_list
-    ) and any(value is not None for value in scaling_attribute_decrypt_latency_list)
-    if decrypt_crossover_available:
-        plot_decrypt_latency_crossover(
+    regressions = {
+        "cpabe_encrypt": linear_regression_statistics(
             attribute_counts,
-            [
-                NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-                for value in scaling_attribute_decrypt_latency_list
-            ],
-            [
-                NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-                for value in scaling_attribute_decrypt_latency_ci_list
-            ],
-            rsa_key_sizes,
-            [
-                NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-                for value in scaling_key_decrypt_latency_list
-            ],
-            [
-                NO_MEASUREMENT if value is None else value / NS_PER_MICROSECOND
-                for value in scaling_key_decrypt_latency_ci_list
-            ],
-            str(result_dir / DECRYPT_LATENCY_CROSSOVER_PLOT),
-        )
+            case_results[(CPABE_ATTRIBUTES, "Encrypt")]["latency_means"],
+        ),
+        "cpabe_decrypt": linear_regression_statistics(
+            attribute_counts,
+            case_results[(CPABE_ATTRIBUTES, "Decrypt")]["latency_means"],
+        ),
+        "cpabe_ciphertext": linear_regression_statistics(
+            attribute_counts,
+            case_results[(CPABE_ATTRIBUTES, "Encrypt")]["ciphertext_means"],
+        ),
+        "cpabe_stored_key": linear_regression_statistics(
+            attribute_counts,
+            case_results[(CPABE_ATTRIBUTES, "Decrypt")]["stored_key_means"],
+        ),
+        "subscriber_encrypt": linear_regression_statistics(
+            subscriber_counts,
+            case_results[(RSA_SUBSCRIBERS, "Encrypt")]["latency_means"],
+        ),
+    }
 
-        decrypt_crossover_plot = DECRYPT_LATENCY_CROSSOVER_PLOT
-    else:
-        decrypt_crossover_plot = None
+    cpabe_encrypt = case_results[(CPABE_ATTRIBUTES, "Encrypt")]
+    cpabe_decrypt = case_results[(CPABE_ATTRIBUTES, "Decrypt")]
+    subscriber_encrypt = case_results[(RSA_SUBSCRIBERS, "Encrypt")]
+    rsa_encrypt = case_results[(RSA_KEY_BITS, "Encrypt")]
+    rsa_decrypt = case_results[(RSA_KEY_BITS, "Decrypt")]
 
-    # Encrypt/decrypt asymmetry plot
-    rsa_encrypt_reference = scaling_key_encrypt[fixed_rsa_key_index]
-    cpabe_min_encrypt = scaling_attribute_encrypt[0]
-    cpabe_min_decrypt = scaling_attribute_decrypt[0]
+    bytes_per_subscriber = subscriber_encrypt["ciphertext_means"][0]
+    bytes_crossover_low = cpabe_encrypt["ciphertext_means"][0] / bytes_per_subscriber
+    bytes_crossover_high = cpabe_encrypt["ciphertext_means"][-1] / bytes_per_subscriber
 
-    asymmetry_available = not any(
-        aggregation.out_of_memory
-        for aggregation in (
-            rsa_encrypt_reference,
-            rsa_decrypt_reference,
-            cpabe_min_encrypt,
-            cpabe_min_decrypt,
-        )
+    subscriber_slope, subscriber_intercept, _, _ = regressions["subscriber_encrypt"]
+    latency_crossover_low = (
+        cpabe_encrypt["latency_means"][0] - subscriber_intercept
+    ) / subscriber_slope
+    latency_crossover_high = (
+        cpabe_encrypt["latency_means"][-1] - subscriber_intercept
+    ) / subscriber_slope
+
+    decrypt_penalty_low = cpabe_decrypt["latency_means"][0] / fixed_rsa_decrypt_latency
+    decrypt_penalty_high = (
+        cpabe_decrypt["latency_means"][-1] / fixed_rsa_decrypt_latency
     )
 
-    if asymmetry_available:
-        rsa_encrypt_micros = rsa_encrypt_reference.mean(NS_PER_OP) / NS_PER_MICROSECOND
-        rsa_decrypt_micros = rsa_decrypt_reference.mean(NS_PER_OP) / NS_PER_MICROSECOND
-        cpabe_encrypt_micros = cpabe_min_encrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND
-        cpabe_decrypt_micros = cpabe_min_decrypt.mean(NS_PER_OP) / NS_PER_MICROSECOND
+    rsa_slower_operation, rsa_ratio = slower_operation(
+        rsa_encrypt["latency_means"][fixed_rsa_index],
+        fixed_rsa_decrypt_latency,
+    )
+    cpabe_slower_operation, cpabe_ratio = slower_operation(
+        cpabe_encrypt["latency_means"][0],
+        cpabe_decrypt["latency_means"][0],
+    )
 
-        if rsa_encrypt_micros >= rsa_decrypt_micros:
-            rsa_slower_operation = "Encrypt"
-            rsa_ratio = rsa_encrypt_micros / rsa_decrypt_micros
-        else:
-            rsa_slower_operation = "Decrypt"
-            rsa_ratio = rsa_decrypt_micros / rsa_encrypt_micros
+    memory_changes = {
+        "cpabe_encrypt": memory_change(
+            memory_results[(CPABE_ATTRIBUTES, "Encrypt")]["means"]
+        ),
+        "cpabe_decrypt": memory_change(
+            memory_results[(CPABE_ATTRIBUTES, "Decrypt")]["means"]
+        ),
+        "subscriber_encrypt": memory_change(
+            memory_results[(RSA_SUBSCRIBERS, "Encrypt")]["means"]
+        ),
+        "rsa_encrypt": memory_change(
+            memory_results[(RSA_KEY_BITS, "Encrypt")]["means"]
+        ),
+        "rsa_decrypt": memory_change(
+            memory_results[(RSA_KEY_BITS, "Decrypt")]["means"]
+        ),
+    }
 
-        if cpabe_encrypt_micros >= cpabe_decrypt_micros:
-            cpabe_slower_operation = "Encrypt"
-            cpabe_ratio = cpabe_encrypt_micros / cpabe_decrypt_micros
-        else:
-            cpabe_slower_operation = "Decrypt"
-            cpabe_ratio = cpabe_decrypt_micros / cpabe_encrypt_micros
+    projection_end_subscribers = latency_crossover_high * 1.15
+    comparisons = {
+        "bytes_per_subscriber": bytes_per_subscriber,
+        "bytes_crossover_low": bytes_crossover_low,
+        "bytes_crossover_high": bytes_crossover_high,
+        "latency_crossover_low": latency_crossover_low,
+        "latency_crossover_high": latency_crossover_high,
+        "decrypt_penalty_low": decrypt_penalty_low,
+        "decrypt_penalty_high": decrypt_penalty_high,
+        "ciphertext": {
+            "rsa_means": subscriber_encrypt["total_ciphertext_means"],
+            "rsa_cis": subscriber_encrypt["total_ciphertext_cis"],
+            "low_attribute_count": attribute_counts[0],
+            "low_cpabe_level": cpabe_encrypt["ciphertext_means"][0],
+            "low_crossover": bytes_crossover_low,
+            "high_attribute_count": attribute_counts[-1],
+            "high_cpabe_level": cpabe_encrypt["ciphertext_means"][-1],
+            "high_crossover": bytes_crossover_high,
+        },
+        "encrypt": {
+            "rsa_means": subscriber_encrypt["latency_means"],
+            "rsa_cis": subscriber_encrypt["latency_cis"],
+            "projection_start_subscribers": float(subscriber_counts[-1]),
+            "projection_start_micros": subscriber_intercept
+            + subscriber_slope * subscriber_counts[-1],
+            "projection_end_subscribers": projection_end_subscribers,
+            "projection_end_micros": subscriber_intercept
+            + subscriber_slope * projection_end_subscribers,
+            "low_attribute_count": attribute_counts[0],
+            "low_cpabe_level": cpabe_encrypt["latency_means"][0],
+            "low_crossover": latency_crossover_low,
+            "high_attribute_count": attribute_counts[-1],
+            "high_cpabe_level": cpabe_encrypt["latency_means"][-1],
+            "high_crossover": latency_crossover_high,
+        },
+        "decrypt": {
+            "cpabe_means": cpabe_decrypt["latency_means"],
+            "cpabe_cis": cpabe_decrypt["latency_cis"],
+            "rsa_key_bits": rsa_key_bits,
+            "rsa_means": rsa_decrypt["latency_means"],
+            "rsa_cis": rsa_decrypt["latency_cis"],
+        },
+        "asymmetry": {
+            "fixed_rsa_key_bits": fixed_rsa_key_bits,
+            "min_attribute_count": attribute_counts[0],
+            "rsa_encrypt_micros": rsa_encrypt["latency_means"][fixed_rsa_index],
+            "rsa_decrypt_micros": fixed_rsa_decrypt_latency,
+            "rsa_slower_operation": rsa_slower_operation,
+            "rsa_ratio": rsa_ratio,
+            "cpabe_encrypt_micros": cpabe_encrypt["latency_means"][0],
+            "cpabe_decrypt_micros": cpabe_decrypt["latency_means"][0],
+            "cpabe_slower_operation": cpabe_slower_operation,
+            "cpabe_ratio": cpabe_ratio,
+        },
+    }
 
-        plot_encrypt_decrypt_asymmetry(
-            fixed_rsa_key_size,
-            min_attributes,
-            rsa_encrypt_micros,
-            rsa_decrypt_micros,
-            rsa_slower_operation,
-            rsa_ratio,
-            cpabe_encrypt_micros,
-            cpabe_decrypt_micros,
-            cpabe_slower_operation,
-            cpabe_ratio,
-            str(result_dir / ASYMMETRY_PLOT),
-        )
-        asymmetry_plot = ASYMMETRY_PLOT
-    else:
-        asymmetry_plot = None
-
-    # Peak-memory plot
-    plot_peak_memory(
+    plot_cpabe_attributes(
         attribute_counts,
-        [value / MEGABYTE for value in scaling_attribute_memory_encrypt_list],
-        [value / MEGABYTE for value in scaling_attribute_memory_encrypt_ci_list],
-        [value / MEGABYTE for value in scaling_attribute_memory_decrypt_list],
-        [value / MEGABYTE for value in scaling_attribute_memory_decrypt_ci_list],
+        {
+            "encrypt_latency": (
+                cpabe_encrypt["latency_means"],
+                cpabe_encrypt["latency_cis"],
+            ),
+            "decrypt_latency": (
+                cpabe_decrypt["latency_means"],
+                cpabe_decrypt["latency_cis"],
+            ),
+            "ciphertext": (
+                cpabe_encrypt["ciphertext_means"],
+                cpabe_encrypt["ciphertext_cis"],
+            ),
+            "stored_key": (
+                cpabe_decrypt["stored_key_means"],
+                cpabe_decrypt["stored_key_cis"],
+            ),
+        },
+        str(result_directory / CPABE_PLOT),
+    )
+    plot_rsa_subscribers(
         subscriber_counts,
-        [value / MEGABYTE for value in scaling_subscriber_memory_encrypt_list],
-        [value / MEGABYTE for value in scaling_subscriber_memory_encrypt_ci_list],
-        (
-            None
-            if scaling_subscriber_memory_decrypt is None
-            else scaling_subscriber_memory_decrypt / MEGABYTE
-        ),
-        rsa_key_sizes,
-        [value / MEGABYTE for value in scaling_key_memory_encrypt_list],
-        [value / MEGABYTE for value in scaling_key_memory_encrypt_ci_list],
-        [value / MEGABYTE for value in scaling_key_memory_decrypt_list],
-        [value / MEGABYTE for value in scaling_key_memory_decrypt_ci_list],
-        fixed_rsa_key_size,
-        str(result_dir / PEAK_MEMORY_PLOT),
+        {
+            "encrypt_latency": (
+                subscriber_encrypt["latency_means"],
+                subscriber_encrypt["latency_cis"],
+            ),
+            "decrypt_latency": fixed_rsa_decrypt_latency,
+            "ciphertext": (
+                subscriber_encrypt["ciphertext_means"],
+                subscriber_encrypt["ciphertext_cis"],
+            ),
+            "total_ciphertext": (
+                subscriber_encrypt["total_ciphertext_means"],
+                subscriber_encrypt["total_ciphertext_cis"],
+            ),
+        },
+        fixed_rsa_key_bits,
+        str(result_directory / RSA_SUBSCRIBERS_PLOT),
+    )
+    keygen = case_results[(RSA_KEY_BITS, "KeyGen")]
+    plot_rsa_key_bits(
+        rsa_key_bits,
+        {
+            "keygen": keygen,
+            "encrypt_latency": (
+                rsa_encrypt["latency_means"],
+                rsa_encrypt["latency_cis"],
+            ),
+            "decrypt_latency": (
+                rsa_decrypt["latency_means"],
+                rsa_decrypt["latency_cis"],
+            ),
+            "ciphertext": (
+                rsa_encrypt["ciphertext_means"],
+                rsa_encrypt["ciphertext_cis"],
+            ),
+            "stored_key": (
+                keygen["stored_key_means"],
+                keygen["stored_key_cis"],
+            ),
+        },
+        str(result_directory / RSA_KEY_BITS_PLOT),
     )
 
+    energy_chart_results = {
+        key: (value["energy_means"], value["energy_cis"])
+        for key, value in case_results.items()
+    }
+    plot_attribute_key_scaling_energy(
+        parameter_values_by_algorithm,
+        energy_chart_results,
+        str(result_directory / ENERGY_PLOT),
+    )
+    plot_attribute_key_scaling_memory(
+        parameter_values_by_algorithm,
+        {key: (value["means"], value["cis"]) for key, value in memory_results.items()},
+        fixed_rsa_key_bits,
+        fixed_rsa_decrypt_memory,
+        str(result_directory / PEAK_MEMORY_PLOT),
+    )
+    plot_ciphertext_size_crossover(
+        subscriber_counts,
+        comparisons["ciphertext"],
+        str(result_directory / CIPHERTEXT_SIZE_CROSSOVER_PLOT),
+    )
+    plot_encrypt_latency_crossover(
+        subscriber_counts,
+        comparisons["encrypt"],
+        str(result_directory / ENCRYPT_LATENCY_CROSSOVER_PLOT),
+    )
+    plot_decrypt_latency_comparison(
+        attribute_counts,
+        comparisons["decrypt"],
+        str(result_directory / DECRYPT_LATENCY_COMPARISON_PLOT),
+    )
+    plot_encrypt_decrypt_asymmetry(
+        comparisons["asymmetry"],
+        str(result_directory / ASYMMETRY_PLOT),
+    )
+
+    total_iterations = sum(
+        sum(result["iterations"]) for result in case_results.values()
+    )
+    report_data = {
+        "runs": runs,
+        "t_multiplier": confidence_interval_multiplier(runs),
+        "total_iterations": total_iterations,
+        "attribute_counts": attribute_counts,
+        "subscriber_counts": subscriber_counts,
+        "rsa_key_bits": rsa_key_bits,
+        "fixed_rsa_key_bits": fixed_rsa_key_bits,
+        "energy_window_start": warmup_duration,
+        "energy_window_end": warmup_duration + measurement_duration,
+        "cases": case_results,
+        "memory": memory_results,
+        "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
+        "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
+        "fixed_rsa_decrypt_memory": fixed_rsa_decrypt_memory,
+        "fixed_rsa_decrypt_memory_ci": fixed_rsa_decrypt_memory_ci,
+        "memory_changes": memory_changes,
+        "regressions": regressions,
+        "comparisons": comparisons,
+        "plots": {
+            "cpabe": CPABE_PLOT,
+            "rsa_subscribers": RSA_SUBSCRIBERS_PLOT,
+            "rsa_key_bits": RSA_KEY_BITS_PLOT,
+            "energy": ENERGY_PLOT,
+            "peak_memory": PEAK_MEMORY_PLOT,
+            "ciphertext_crossover": CIPHERTEXT_SIZE_CROSSOVER_PLOT,
+            "encrypt_crossover": ENCRYPT_LATENCY_CROSSOVER_PLOT,
+            "decrypt_comparison": DECRYPT_LATENCY_COMPARISON_PLOT,
+            "asymmetry": ASYMMETRY_PLOT,
+        },
+    }
     write_attribute_key_scaling_report(
-        timing_runs=timing_runs,
-        t_multiplier=float(stats.t.ppf(0.975, timing_runs - 1)),
-        timing_iterations=timing_iterations,
-        attribute_counts=attribute_counts,
-        subscriber_counts=subscriber_counts,
-        rsa_key_sizes=rsa_key_sizes,
-        fixed_rsa_key_bits=fixed_rsa_key_size,
-        cpabe_encrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_encrypt_latency_list
-        ],
-        cpabe_encrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_encrypt_latency_ci_list
-        ],
-        cpabe_encrypt_ciphertext_sizes=scaling_attribute_ciphertext_size_list,
-        cpabe_encrypt_iterations=scaling_attribute_encrypt_iteration_list,
-        cpabe_encrypt_throttled=results.get_throttle_flags(
-            "Encrypt", CPABE_ATTRIBUTES, attribute_counts
-        ),
-        cpabe_decrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_decrypt_latency_list
-        ],
-        cpabe_decrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_attribute_decrypt_latency_ci_list
-        ],
-        cpabe_decrypt_stored_key_sizes=scaling_attribute_stored_key_size_list,
-        cpabe_decrypt_iterations=scaling_attribute_decrypt_iteration_list,
-        cpabe_decrypt_throttled=results.get_throttle_flags(
-            "Decrypt", CPABE_ATTRIBUTES, attribute_counts
-        ),
-        subscriber_encrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_subscriber_encrypt_latency_list
-        ],
-        subscriber_encrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_subscriber_encrypt_latency_ci_list
-        ],
-        subscriber_ciphertext_sizes=scaling_subscriber_ciphertext_size_list,
-        subscriber_total_ciphertext_sizes=scaling_subscriber_total_ciphertext_size_list,
-        subscriber_encrypt_iterations=scaling_subscriber_encrypt_iteration_list,
-        subscriber_encrypt_throttled=results.get_throttle_flags(
-            "Encrypt", RSA_SUBSCRIBERS, subscriber_counts
-        ),
-        rsa_encrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_encrypt_latency_list
-        ],
-        rsa_encrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_encrypt_latency_ci_list
-        ],
-        rsa_ciphertext_sizes=scaling_key_ciphertext_size_list,
-        rsa_encrypt_iterations=scaling_key_encrypt_iteration_list,
-        rsa_encrypt_throttled=results.get_throttle_flags(
-            "Encrypt", RSA_KEY_BITS, rsa_key_sizes
-        ),
-        rsa_decrypt_latency_means=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_decrypt_latency_list
-        ],
-        rsa_decrypt_latency_cis=[
-            None if value is None else value / NS_PER_MICROSECOND
-            for value in scaling_key_decrypt_latency_ci_list
-        ],
-        rsa_decrypt_iterations=scaling_key_decrypt_iteration_list,
-        rsa_decrypt_throttled=results.get_throttle_flags(
-            "Decrypt", RSA_KEY_BITS, rsa_key_sizes
-        ),
-        keygen_medians=[
-            None if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_median_list
-        ],
-        keygen_minimums=[
-            None if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_minimum_list
-        ],
-        keygen_maximums=[
-            None if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_maximum_list
-        ],
-        keygen_iqrs=[
-            None if value is None else value / NS_PER_MILLISECOND
-            for value in scaling_key_generation_iqr_list
-        ],
-        keygen_stored_key_sizes=scaling_key_generation_stored_key_size_list,
-        keygen_sample_counts=scaling_key_generation_sample_count_list,
-        keygen_throttled=results.get_throttle_flags(
-            "KeyGen", RSA_KEY_BITS, rsa_key_sizes
-        ),
-        baseline_memory_mean=baseline_memory / MEGABYTE,
-        baseline_memory_ci=baseline_memory_ci / MEGABYTE,
-        cpabe_memory_encrypt_means=[
-            value / MEGABYTE for value in scaling_attribute_memory_encrypt_list
-        ],
-        cpabe_memory_encrypt_cis=[
-            value / MEGABYTE for value in scaling_attribute_memory_encrypt_ci_list
-        ],
-        cpabe_memory_decrypt_means=[
-            value / MEGABYTE for value in scaling_attribute_memory_decrypt_list
-        ],
-        cpabe_memory_decrypt_cis=[
-            value / MEGABYTE for value in scaling_attribute_memory_decrypt_ci_list
-        ],
-        cpabe_memory_sample_counts=scaling_attribute_memory_sample_count_list,
-        subscriber_memory_encrypt_means=[
-            value / MEGABYTE for value in scaling_subscriber_memory_encrypt_list
-        ],
-        subscriber_memory_encrypt_cis=[
-            value / MEGABYTE for value in scaling_subscriber_memory_encrypt_ci_list
-        ],
-        subscriber_memory_decrypt_mean=(
-            None
-            if scaling_subscriber_memory_decrypt is None
-            else scaling_subscriber_memory_decrypt / MEGABYTE
-        ),
-        subscriber_memory_decrypt_ci=(
-            None
-            if scaling_subscriber_memory_decrypt_ci is None
-            else scaling_subscriber_memory_decrypt_ci / MEGABYTE
-        ),
-        subscriber_memory_sample_counts=scaling_subscriber_memory_sample_count_list,
-        rsa_memory_encrypt_means=[
-            value / MEGABYTE for value in scaling_key_memory_encrypt_list
-        ],
-        rsa_memory_encrypt_cis=[
-            value / MEGABYTE for value in scaling_key_memory_encrypt_ci_list
-        ],
-        rsa_memory_decrypt_means=[
-            value / MEGABYTE for value in scaling_key_memory_decrypt_list
-        ],
-        rsa_memory_decrypt_cis=[
-            value / MEGABYTE for value in scaling_key_memory_decrypt_ci_list
-        ],
-        rsa_memory_sample_counts=scaling_key_memory_sample_count_list,
-        cpabe_encrypt_memory_first=cpabe_encrypt_memory_first / MEGABYTE,
-        cpabe_encrypt_memory_last=cpabe_encrypt_memory_last / MEGABYTE,
-        cpabe_encrypt_memory_absolute_change=(
-            cpabe_encrypt_memory_absolute_change / MEGABYTE
-        ),
-        cpabe_encrypt_memory_percent_change=cpabe_encrypt_memory_percent_change,
-        cpabe_decrypt_memory_first=cpabe_decrypt_memory_first / MEGABYTE,
-        cpabe_decrypt_memory_last=cpabe_decrypt_memory_last / MEGABYTE,
-        cpabe_decrypt_memory_absolute_change=(
-            cpabe_decrypt_memory_absolute_change / MEGABYTE
-        ),
-        cpabe_decrypt_memory_percent_change=cpabe_decrypt_memory_percent_change,
-        subscriber_encrypt_memory_first=(subscriber_encrypt_memory_first / MEGABYTE),
-        subscriber_encrypt_memory_last=(subscriber_encrypt_memory_last / MEGABYTE),
-        subscriber_encrypt_memory_absolute_change=(
-            subscriber_encrypt_memory_absolute_change / MEGABYTE
-        ),
-        subscriber_encrypt_memory_percent_change=(
-            subscriber_encrypt_memory_percent_change
-        ),
-        rsa_encrypt_memory_first=rsa_encrypt_memory_first / MEGABYTE,
-        rsa_encrypt_memory_last=rsa_encrypt_memory_last / MEGABYTE,
-        rsa_encrypt_memory_absolute_change=(
-            rsa_encrypt_memory_absolute_change / MEGABYTE
-        ),
-        rsa_encrypt_memory_percent_change=rsa_encrypt_memory_percent_change,
-        rsa_decrypt_memory_first=rsa_decrypt_memory_first / MEGABYTE,
-        rsa_decrypt_memory_last=rsa_decrypt_memory_last / MEGABYTE,
-        rsa_decrypt_memory_absolute_change=(
-            rsa_decrypt_memory_absolute_change / MEGABYTE
-        ),
-        rsa_decrypt_memory_percent_change=rsa_decrypt_memory_percent_change,
-        fanout_single_bytes=bytes_per_subscriber,
-        fanout_total_bytes=scaling_subscriber_total_ciphertext_size_list[-1],
-        fanout_multiplier=subscriber_counts[-1],
-        out_of_memory_operations=[
-            aggregation.operation for aggregation in out_of_memory_aggregations
-        ],
-        out_of_memory_cases=[
-            f"{aggregation.parameter}/{aggregation.parameter_value}"
-            for aggregation in out_of_memory_aggregations
-        ],
-        cpabe_encrypt_slope=(
-            None
-            if cpabe_encrypt_fit is None
-            else cpabe_encrypt_fit[0] / NS_PER_MICROSECOND
-        ),
-        cpabe_encrypt_slope_ci=(
-            None
-            if cpabe_encrypt_fit is None
-            else cpabe_encrypt_fit[3] / NS_PER_MICROSECOND
-        ),
-        cpabe_encrypt_r_squared=(
-            None if cpabe_encrypt_fit is None else cpabe_encrypt_fit[2]
-        ),
-        cpabe_decrypt_slope=(
-            None
-            if cpabe_decrypt_fit is None
-            else cpabe_decrypt_fit[0] / NS_PER_MICROSECOND
-        ),
-        cpabe_decrypt_slope_ci=(
-            None
-            if cpabe_decrypt_fit is None
-            else cpabe_decrypt_fit[3] / NS_PER_MICROSECOND
-        ),
-        cpabe_decrypt_r_squared=(
-            None if cpabe_decrypt_fit is None else cpabe_decrypt_fit[2]
-        ),
-        cpabe_ciphertext_slope=(
-            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit[0]
-        ),
-        cpabe_ciphertext_slope_ci=(
-            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit[3]
-        ),
-        cpabe_ciphertext_r_squared=(
-            None if cpabe_ciphertext_fit is None else cpabe_ciphertext_fit[2]
-        ),
-        cpabe_stored_key_slope=(
-            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit[0]
-        ),
-        cpabe_stored_key_slope_ci=(
-            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit[3]
-        ),
-        cpabe_stored_key_r_squared=(
-            None if cpabe_stored_key_fit is None else cpabe_stored_key_fit[2]
-        ),
-        subscriber_encrypt_slope=(
-            None
-            if subscriber_encrypt_fit is None
-            else subscriber_encrypt_fit[0] / NS_PER_MICROSECOND
-        ),
-        subscriber_encrypt_slope_ci=(
-            None
-            if subscriber_encrypt_fit is None
-            else subscriber_encrypt_fit[3] / NS_PER_MICROSECOND
-        ),
-        subscriber_encrypt_r_squared=(
-            None if subscriber_encrypt_fit is None else subscriber_encrypt_fit[2]
-        ),
-        bytes_per_subscriber=bytes_per_subscriber,
-        bytes_crossover_low=ciphertext_crossover_low,
-        bytes_crossover_high=ciphertext_crossover_high,
-        latency_crossover_low=latency_crossover_low,
-        latency_crossover_high=latency_crossover_high,
-        decrypt_penalty_low=decrypt_penalty_low,
-        decrypt_penalty_high=decrypt_penalty_high,
-        cpabe_plot=CPABE_PLOT,
-        rsa_subscribers_plot=RSA_SUBSCRIBERS_PLOT,
-        rsa_key_bits_plot=RSA_KEY_BITS_PLOT,
-        bandwidth_crossover_plot=bandwidth_crossover_plot,
-        encrypt_crossover_plot=encrypt_crossover_plot,
-        decrypt_crossover_plot=decrypt_crossover_plot,
-        asymmetry_plot=asymmetry_plot,
-        peak_memory_plot=PEAK_MEMORY_PLOT,
-        template_path=str(template_path),
-        report_path=str(report_path),
+        report_data,
+        str(template_path),
+        str(report_path),
     )
 
 

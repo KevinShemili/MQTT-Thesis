@@ -12,7 +12,10 @@ from report.analysis.shared.statistics import (
 from report.config import REPORT_NAME, TEMPLATE_DIR, parse_int_env, parse_int_list_env
 from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
-from report.model.energy.energy_case import THROTTLED as ENERGY_THROTTLED
+from report.model.energy.energy_case import (
+    THROTTLED as ENERGY_THROTTLED,
+    EnergySample,
+)
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
     ADDITIONAL_OVERHEAD_BYTES,
@@ -37,6 +40,10 @@ ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 # Benchmark
 BENCHMARK_PREFIX = "BenchmarkAESASCON"
 PARAMETER = "payload_size"
+PARAMETER_BY_ALGORITHM = {
+    "AES-GCM": PARAMETER,
+    "ASCON": PARAMETER,
+}
 PARAMETER_SUFFIX = "B"
 
 # Results
@@ -155,6 +162,7 @@ def to_microjoules(
 def analyze_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
+    energy_baseline_samples: list[EnergySample],
 ):
 
     latency_means, latency_cis = timing_statistics(
@@ -169,6 +177,7 @@ def analyze_case(
 
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
+        energy_baseline_samples,
     )
 
     return {
@@ -214,7 +223,7 @@ def main():
         timing_filepath=str(timing_result_file),
         energy_filepath=str(energy_result_file),
         case_prefix=BENCHMARK_PREFIX,
-        parameter=PARAMETER,
+        parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
         warmup_duration=warmup_duration,
         measurement_duration=measurement_duration,
         parameter_suffix=PARAMETER_SUFFIX,
@@ -243,6 +252,7 @@ def main():
             case_results[(algorithm, operation)] = analyze_case(
                 timing_aggregations,
                 energy_aggregations,
+                summary.energy_baseline_samples,
             )
 
     # Prepare Latency Chart Data

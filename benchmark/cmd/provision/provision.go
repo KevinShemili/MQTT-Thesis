@@ -10,9 +10,9 @@ import (
 	"strconv"
 )
 
-const cpabeAttributesGroup = "CPABEAttributes"
-const rsaSubscribersGroup = "RSASubscribers"
-const rsaKeyBitsGroup = "RSAKeyBits"
+const cpabeAttributesAlgorithm = "CPABEAttributes"
+const rsaSubscribersAlgorithm = "RSASubscribers"
+const rsaKeyBitsAlgorithm = "RSAKeyBits"
 
 // The point of this program is to provide the fixture data for one benchmark case
 // It does so by populating the cache, allowing the benchmark processes to just load it
@@ -27,12 +27,12 @@ const rsaKeyBitsGroup = "RSAKeyBits"
 func main() {
 
 	if len(os.Args) != 3 {
-		panic("usage: provision <group> <sweep value>")
+		panic("usage: provision <algorithm> <parameter value>")
 	}
 
-	group := os.Args[1]
+	algorithm := os.Args[1]
 
-	sweepValue, err := strconv.Atoi(os.Args[2])
+	parameterValue, err := strconv.Atoi(os.Args[2])
 	if err != nil {
 		panic(err)
 	}
@@ -40,19 +40,19 @@ func main() {
 	aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
 	aesKey := provisionAESKey(aesKeySize)
 
-	switch group {
+	switch algorithm {
 
-	case cpabeAttributesGroup:
-		provisionCPABE(sweepValue, aesKeySize, aesKey)
+	case cpabeAttributesAlgorithm:
+		provisionCPABE(parameterValue, aesKeySize, aesKey)
 
-	case rsaSubscribersGroup:
-		provisionRSASubscribers(sweepValue)
+	case rsaSubscribersAlgorithm:
+		provisionRSASubscribers(parameterValue)
 
-	case rsaKeyBitsGroup:
-		provisionRSAKeyBits(sweepValue, aesKey)
+	case rsaKeyBitsAlgorithm:
+		provisionRSAKeyBits(parameterValue, aesKey)
 
 	default:
-		panic(fmt.Sprintf("unknown group %q", group))
+		panic(fmt.Sprintf("unknown algorithm %q", algorithm))
 	}
 }
 

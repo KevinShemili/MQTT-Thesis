@@ -4,6 +4,7 @@ import (
 	"benchmark/cache"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
+	"benchmark/micro/attribute_key_scaling/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
@@ -19,10 +20,10 @@ import (
 // cmd/provision built in an earlier process
 func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 
-	config := loadAttributeKeyScalingConfig()
+	config := shared.NewAttributeKeyScalingConfig()
 
 	// Scenario 1: Measure how memory changes as policy grows
-	for _, attributeCount := range config.AttributeCountList {
+	for _, attributeCount := range config.AttributeCounts {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
@@ -49,14 +50,14 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 2: Measure how memory changes as one publisher encrypts AES key once for every subscriber
-	for _, subscriberCount := range config.SubscriberCountList {
+	for _, subscriberCount := range config.SubscriberCounts {
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
 
 			// Load from cache:
 			// 1. Each subscriber's public key
 			// 2. AES Symmetric Key
-			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeySize, subscriberCount)
+			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeyBits, subscriberCount)
 			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
 
 			thermal.WaitForCooldown()
@@ -76,7 +77,7 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 3: Measure how memory changes as key size is varied
-	for _, rsaKeyBits := range config.RSAKeySizeList {
+	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
@@ -103,10 +104,10 @@ func BenchmarkAttributeKeyScalingMemoryEncrypt(benchmark *testing.B) {
 
 func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 
-	config := loadAttributeKeyScalingConfig()
+	config := shared.NewAttributeKeyScalingConfig()
 
-	// Scenario 1: Measure how memory changes as as policy grows
-	for _, attributeCount := range config.AttributeCountList {
+	// Scenario 1: Measure how memory changes as the policy grows
+	for _, attributeCount := range config.AttributeCounts {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
@@ -131,7 +132,7 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 2: Measure how memory changes as key size is varied
-	for _, rsaKeyBits := range config.RSAKeySizeList {
+	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
@@ -159,8 +160,7 @@ func BenchmarkAttributeKeyScalingMemoryDecrypt(benchmark *testing.B) {
 // The resident cost of the runtime alone. Nothing is restored and nothing is performed,
 // so what the watermark holds is the floor every case above was measured on top of
 //
-// The name carries a group and a value it does not sweep because that is the shape the
-// reporting layer reads a case from
+// The benchmark name retains the standard algorithm/parameter-value shape expected by the loader
 func BenchmarkAttributeKeyScalingMemoryBaseline(benchmark *testing.B) {
 
 	benchmark.Run("Runtime/0", func(b *testing.B) {

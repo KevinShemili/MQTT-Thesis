@@ -614,38 +614,6 @@
             text-align: center;
         }
 
-        /* Emitted only where a case did not complete, or where a comparison rests on one
-           that did not. A clean run carries neither. */
-        .failure-notice {
-            border-color: #e7bcc6;
-            background: linear-gradient(180deg, #fff8f9 0%, var(--surface) 60%);
-        }
-
-        .failure-notice .section-heading h2 {
-            color: var(--rose);
-        }
-
-        .failure-notice .section-heading p {
-            max-width: 720px;
-        }
-
-        .failure-notice td {
-            text-align: left;
-            white-space: normal;
-        }
-
-        .failure-notice th {
-            text-align: left;
-        }
-
-        .missing-note {
-            margin: 0;
-            padding: 26px 22px;
-            color: var(--muted);
-            font-size: 13px;
-            text-align: center;
-        }
-
         .table-note {
             margin: 10px 14px 12px;
             color: var(--muted);
@@ -660,7 +628,7 @@
             background: #f6f2fb;
         }
 
-        /* The one row of a sweep the rest of the report is quoted against. Declared after
+        /* The reference row used by the rest of the report. Declared after
            the striping and the hover so it survives both. */
         tbody tr.reference-row,
         tbody tr.reference-row:hover {
@@ -760,8 +728,6 @@
             <div class="eyebrow">Microbenchmark Scenario 2</div>
             <h1>Asymmetric Schemas under Attribute &amp; Key Scaling</h1>
         </header>
-
-        {{OutOfMemoryNotice}}
 
         <section class="metadata" aria-label="Benchmark metadata">
             <div class="metric">
@@ -912,7 +878,7 @@
                             <h3>CP-ABE vs. RSA: Decrypt Cost by Policy and Key Size</h3>
                         </div>
                         <div class="plot-frame">
-                            {{DecryptCpuCrossoverFrame}}
+                            {{DecryptCpuComparisonFrame}}
                         </div>
                     </article>
 
@@ -936,6 +902,65 @@
                         {{AsymmetryFrame}}
                     </div>
                 </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Energy Results</h2>
+                <p>Energy per operation uses load power from the steady-state interval
+                    [{{EnergyWindowStart}}, {{EnergyWindowEnd}}) seconds, idle-baseline subtraction,
+                    and the operation time reported by the same energy run.</p>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-frame">
+                        <img src="{{EnergyPlot}}">
+                    </div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Encrypt</h3>
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>CP-ABE: Policy Attribute Scaling</h3>
+                        <div class="table-wrapper">{{CpabeEncryptEnergyTable}}</div>
+                    </div>
+                    <div class="table-block">
+                        <h3>RSA: Subscriber Scaling</h3>
+                        <div class="table-wrapper">{{RsaSubscribersEncryptEnergyTable}}</div>
+                    </div>
+                    <div class="table-block">
+                        <h3>RSA: Key Size Scaling</h3>
+                        <div class="table-wrapper">{{RsaKeyBitsEncryptEnergyTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Decrypt</h3>
+                <div class="table-row table-row-two">
+                    <div class="table-block">
+                        <h3>CP-ABE: Policy Attribute Scaling</h3>
+                        <div class="table-wrapper">{{CpabeDecryptEnergyTable}}</div>
+                    </div>
+                    <div class="table-block">
+                        <h3>RSA: Key Size Scaling</h3>
+                        <div class="table-wrapper">{{RsaKeyBitsDecryptEnergyTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Key Generation</h3>
+                <div class="table-row table-row-one">
+                    <div class="table-block">
+                        <h3>RSA: Key Size Scaling</h3>
+                        <div class="table-wrapper">{{RsaKeyBitsKeygenEnergyTable}}</div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -1041,8 +1066,8 @@
 
                     <div class="table-block">
                         <h3>RSA: Subscriber Scaling</h3>
-                        <p>Only encrypt is swept here. The decrypt column carries the
-                            RSA-{{FixedRsaKeyBits}} reading from the key size sweep, the same
+                        <p>Only encrypt varies with subscriber count here. The decrypt column carries the
+                            RSA-{{FixedRsaKeyBits}} reading from the RSA key-bit results, the same
                             operation on the same key, since a subscriber decrypts one wrapped key
                             regardless of how many other subscribers there are.</p>
                         <div class="table-wrapper">

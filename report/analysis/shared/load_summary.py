@@ -8,19 +8,22 @@ from report.model.energy.energy_case import (
     EnergyCase,
     EnergySample,
 )
+from report.model.memory.memory_aggregation import MemoryAggregation
+from report.model.memory.memory_case import MemoryCase
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import TimingCase
 
 
-# Load all timing and energy results into a BenchmarkSummary
+# Load timing, optional memory, and energy results into a BenchmarkSummary
 def load_summary(
     timing_filepath: str,
     energy_filepath: str,
     case_prefix: str,
-    parameter: str,
+    parameter_by_algorithm: dict[str, str],
     warmup_duration: float,
     measurement_duration: float,
     parameter_suffix: str = "",
+    memory_filepath: str | None = None,
 ) -> BenchmarkSummary:
 
     summary = BenchmarkSummary()
@@ -29,14 +32,23 @@ def load_summary(
         summary,
         timing_filepath,
         case_prefix,
-        parameter,
+        parameter_by_algorithm,
         parameter_suffix,
     )
+
+    if memory_filepath is not None:
+        _load_memory_results(
+            summary,
+            memory_filepath,
+            case_prefix,
+            parameter_by_algorithm,
+            parameter_suffix,
+        )
 
     _load_energy_results(
         summary,
         energy_filepath,
-        parameter,
+        parameter_by_algorithm,
         warmup_duration,
         measurement_duration,
     )
@@ -44,12 +56,12 @@ def load_summary(
     return summary
 
 
-# Load Go timing benchmark results
-def _load_timing_results(
+# Load Go memory benchmark results
+def _load_memory_results(
     summary: BenchmarkSummary,
     filepath: str,
     case_prefix: str,
-    parameter: str,
+    parameter_by_algorithm: dict[str, str],
     parameter_suffix: str,
 ) -> None:
 
@@ -68,6 +80,74 @@ def _load_timing_results(
                 case_prefix,
                 parameter_suffix,
             )
+
+            case = MemoryCase(
+                iterations=int(fields[1]),
+            )
+
+            for index in range(2, len(fields) - 1, 2):
+
+                case.add_measurement(
+                    fields[index + 1],
+                    float(fields[index]),
+                )
+
+            if (
+                algorithm == "Runtime"
+                and operation == "MemoryBaseline"
+                and parameter_value == 0
+            ):
+                summary.memory_baseline_cases.append(case)
+                continue
+
+            parameter = parameter_by_algorithm[algorithm]
+
+            aggregation = summary.find_memory_aggregation(
+                algorithm,
+                operation,
+                parameter,
+                parameter_value,
+            )
+
+            if aggregation is None:
+
+                aggregation = MemoryAggregation(
+                    algorithm,
+                    operation,
+                    parameter,
+                    parameter_value,
+                )
+
+                summary.memory_aggregations.append(aggregation)
+            aggregation.cases.append(case)
+
+
+# Load Go timing benchmark results
+def _load_timing_results(
+    summary: BenchmarkSummary,
+    filepath: str,
+    case_prefix: str,
+    parameter_by_algorithm: dict[str, str],
+    parameter_suffix: str,
+) -> None:
+
+    with Path(filepath).open("r", encoding="utf-8") as file:
+
+        for line in file:
+
+            fields = line.split()
+
+            # Ignore non-benchmark output
+            if len(fields) < 2 or not fields[0].startswith(case_prefix):
+                continue
+
+            algorithm, operation, parameter_value = _parse_timing_case_name(
+                fields[0],
+                case_prefix,
+                parameter_suffix,
+            )
+
+            parameter = parameter_by_algorithm[algorithm]
 
             aggregation = summary.find_timing_aggregation(
                 algorithm,
@@ -127,12 +207,10 @@ def _parse_timing_case_name(
 def _load_energy_results(
     summary: BenchmarkSummary,
     filepath: str,
-    parameter: str,
+    parameter_by_algorithm: dict[str, str],
     warmup_duration: float,
     measurement_duration: float,
 ) -> None:
-
-    baseline_samples = []
 
     current_aggregation = None
     current_case = None
@@ -158,13 +236,13 @@ def _load_energy_results(
             if line.startswith("[case "):
 
                 algorithm, operation, parameter_value = _parse_energy_case_header(line)
+                parameter = parameter_by_algorithm[algorithm]
 
                 current_aggregation = EnergyAggregation(
                     algorithm=algorithm,
                     operation=operation,
                     parameter=parameter,
                     parameter_value=parameter_value,
-                    baseline_samples=baseline_samples,
                     warmup_duration=warmup_duration,
                     measurement_duration=measurement_duration,
                 )
@@ -216,7 +294,7 @@ def _load_energy_results(
                 sample = _parse_energy_sample(line)
 
                 if reading_baseline:
-                    baseline_samples.append(sample)
+                    summary.energy_baseline_samples.append(sample)
 
                 elif current_case is not None:
                     current_case.add_sample(sample)

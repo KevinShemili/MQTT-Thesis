@@ -3,29 +3,19 @@ package attribute_key_scaling
 import (
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
+	"benchmark/micro/attribute_key_scaling/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
 )
 
-// Helps if -test.count >>> 1
-var rsaKeyInMemoryCache = map[int][]rsa.RSA{}
-
-type AttributeKeyScalingConfig struct {
-	AttributeCountList  []int
-	SubscriberCountList []int
-	RSAKeySizeList      []int
-	FixedRSAKeySize     int
-	AESKeySize          int
-}
-
 func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
-	config := loadAttributeKeyScalingConfig()
+	config := shared.NewAttributeKeyScalingConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
-	for _, attributeCount := range config.AttributeCountList {
+	for _, attributeCount := range config.AttributeCounts {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
@@ -63,11 +53,11 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 2: Scaling subscriber count in RSA
-	for _, subscriberCount := range config.SubscriberCountList {
+	for _, subscriberCount := range config.SubscriberCounts {
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
 
-			publicKeySlice := loadRSAKeysFromInMemoryCache(config.FixedRSAKeySize, subscriberCount)
+			publicKeySlice := shared.LoadRSAKeysFromInMemoryCache(config.FixedRSAKeyBits, subscriberCount)
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Size of a single wrapped key
@@ -102,12 +92,12 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 3: Scaling key size in RSA
-	for _, rsaKeyBits := range config.RSAKeySizeList {
+	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
 			// Get just 1 RSA key of the specified size
-			publicKey := loadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+			publicKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
@@ -136,10 +126,10 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 
 func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
-	config := loadAttributeKeyScalingConfig()
+	config := shared.NewAttributeKeyScalingConfig()
 
 	// Scenario 1: CP-ABE scaling attribute count
-	for _, attributeCount := range config.AttributeCountList {
+	for _, attributeCount := range config.AttributeCounts {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
@@ -181,12 +171,12 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 	}
 
 	// Scenario 2: RSA scaling key size
-	for _, rsaKeyBits := range config.RSAKeySizeList {
+	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
 			// Get just 1 RSA key of the specified size
-			privateKey := loadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+			privateKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Create ciphertext based on policy to measure decryption cost
@@ -213,7 +203,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 
 func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 
-	config := loadAttributeKeyScalingConfig()
+	config := shared.NewAttributeKeyScalingConfig()
 
 	// CP-ABE key issuance is deliberately not measured. It is executed by the attribute
 	// authority, which holds the master secret and is by definition a trusted,
@@ -229,7 +219,7 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 	// - Median
 	// - IQR
 	// - Min & Max
-	for _, rsaKeyBits := range config.RSAKeySizeList {
+	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
@@ -254,42 +244,4 @@ func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
 			}
 		})
 	}
-}
-
-func loadAttributeKeyScalingConfig() AttributeKeyScalingConfig {
-
-	return AttributeKeyScalingConfig{
-		AttributeCountList: utility.ParseIntListFromEnv(
-			"ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT",
-		),
-		SubscriberCountList: utility.ParseIntListFromEnv(
-			"ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT",
-		),
-		RSAKeySizeList: utility.ParseIntListFromEnv(
-			"ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES",
-		),
-		FixedRSAKeySize: utility.ParseIntFromEnv(
-			"ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE",
-		),
-		AESKeySize: utility.ParseIntFromEnv(
-			"ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE",
-		),
-	}
-}
-
-// Generate RSA keys & retain them for the lifetime of this process
-func loadRSAKeysFromInMemoryCache(rsaKeySize int, amount int) []rsa.RSA {
-
-	keySlice := rsaKeyInMemoryCache[rsaKeySize]
-
-	// If not enough keys are cached, generate & store
-	for len(keySlice) < amount {
-		keySlice = append(keySlice, rsa.NewRSA(rsaKeySize))
-	}
-
-	// Update in-memory cache
-	rsaKeyInMemoryCache[rsaKeySize] = keySlice
-
-	// Return desired amount
-	return keySlice[:amount]
 }

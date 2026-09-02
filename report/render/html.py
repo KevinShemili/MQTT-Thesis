@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Any, Sequence
 
 from .formatting import *
@@ -19,12 +18,6 @@ THERMAL_FLAGGED_NOTE = (
     "throttling. Those measurements are a pessimistic bound, not an invalid one."
 )
 THERMAL_CLEAN_NOTE = "No thermal throttling occurred while these cases were measured."
-
-OUT_OF_MEMORY_NOTICE_HEADERS = ["OPERATION", "CASE", "RESULT"]
-OUT_OF_MEMORY_NOTICE_NOTE = (
-    "These timing or key-generation cases ran out of memory. Any partial measurements "
-    "they emitted are excluded from the figures and tables below."
-)
 
 
 def build_html_table(
@@ -69,28 +62,6 @@ def build_html_table(
         lines.append(f'<p class="table-note">{note}</p>')
 
     return "\n".join(lines)
-
-
-def build_html_out_of_memory_notice(rows: Sequence[Sequence[str]]) -> str:
-
-    if not rows:
-        return ""
-
-    return "\n".join(
-        [
-            '<section class="section failure-notice">',
-            '<div class="section-heading">',
-            "<h2>Out of Memory</h2>",
-            f"<p>{OUT_OF_MEMORY_NOTICE_NOTE}</p>",
-            "</div>",
-            '<div class="table-block">',
-            '<div class="table-wrapper">',
-            build_html_table(OUT_OF_MEMORY_NOTICE_HEADERS, rows),
-            "</div>",
-            "</div>",
-            "</section>",
-        ]
-    )
 
 
 def build_html_generic_data(
@@ -146,81 +117,6 @@ def _build_data_table(
     throttled: list[bool] | None = None,
 ) -> str:
     return build_html_table(headers, _rows_from_columns(columns), throttled)
-
-
-def _format_optional_mean_ci_column(
-    means: Sequence[float | None],
-    confidence_intervals: Sequence[float | None],
-    decimals: int = 2,
-) -> list[str | None]:
-    return [
-        (
-            None
-            if mean is None or confidence_interval is None
-            else format_mean_with_ci(mean, confidence_interval, decimals=decimals)
-        )
-        for mean, confidence_interval in zip(means, confidence_intervals, strict=True)
-    ]
-
-
-def _format_optional_column(
-    values: Sequence[Any], formatter: Callable[[Any], str]
-) -> list[str | None]:
-    return [None if value is None else formatter(value) for value in values]
-
-
-def _build_optional_table(
-    headers: list[str],
-    index_values: Sequence[Any],
-    index_formatter: Callable[[Any], str],
-    primary_values: Sequence[str | None],
-    extra_columns: Sequence[Sequence[str | None]],
-    throttled: list[bool] | None,
-    thermal_header: str = "Thermal",
-    highlighted: list[bool] | None = None,
-) -> str:
-    rows = []
-    columns = [primary_values, *extra_columns]
-    for values in zip(index_values, *columns, strict=True):
-        index_value, primary_value, *extra_values = values
-        if primary_value is None:
-            rows.append(
-                [index_formatter(index_value), OUT_OF_MEMORY]
-                + [NOT_AVAILABLE] * len(extra_values)
-            )
-        else:
-            rows.append(
-                [index_formatter(index_value), primary_value]
-                + [NOT_AVAILABLE if value is None else value for value in extra_values]
-            )
-
-    rendered_throttled = (
-        None
-        if throttled is None
-        else [
-            is_throttled and primary_value is not None
-            for is_throttled, primary_value in zip(
-                throttled, primary_values, strict=True
-            )
-        ]
-    )
-
-    return build_html_table(
-        headers,
-        rows,
-        rendered_throttled,
-        thermal_header=thermal_header,
-        highlighted=highlighted,
-    )
-
-
-def _build_out_of_memory_case_notice(operations: list[str], cases: list[str]) -> str:
-    return build_html_out_of_memory_notice(
-        [
-            [operation, case_name, OUT_OF_MEMORY]
-            for operation, case_name in zip(operations, cases, strict=True)
-        ]
-    )
 
 
 def _build_aes_ascon_tables(
@@ -535,315 +431,33 @@ def write_payload_scaling_report(
     build_html_report(template_path, report_path, placeholders)
 
 
-NOT_AVAILABLE = "&mdash;"
-OUT_OF_MEMORY = "Out of memory"
-MISSING_CASE_NOTE = (
-    '<p class="missing-note">Not available: a case this comparison rests on ran out '
-    "of memory. See Out of Memory at the top of the report.</p>"
-)
 FANOUT_LARGEST_DIAMETER_PX = 168.0
 FANOUT_SMALLEST_DIAMETER_PX = 22.0
-ExtraColumn = tuple[str, list[float | None], Callable[[float], str]]
-
-
-def _build_optional_latency_table(
-    index_header: str,
-    index_values: list[int],
-    latency_means: list[float | None],
-    latency_cis: list[float | None],
-    extra_columns: list[ExtraColumn],
-    iterations: list[int | None],
-    throttled: list[bool] | None,
-    runs: int,
-    highlighted: list[bool] | None = None,
-) -> str:
-    return _build_optional_table(
-        [
-            index_header,
-            "LATENCY (µs/op)",
-            *[header for header, _, _ in extra_columns],
-            f"ITERS (Σ{runs} RUNS)",
-        ],
-        index_values,
-        str,
-        _format_optional_mean_ci_column(latency_means, latency_cis),
-        [
-            *[
-                _format_optional_column(values, formatter)
-                for _, values, formatter in extra_columns
-            ],
-            _format_optional_column(iterations, lambda value: f"{value:,}"),
-        ],
-        throttled,
-        thermal_header="THERMAL",
-        highlighted=highlighted,
-    )
 
 
 def _format_byte_size(value: float) -> str:
     return format_byte_size(round(value))
 
 
-def _build_attribute_timing_tables(
-    scope: dict[str, Any],
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-    fixed_rsa_key_bits: int,
-    runs: int,
-) -> dict[str, str]:
-    indexes = {
-        "cpabe": ("ATTRIBUTES", attribute_counts),
-        "subscriber": ("SUBSCRIBERS", subscriber_counts),
-        "rsa": ("KEY BITS", rsa_key_sizes),
-    }
-    specifications = [
-        (
-            "CpabeEncryptTable",
-            "cpabe_encrypt",
-            [("CIPHERTEXT", "cpabe_encrypt_ciphertext_sizes")],
-        ),
-        (
-            "CpabeDecryptTable",
-            "cpabe_decrypt",
-            [("STORED KEY", "cpabe_decrypt_stored_key_sizes")],
-        ),
-        (
-            "RsaSubscribersEncryptTable",
-            "subscriber_encrypt",
-            [
-                ("CIPHERTEXT", "subscriber_ciphertext_sizes"),
-                ("CIPHERTEXT (TOTAL)", "subscriber_total_ciphertext_sizes"),
-            ],
-        ),
-        (
-            "RsaKeyBitsEncryptTable",
-            "rsa_encrypt",
-            [("CIPHERTEXT", "rsa_ciphertext_sizes")],
-        ),
-        ("RsaKeyBitsDecryptTable", "rsa_decrypt", []),
-    ]
-    tables = {}
-    for placeholder, prefix, extra_columns in specifications:
-        index_header, index_values = indexes[prefix.partition("_")[0]]
-        highlighted = None
-        if prefix == "rsa_decrypt":
-            highlighted = [value == fixed_rsa_key_bits for value in rsa_key_sizes]
-        tables[placeholder] = _build_optional_latency_table(
-            index_header,
-            index_values,
-            scope[f"{prefix}_latency_means"],
-            scope[f"{prefix}_latency_cis"],
-            [
-                (header, scope[value_name], _format_byte_size)
-                for header, value_name in extra_columns
-            ],
-            scope[f"{prefix}_iterations"],
-            scope[f"{prefix}_throttled"],
-            runs,
-            highlighted,
-        )
-    return tables
-
-
-def _build_rsa_keygen_table(scope: dict[str, Any], rsa_key_sizes: list[int]) -> str:
-    rows = []
-    for (
-        rsa_key_bits,
-        median,
-        minimum,
-        maximum,
-        iqr,
-        stored_key_size,
-        sample_count,
-    ) in zip(
-        rsa_key_sizes,
-        scope["keygen_medians"],
-        scope["keygen_minimums"],
-        scope["keygen_maximums"],
-        scope["keygen_iqrs"],
-        scope["keygen_stored_key_sizes"],
-        scope["keygen_sample_counts"],
-        strict=True,
-    ):
-        if median is None:
-            rows.append([str(rsa_key_bits), OUT_OF_MEMORY] + [NOT_AVAILABLE] * 5)
-        else:
-            assert minimum is not None and maximum is not None and iqr is not None
-            assert stored_key_size is not None and sample_count is not None
-            rows.append(
-                [
-                    str(rsa_key_bits),
-                    f"{median:,.2f}",
-                    f"{minimum:,.2f}",
-                    f"{maximum:,.2f}",
-                    f"{iqr:,.2f}",
-                    format_byte_size(round(stored_key_size)),
-                    str(sample_count),
-                ]
-            )
-
-    return build_html_table(
-        [
-            "KEY BITS",
-            "MEDIAN (ms)",
-            "MIN (ms)",
-            "MAX (ms)",
-            "IQR (ms)",
-            "STORED KEY",
-            "n",
-        ],
-        rows,
-        scope["keygen_throttled"],
-        thermal_header="THERMAL",
-    )
-
-
-def _build_peak_memory_table(
-    index_header: str,
-    index_values: list[int],
-    encrypt_means: list[float],
-    encrypt_cis: list[float],
-    decrypt_values: list[str],
-    sample_counts: list[int],
-) -> str:
-    return build_html_table(
-        [index_header, "ENCRYPT (MB)", "DECRYPT (MB)", "n"],
-        _rows_from_columns(
-            [
-                [str(value) for value in index_values],
-                _mean_ci_column(encrypt_means, encrypt_cis),
-                decrypt_values,
-                [str(value) for value in sample_counts],
-            ]
-        ),
-    )
-
-
-def _build_attribute_memory_tables(
-    scope: dict[str, Any],
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-) -> dict[str, str]:
-    specifications = [
-        (
-            "PeakMemoryCpabeTable",
-            "ATTRIBUTES",
-            attribute_counts,
-            "cpabe_memory",
-            False,
-        ),
-        (
-            "PeakMemoryRsaKeyBitsTable",
-            "KEY BITS",
-            rsa_key_sizes,
-            "rsa_memory",
-            False,
-        ),
-        (
-            "PeakMemoryRsaSubscribersTable",
-            "SUBSCRIBERS",
-            subscriber_counts,
-            "subscriber_memory",
-            True,
-        ),
-    ]
-    tables = {}
-    for placeholder, header, values, prefix, constant_decrypt in specifications:
-        if constant_decrypt:
-            mean = scope[f"{prefix}_decrypt_mean"]
-            ci = scope[f"{prefix}_decrypt_ci"]
-            decrypt_value = (
-                NOT_AVAILABLE
-                if mean is None or ci is None
-                else format_mean_with_ci(mean, ci)
-            )
-            decrypt_values = [decrypt_value] * len(values)
-        else:
-            decrypt_values = _mean_ci_column(
-                scope[f"{prefix}_decrypt_means"], scope[f"{prefix}_decrypt_cis"]
-            )
-        tables[placeholder] = _build_peak_memory_table(
-            header,
-            values,
-            scope[f"{prefix}_encrypt_means"],
-            scope[f"{prefix}_encrypt_cis"],
-            decrypt_values,
-            scope[f"{prefix}_sample_counts"],
-        )
-    return tables
-
-
 def format_peak_memory_change(
-    first: float | None,
-    last: float | None,
-    absolute_change: float | None,
-    percent_change: float | None,
+    first: float,
+    last: float,
+    absolute_change: float,
+    percent_change: float,
 ) -> str:
-    if (
-        first is None
-        or last is None
-        or absolute_change is None
-        or percent_change is None
-    ):
-        return NOT_AVAILABLE
-
     return (
         f"{first:,.2f} &rarr; {last:,.2f} MB &middot; "
         f"{absolute_change:+,.2f} MB ({percent_change:+,.1f}%)"
     )
 
 
-def build_peak_memory_deltas(
-    scope: dict[str, Any],
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-) -> str:
-    specifications = [
-        ("CP-ABE Encrypt", attribute_counts, "attributes", "cpabe_encrypt"),
-        ("CP-ABE Decrypt", attribute_counts, "attributes", "cpabe_decrypt"),
-        (
-            "RSA Subscribers Encrypt",
-            subscriber_counts,
-            "subscribers",
-            "subscriber_encrypt",
-        ),
-        ("RSA Key Size Encrypt", rsa_key_sizes, "key bits", "rsa_encrypt"),
-        ("RSA Key Size Decrypt", rsa_key_sizes, "key bits", "rsa_decrypt"),
-    ]
-    items = []
-    for label, counts, unit, prefix in specifications:
-        change = format_peak_memory_change(
-            scope[f"{prefix}_memory_first"],
-            scope[f"{prefix}_memory_last"],
-            scope[f"{prefix}_memory_absolute_change"],
-            scope[f"{prefix}_memory_percent_change"],
-        )
-        items.append(
-            f'<span class="delta-item"><strong>{label}</strong> '
-            f"{counts[0]} &rarr; {counts[-1]} {unit} &middot; {change}</span>"
-        )
-    return f'<div class="delta-strip">{"".join(items)}</div>'
-
-
 def build_rsa_circle_visualization(
-    single_bytes: float | None,
-    total_bytes: float | None,
-    multiplier: float | None,
+    single_bytes: float,
+    total_bytes: float,
+    multiplier: float,
 ) -> dict[str, str]:
     def circle_style(diameter_px: float) -> str:
         return f'style="width:{diameter_px:.0f}px;height:{diameter_px:.0f}px;"'
-
-    if single_bytes is None or total_bytes is None or multiplier is None:
-        return {
-            "FanoutSingleBytes": NOT_AVAILABLE,
-            "FanoutTotalBytes": NOT_AVAILABLE,
-            "FanoutMultiplier": NOT_AVAILABLE,
-            "FanoutSingleStyle": circle_style(FANOUT_SMALLEST_DIAMETER_PX),
-            "FanoutTotalStyle": circle_style(FANOUT_SMALLEST_DIAMETER_PX),
-        }
 
     single_diameter_px = max(
         FANOUT_SMALLEST_DIAMETER_PX,
@@ -858,249 +472,362 @@ def build_rsa_circle_visualization(
     }
 
 
-def build_plot_frame(filename: str | None) -> str:
-    if filename is None:
-        return MISSING_CASE_NOTE
-
+def build_plot_frame(filename: str) -> str:
     return f'<img src="{filename}">'
 
 
-def format_optional_number(
-    value: float | None, decimals: int = 0, truncate: bool = False
-) -> str:
-    if value is None:
-        return NOT_AVAILABLE
-
-    if truncate:
-        return f"{int(value):,}"
-
-    return f"{value:,.{decimals}f}"
-
-
 def format_slope(
-    slope: float | None,
-    slope_ci: float | None,
+    slope: float,
+    slope_ci: float,
     unit: str,
     decimals: int = 0,
     thousands: bool = True,
 ) -> str:
-    if slope is None or slope_ci is None:
-        return NOT_AVAILABLE
-
     return (
         f"+{format_mean_with_ci(slope, slope_ci, decimals=decimals, thousands=thousands)} "
         f"{unit}"
     )
 
 
+def _build_attribute_timing_table(
+    index_header: str,
+    index_values: list[int],
+    values: dict,
+    runs: int,
+    extra_columns: list[tuple[str, str]],
+    highlighted: list[bool] | None = None,
+) -> str:
+    headers = [index_header, "LATENCY (µs/op)"]
+    columns = [
+        [str(value) for value in index_values],
+        _mean_ci_column(values["latency_means"], values["latency_cis"]),
+    ]
+    for header, name in extra_columns:
+        headers.append(header)
+        columns.append([_format_byte_size(value) for value in values[name]])
+    headers.append(f"ITERS (Σ{runs} RUNS)")
+    columns.append([f"{value:,}" for value in values["iterations"]])
+    return build_html_table(
+        headers,
+        _rows_from_columns(columns),
+        values["timing_throttled"],
+        thermal_header="THERMAL",
+        highlighted=highlighted,
+    )
+
+
+def _build_attribute_timing_report_tables(
+    report_data: dict[str, Any],
+) -> dict[str, str]:
+    cases = report_data["cases"]
+    attributes = report_data["attribute_counts"]
+    subscribers = report_data["subscriber_counts"]
+    rsa_key_bits = report_data["rsa_key_bits"]
+    runs = report_data["runs"]
+
+    return {
+        "CpabeEncryptTable": _build_attribute_timing_table(
+            "ATTRIBUTES",
+            attributes,
+            cases[("CPABEAttributes", "Encrypt")],
+            runs,
+            [("CIPHERTEXT", "ciphertext_means")],
+        ),
+        "CpabeDecryptTable": _build_attribute_timing_table(
+            "ATTRIBUTES",
+            attributes,
+            cases[("CPABEAttributes", "Decrypt")],
+            runs,
+            [("STORED KEY", "stored_key_means")],
+        ),
+        "RsaSubscribersEncryptTable": _build_attribute_timing_table(
+            "SUBSCRIBERS",
+            subscribers,
+            cases[("RSASubscribers", "Encrypt")],
+            runs,
+            [
+                ("CIPHERTEXT", "ciphertext_means"),
+                ("CIPHERTEXT (TOTAL)", "total_ciphertext_means"),
+            ],
+        ),
+        "RsaKeyBitsEncryptTable": _build_attribute_timing_table(
+            "KEY BITS",
+            rsa_key_bits,
+            cases[("RSAKeyBits", "Encrypt")],
+            runs,
+            [("CIPHERTEXT", "ciphertext_means")],
+        ),
+        "RsaKeyBitsDecryptTable": _build_attribute_timing_table(
+            "KEY BITS",
+            rsa_key_bits,
+            cases[("RSAKeyBits", "Decrypt")],
+            runs,
+            [],
+            [value == report_data["fixed_rsa_key_bits"] for value in rsa_key_bits],
+        ),
+    }
+
+
+def _build_attribute_keygen_table(report_data: dict[str, Any]) -> str:
+    values = report_data["cases"][("RSAKeyBits", "KeyGen")]
+    rows = []
+    for index, rsa_key_bits in enumerate(report_data["rsa_key_bits"]):
+        rows.append(
+            [
+                str(rsa_key_bits),
+                f'{values["medians"][index]:,.2f}',
+                f'{values["minimums"][index]:,.2f}',
+                f'{values["maximums"][index]:,.2f}',
+                f'{values["iqrs"][index]:,.2f}',
+                _format_byte_size(values["stored_key_means"][index]),
+                str(values["sample_counts"][index]),
+            ]
+        )
+    return build_html_table(
+        [
+            "KEY BITS",
+            "MEDIAN (ms)",
+            "MIN (ms)",
+            "MAX (ms)",
+            "IQR (ms)",
+            "STORED KEY",
+            "n",
+        ],
+        rows,
+        values["timing_throttled"],
+        thermal_header="THERMAL",
+    )
+
+
+def _build_attribute_energy_tables(report_data: dict[str, Any]) -> dict[str, str]:
+    cases = report_data["cases"]
+    specifications = (
+        (
+            "CpabeEncryptEnergyTable",
+            "ATTRIBUTES",
+            report_data["attribute_counts"],
+            "CPABEAttributes",
+            "Encrypt",
+        ),
+        (
+            "CpabeDecryptEnergyTable",
+            "ATTRIBUTES",
+            report_data["attribute_counts"],
+            "CPABEAttributes",
+            "Decrypt",
+        ),
+        (
+            "RsaSubscribersEncryptEnergyTable",
+            "SUBSCRIBERS",
+            report_data["subscriber_counts"],
+            "RSASubscribers",
+            "Encrypt",
+        ),
+        (
+            "RsaKeyBitsEncryptEnergyTable",
+            "KEY BITS",
+            report_data["rsa_key_bits"],
+            "RSAKeyBits",
+            "Encrypt",
+        ),
+        (
+            "RsaKeyBitsDecryptEnergyTable",
+            "KEY BITS",
+            report_data["rsa_key_bits"],
+            "RSAKeyBits",
+            "Decrypt",
+        ),
+        (
+            "RsaKeyBitsKeygenEnergyTable",
+            "KEY BITS",
+            report_data["rsa_key_bits"],
+            "RSAKeyBits",
+            "KeyGen",
+        ),
+    )
+    tables = {}
+    for placeholder, header, parameter_values, algorithm, operation in specifications:
+        values = cases[(algorithm, operation)]
+        tables[placeholder] = _build_data_table(
+            [header, "ENERGY (µJ/op)"],
+            [
+                [str(parameter_value) for parameter_value in parameter_values],
+                _mean_ci_column(values["energy_means"], values["energy_cis"]),
+            ],
+            values["energy_throttled"],
+        )
+    return tables
+
+
+def _build_attribute_memory_report_tables(
+    report_data: dict[str, Any],
+) -> dict[str, str]:
+    memory = report_data["memory"]
+
+    def table(index_header, index_values, encrypt, decrypt):
+        return build_html_table(
+            [index_header, "ENCRYPT (MB)", "DECRYPT (MB)", "n"],
+            _rows_from_columns(
+                [
+                    [str(value) for value in index_values],
+                    _mean_ci_column(encrypt["means"], encrypt["cis"]),
+                    _mean_ci_column(decrypt["means"], decrypt["cis"]),
+                    [str(value) for value in encrypt["sample_counts"]],
+                ]
+            ),
+        )
+
+    cpabe_encrypt = memory[("CPABEAttributes", "Encrypt")]
+    cpabe_decrypt = memory[("CPABEAttributes", "Decrypt")]
+    rsa_encrypt = memory[("RSAKeyBits", "Encrypt")]
+    rsa_decrypt = memory[("RSAKeyBits", "Decrypt")]
+    subscriber_encrypt = memory[("RSASubscribers", "Encrypt")]
+    decrypt_reference = format_mean_with_ci(
+        report_data["fixed_rsa_decrypt_memory"],
+        report_data["fixed_rsa_decrypt_memory_ci"],
+    )
+    subscriber_rows = _rows_from_columns(
+        [
+            [str(value) for value in report_data["subscriber_counts"]],
+            _mean_ci_column(subscriber_encrypt["means"], subscriber_encrypt["cis"]),
+            [decrypt_reference] * len(report_data["subscriber_counts"]),
+            [str(value) for value in subscriber_encrypt["sample_counts"]],
+        ]
+    )
+
+    return {
+        "PeakMemoryCpabeTable": table(
+            "ATTRIBUTES", report_data["attribute_counts"], cpabe_encrypt, cpabe_decrypt
+        ),
+        "PeakMemoryRsaSubscribersTable": build_html_table(
+            ["SUBSCRIBERS", "ENCRYPT (MB)", "DECRYPT (MB)", "n"], subscriber_rows
+        ),
+        "PeakMemoryRsaKeyBitsTable": table(
+            "KEY BITS", report_data["rsa_key_bits"], rsa_encrypt, rsa_decrypt
+        ),
+    }
+
+
+def _build_memory_delta_strip(report_data: dict[str, Any]) -> str:
+    labels = (
+        (
+            "CP-ABE Encrypt",
+            report_data["attribute_counts"],
+            "attributes",
+            "cpabe_encrypt",
+        ),
+        (
+            "CP-ABE Decrypt",
+            report_data["attribute_counts"],
+            "attributes",
+            "cpabe_decrypt",
+        ),
+        (
+            "RSA Subscribers Encrypt",
+            report_data["subscriber_counts"],
+            "subscribers",
+            "subscriber_encrypt",
+        ),
+        (
+            "RSA Key Size Encrypt",
+            report_data["rsa_key_bits"],
+            "key bits",
+            "rsa_encrypt",
+        ),
+        (
+            "RSA Key Size Decrypt",
+            report_data["rsa_key_bits"],
+            "key bits",
+            "rsa_decrypt",
+        ),
+    )
+    items = []
+    for label, values, unit, name in labels:
+        change = report_data["memory_changes"][name]
+        text = format_peak_memory_change(
+            change["first"],
+            change["last"],
+            change["absolute_change"],
+            change["percent_change"],
+        )
+        items.append(
+            f'<span class="delta-item"><strong>{label}</strong> '
+            f"{values[0]} &rarr; {values[-1]} {unit} &middot; {text}</span>"
+        )
+    return f'<div class="delta-strip">{"".join(items)}</div>'
+
+
 def write_attribute_key_scaling_report(
-    *,
-    timing_runs: int,
-    t_multiplier: float,
-    timing_iterations: int,
-    attribute_counts: list[int],
-    subscriber_counts: list[int],
-    rsa_key_sizes: list[int],
-    fixed_rsa_key_bits: int,
-    cpabe_encrypt_latency_means: list[float | None],
-    cpabe_encrypt_latency_cis: list[float | None],
-    cpabe_encrypt_ciphertext_sizes: list[float | None],
-    cpabe_encrypt_iterations: list[int | None],
-    cpabe_encrypt_throttled: list[bool] | None,
-    cpabe_decrypt_latency_means: list[float | None],
-    cpabe_decrypt_latency_cis: list[float | None],
-    cpabe_decrypt_stored_key_sizes: list[float | None],
-    cpabe_decrypt_iterations: list[int | None],
-    cpabe_decrypt_throttled: list[bool] | None,
-    subscriber_encrypt_latency_means: list[float | None],
-    subscriber_encrypt_latency_cis: list[float | None],
-    subscriber_ciphertext_sizes: list[float | None],
-    subscriber_total_ciphertext_sizes: list[float | None],
-    subscriber_encrypt_iterations: list[int | None],
-    subscriber_encrypt_throttled: list[bool] | None,
-    rsa_encrypt_latency_means: list[float | None],
-    rsa_encrypt_latency_cis: list[float | None],
-    rsa_ciphertext_sizes: list[float | None],
-    rsa_encrypt_iterations: list[int | None],
-    rsa_encrypt_throttled: list[bool] | None,
-    rsa_decrypt_latency_means: list[float | None],
-    rsa_decrypt_latency_cis: list[float | None],
-    rsa_decrypt_iterations: list[int | None],
-    rsa_decrypt_throttled: list[bool] | None,
-    keygen_medians: list[float | None],
-    keygen_minimums: list[float | None],
-    keygen_maximums: list[float | None],
-    keygen_iqrs: list[float | None],
-    keygen_stored_key_sizes: list[float | None],
-    keygen_sample_counts: list[int | None],
-    keygen_throttled: list[bool] | None,
-    baseline_memory_mean: float,
-    baseline_memory_ci: float,
-    cpabe_memory_encrypt_means: list[float],
-    cpabe_memory_encrypt_cis: list[float],
-    cpabe_memory_decrypt_means: list[float],
-    cpabe_memory_decrypt_cis: list[float],
-    cpabe_memory_sample_counts: list[int],
-    subscriber_memory_encrypt_means: list[float],
-    subscriber_memory_encrypt_cis: list[float],
-    subscriber_memory_decrypt_mean: float | None,
-    subscriber_memory_decrypt_ci: float | None,
-    subscriber_memory_sample_counts: list[int],
-    rsa_memory_encrypt_means: list[float],
-    rsa_memory_encrypt_cis: list[float],
-    rsa_memory_decrypt_means: list[float],
-    rsa_memory_decrypt_cis: list[float],
-    rsa_memory_sample_counts: list[int],
-    cpabe_encrypt_memory_first: float | None,
-    cpabe_encrypt_memory_last: float | None,
-    cpabe_encrypt_memory_absolute_change: float | None,
-    cpabe_encrypt_memory_percent_change: float | None,
-    cpabe_decrypt_memory_first: float | None,
-    cpabe_decrypt_memory_last: float | None,
-    cpabe_decrypt_memory_absolute_change: float | None,
-    cpabe_decrypt_memory_percent_change: float | None,
-    subscriber_encrypt_memory_first: float | None,
-    subscriber_encrypt_memory_last: float | None,
-    subscriber_encrypt_memory_absolute_change: float | None,
-    subscriber_encrypt_memory_percent_change: float | None,
-    rsa_encrypt_memory_first: float | None,
-    rsa_encrypt_memory_last: float | None,
-    rsa_encrypt_memory_absolute_change: float | None,
-    rsa_encrypt_memory_percent_change: float | None,
-    rsa_decrypt_memory_first: float | None,
-    rsa_decrypt_memory_last: float | None,
-    rsa_decrypt_memory_absolute_change: float | None,
-    rsa_decrypt_memory_percent_change: float | None,
-    fanout_single_bytes: float | None,
-    fanout_total_bytes: float | None,
-    fanout_multiplier: float | None,
-    out_of_memory_operations: list[str],
-    out_of_memory_cases: list[str],
-    cpabe_encrypt_slope: float | None,
-    cpabe_encrypt_slope_ci: float | None,
-    cpabe_encrypt_r_squared: float | None,
-    cpabe_decrypt_slope: float | None,
-    cpabe_decrypt_slope_ci: float | None,
-    cpabe_decrypt_r_squared: float | None,
-    cpabe_ciphertext_slope: float | None,
-    cpabe_ciphertext_slope_ci: float | None,
-    cpabe_ciphertext_r_squared: float | None,
-    cpabe_stored_key_slope: float | None,
-    cpabe_stored_key_slope_ci: float | None,
-    cpabe_stored_key_r_squared: float | None,
-    subscriber_encrypt_slope: float | None,
-    subscriber_encrypt_slope_ci: float | None,
-    subscriber_encrypt_r_squared: float | None,
-    bytes_per_subscriber: float | None,
-    bytes_crossover_low: float | None,
-    bytes_crossover_high: float | None,
-    latency_crossover_low: float | None,
-    latency_crossover_high: float | None,
-    decrypt_penalty_low: float | None,
-    decrypt_penalty_high: float | None,
-    cpabe_plot: str,
-    rsa_subscribers_plot: str,
-    rsa_key_bits_plot: str,
-    bandwidth_crossover_plot: str | None,
-    encrypt_crossover_plot: str | None,
-    decrypt_crossover_plot: str | None,
-    asymmetry_plot: str | None,
-    peak_memory_plot: str,
+    report_data: dict[str, Any],
     template_path: str,
     report_path: str,
 ) -> None:
+    comparisons = report_data["comparisons"]
+    regressions = report_data["regressions"]
+    plots = report_data["plots"]
+    attributes = report_data["attribute_counts"]
+    subscribers = report_data["subscriber_counts"]
+
+    fanout = build_rsa_circle_visualization(
+        comparisons["bytes_per_subscriber"],
+        report_data["cases"][("RSASubscribers", "Encrypt")]["total_ciphertext_means"][
+            -1
+        ],
+        subscribers[-1],
+    )
     placeholders = {
-        **build_html_generic_data(timing_runs, t_multiplier, timing_iterations),
-        **build_rsa_circle_visualization(
-            fanout_single_bytes, fanout_total_bytes, fanout_multiplier
+        **build_html_generic_data(
+            report_data["runs"],
+            report_data["t_multiplier"],
+            report_data["total_iterations"],
         ),
-        "OutOfMemoryNotice": _build_out_of_memory_case_notice(
-            out_of_memory_operations, out_of_memory_cases
-        ),
-        **_build_attribute_timing_tables(
-            locals(),
-            attribute_counts,
-            subscriber_counts,
-            rsa_key_sizes,
-            fixed_rsa_key_bits,
-            timing_runs,
-        ),
-        "RsaKeyBitsKeygenTable": _build_rsa_keygen_table(locals(), rsa_key_sizes),
-        "BaselineRss": f"{format_mean_with_ci(baseline_memory_mean, baseline_memory_ci)} MB",
-        **_build_attribute_memory_tables(
-            locals(), attribute_counts, subscriber_counts, rsa_key_sizes
-        ),
-        "PeakMemoryDeltas": build_peak_memory_deltas(
-            locals(), attribute_counts, subscriber_counts, rsa_key_sizes
-        ),
-        "MinAttributeLabel": format_attribute_label(attribute_counts[0]),
-        "MaxAttributeLabel": format_attribute_label(attribute_counts[-1]),
-        "MaxSubscriberCount": str(subscriber_counts[-1]),
-        "FixedRsaKeyBits": str(fixed_rsa_key_bits),
-        "CpabePlot": cpabe_plot,
-        "RsaSubscribersPlot": rsa_subscribers_plot,
-        "RsaKeyBitsPlot": rsa_key_bits_plot,
-        "BandwidthCrossoverFrame": build_plot_frame(bandwidth_crossover_plot),
-        "EncryptCpuCrossoverFrame": build_plot_frame(encrypt_crossover_plot),
-        "DecryptCpuCrossoverFrame": build_plot_frame(decrypt_crossover_plot),
-        "AsymmetryFrame": build_plot_frame(asymmetry_plot),
-        "PeakMemoryFrame": build_plot_frame(peak_memory_plot),
-        "CpabeEncryptSlope": format_slope(
-            cpabe_encrypt_slope, cpabe_encrypt_slope_ci, "µs"
-        ),
-        "CpabeDecryptSlope": format_slope(
-            cpabe_decrypt_slope, cpabe_decrypt_slope_ci, "µs"
-        ),
-        "CpabeCiphertextSlope": format_slope(
-            cpabe_ciphertext_slope,
-            cpabe_ciphertext_slope_ci,
-            "B",
-            thousands=False,
-        ),
-        "CpabeStoredKeySlope": format_slope(
-            cpabe_stored_key_slope,
-            cpabe_stored_key_slope_ci,
-            "B",
-            thousands=False,
-        ),
-        "CpabeEncryptRSquared": format_optional_number(cpabe_encrypt_r_squared, 6),
-        "CpabeDecryptRSquared": format_optional_number(cpabe_decrypt_r_squared, 6),
-        "CpabeCiphertextRSquared": format_optional_number(
-            cpabe_ciphertext_r_squared, 6
-        ),
-        "CpabeStoredKeyRSquared": format_optional_number(cpabe_stored_key_r_squared, 6),
-        "RsaSubscriberEncryptSlope": format_slope(
-            subscriber_encrypt_slope,
-            subscriber_encrypt_slope_ci,
-            "µs",
-            decimals=2,
-        ),
-        "RsaSubscriberEncryptRSquared": format_optional_number(
-            subscriber_encrypt_r_squared, 6
-        ),
-        "RsaSubscriberTotalCiphertextSlope": (
-            NOT_AVAILABLE
-            if bytes_per_subscriber is None
-            else f"+{bytes_per_subscriber:.0f} B"
-        ),
-        "BytesCrossoverLow": format_optional_number(bytes_crossover_low, 1),
-        "BytesCrossoverHigh": format_optional_number(bytes_crossover_high, 1),
-        "BytesRsaThroughMin": format_optional_number(
-            bytes_crossover_low, truncate=True
-        ),
-        "BytesRsaThroughMax": format_optional_number(
-            bytes_crossover_high, truncate=True
-        ),
-        "EncryptCpuCrossoverLow": format_optional_number(latency_crossover_low),
-        "EncryptCpuCrossoverHigh": format_optional_number(latency_crossover_high),
-        "CpuRsaThroughMin": format_optional_number(
-            latency_crossover_low, truncate=True
-        ),
-        "CpuRsaThroughMax": format_optional_number(
-            latency_crossover_high, truncate=True
-        ),
-        "DecryptPenaltyMin": format_optional_number(decrypt_penalty_low, 1),
-        "DecryptPenaltyMax": format_optional_number(decrypt_penalty_high, 1),
+        **fanout,
+        **_build_attribute_timing_report_tables(report_data),
+        "RsaKeyBitsKeygenTable": _build_attribute_keygen_table(report_data),
+        **_build_attribute_energy_tables(report_data),
+        **_build_attribute_memory_report_tables(report_data),
+        "PeakMemoryDeltas": _build_memory_delta_strip(report_data),
+        "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
+        "MinAttributeLabel": format_attribute_label(attributes[0]),
+        "MaxAttributeLabel": format_attribute_label(attributes[-1]),
+        "MaxSubscriberCount": str(subscribers[-1]),
+        "FixedRsaKeyBits": str(report_data["fixed_rsa_key_bits"]),
+        "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
+        "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
+        "CpabePlot": plots["cpabe"],
+        "RsaSubscribersPlot": plots["rsa_subscribers"],
+        "RsaKeyBitsPlot": plots["rsa_key_bits"],
+        "EnergyPlot": plots["energy"],
+        "BandwidthCrossoverFrame": build_plot_frame(plots["ciphertext_crossover"]),
+        "EncryptCpuCrossoverFrame": build_plot_frame(plots["encrypt_crossover"]),
+        "DecryptCpuComparisonFrame": build_plot_frame(plots["decrypt_comparison"]),
+        "AsymmetryFrame": build_plot_frame(plots["asymmetry"]),
+        "PeakMemoryFrame": build_plot_frame(plots["peak_memory"]),
+        "RsaSubscriberTotalCiphertextSlope": f'+{comparisons["bytes_per_subscriber"]:.0f} B',
+        "BytesCrossoverLow": f'{comparisons["bytes_crossover_low"]:,.1f}',
+        "BytesCrossoverHigh": f'{comparisons["bytes_crossover_high"]:,.1f}',
+        "BytesRsaThroughMin": f'{int(comparisons["bytes_crossover_low"]):,}',
+        "BytesRsaThroughMax": f'{int(comparisons["bytes_crossover_high"]):,}',
+        "EncryptCpuCrossoverLow": f'{comparisons["latency_crossover_low"]:,.0f}',
+        "EncryptCpuCrossoverHigh": f'{comparisons["latency_crossover_high"]:,.0f}',
+        "CpuRsaThroughMin": f'{int(comparisons["latency_crossover_low"]):,}',
+        "CpuRsaThroughMax": f'{int(comparisons["latency_crossover_high"]):,}',
+        "DecryptPenaltyMin": f'{comparisons["decrypt_penalty_low"]:,.1f}',
+        "DecryptPenaltyMax": f'{comparisons["decrypt_penalty_high"]:,.1f}',
     }
+
+    regression_placeholders = (
+        ("CpabeEncrypt", "cpabe_encrypt", "µs", 0, True),
+        ("CpabeDecrypt", "cpabe_decrypt", "µs", 0, True),
+        ("CpabeCiphertext", "cpabe_ciphertext", "B", 0, False),
+        ("CpabeStoredKey", "cpabe_stored_key", "B", 0, False),
+        ("RsaSubscriberEncrypt", "subscriber_encrypt", "µs", 2, True),
+    )
+    for placeholder, name, unit, decimals, thousands in regression_placeholders:
+        slope, _, r_squared, slope_ci = regressions[name]
+        placeholders[f"{placeholder}Slope"] = format_slope(
+            slope, slope_ci, unit, decimals=decimals, thousands=thousands
+        )
+        placeholders[f"{placeholder}RSquared"] = f"{r_squared:.6f}"
 
     build_html_report(template_path, report_path, placeholders)
