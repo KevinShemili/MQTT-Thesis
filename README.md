@@ -1,108 +1,215 @@
 # MQTT Security Microbenchmarks
 
-This repository contains the reproducible microbenchmark suite used to study cryptographic and serialization trade-offs for secure MQTT messaging. The benchmarks are implemented in Go, executed in Docker, and converted into HTML reports and charts by Python.
+This repository contains the microbenchmark and reporting pipeline used to study cryptographic and serialization trade-offs for secure MQTT messaging on a Raspberry Pi.
 
-The suite currently covers four questions:
+Go implements the benchmark workloads. Python on the laptop builds and executes those benchmarks remotely over SSH, records power samples from a UM24C meter, loads the raw results, performs the statistical analysis, and generates charts and HTML reports.
 
-| Scenario | What it measures | Compared approaches |
-| --- | --- | --- |
-| Payload-size scaling | Encryption/decryption latency, throughput, wire overhead, asymmetry, and additivity as payloads grow | Pre-shared AES-GCM, RSA + AES-GCM, and CP-ABE + AES-GCM |
-| Attribute and key scaling | The cost of growing access policies, subscriber sets, and RSA keys | CP-ABE attribute counts, RSA subscriber counts, and RSA modulus sizes |
-| Envelope serialization | Serialization/deserialization latency and encoded envelope size | JSON, CBOR with string keys, and CBOR with integer keys |
-| Symmetric cipher comparison | Encryption/decryption latency, throughput, and wire overhead across payload sizes | AES-GCM and ASCON using the host's default CPU features, then with AES acceleration disabled |
+## Scenarios
+
+| Scenario | Varied parameter | Compared cases | Reported results |
+| --- | --- | --- | --- |
+| AES vs. ASCON | Payload size | AES-GCM and ASCON Encrypt/Decrypt | Latency, throughput, wire overhead, energy/op, iterations, thermal state |
+| JSON vs. CBOR | Attribute count | JSON, CBOR, and CBOR with integer keys Serialize/Deserialize | Latency, encoded size, format overhead, energy/op, iterations, thermal state |
+| Payload scaling | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput, wire size/overhead, energy/op, iterations, thermal state |
+| Attribute and key scaling | CP-ABE attributes, RSA subscribers, and RSA key bits | CP-ABE and RSA Encrypt/Decrypt plus RSA key generation | Latency, sizes, energy/op, peak RSS, distributions, regressions, crossovers, and comparisons |
+
+## How the pipeline works
+
+```text
+Laptop Python orchestrator
+    ├── SSH → build and run Go benchmarks on the Raspberry Pi
+    ├── serial/Bluetooth → collect UM24C power samples
+    └── write raw result files
+            ↓
+      BenchmarkSummary loader
+            ↓
+       shared statistics
+            ↓
+    scenario-specific analysis
+            ↓
+       PNG charts + report.html
+```
+
+Timing benchmarks measure only the operation under study. Energy benchmarks execute the same operation during warmup, the Go benchmark measurement region, and the tail. `ENRG-START` coordinates the beginning of UM24C collection with the remote workload.
+
+For each energy repetition, the report uses the load samples and `ns/op` from that same run. Mean load power is taken from the configured steady-state interval:
+
+```text
+[WARMUP_DURATION, WARMUP_DURATION + MEASUREMENT_DURATION)
+```
+
+Energy per operation is calculated as:
+
+```text
+(mean load power - mean idle power) × operation time
+```
+
+The attribute/key-scaling scenario also measures peak resident memory. Each memory repetition runs in its own process because Linux `VmHWM` is process-wide. A separate runtime baseline is recorded using the same independent-process method.
 
 ## Requirements
 
-- Docker Engine or Docker Desktop
-- Docker Compose v2 (`docker compose`)
-- A POSIX-compatible shell for the orchestration script (Linux/macOS shell, WSL, or Git Bash)
+### Laptop
 
-Go and Python do not need to be installed on the host. The Docker image contains the pinned toolchain and reporting dependencies.
+- Python 3.12 or newer
+- Python packages from `requirements.txt`
+- SSH access to the Raspberry Pi through the target name `pi`
+- A paired UM24C exposed as a serial port
 
-## Run the benchmark suite
+The current orchestrators use explicit constants for the SSH target, Raspberry Pi paths, and UM24C port. The checked-in values expect:
+
+```text
+SSH target:          pi
+Remote repository:  /home/thesis/MQTT-Thesis
+UM24C serial port:   COM11
+```
+
+Update those constants near the top of each orchestrator if the local setup differs.
+
+### Raspberry Pi
+
+- The repository at `/home/thesis/MQTT-Thesis`, or matching updated orchestrator paths
+- Go 1.25 available as `/usr/local/go/bin/go`
+- `environment/benchmark.env` present in the remote repository
+- Linux `/proc` support for peak-RSS measurements
+- Raspberry Pi thermal information under `/sys/class/thermal`
+- `vcgencmd` for throttling observations
+
+## Laptop setup
 
 From the repository root:
 
 ```sh
-cd microbenchmark
-sh script/run-sequentially.sh
+python -m venv .venv
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-This is the recommended workflow. It builds and runs every scenario **sequentially**, preventing concurrently running benchmarks from competing for CPU and memory. Docker's build cache is reused between scenarios.
+Activate the virtual environment using the command appropriate for the laptop shell, or invoke its Python executable directly.
 
-The full matrix is intentionally thorough and can take a while. To shorten or change an experiment, edit [`microbenchmark/config/benchmark.env`](microbenchmark/config/benchmark.env) before starting the run.
-
-### Run a selected scenario
-
-Use the same generic Compose pattern with one of the service names from the table below:
+The Go module dependencies can be prepared on the Raspberry Pi with:
 
 ```sh
-docker compose build <service>
-docker compose run --rm <service>
+cd /home/thesis/MQTT-Thesis/benchmark
+/usr/local/go/bin/go mod download
 ```
-
-| Service | Result directory |
-| --- | --- |
-| `payload-scaling` | `results/payload-scaling/` |
-| `attribute-key-scaling` | `results/attribute-key-scaling/` |
-| `json-cbor` | `results/json-cbor/` |
-| `aes-ascon-with-acceleration` | `results/aes-ascon/with-acceleration/` |
-| `aes-ascon-without-acceleration` | `results/aes-ascon/without-acceleration/` |
-
-Avoid using `docker compose up` for performance measurements: it starts independent services concurrently and can introduce resource contention.
 
 ## Configuration
 
-All experiment inputs are centralized in [`benchmark.env`](microbenchmark/config/benchmark.env). They are grouped by scenario and control:
+Experiment settings live in [`environment/benchmark.env`](environment/benchmark.env). It contains:
 
-- the number of repeated benchmark runs;
-- payload sizes in bytes;
-- CP-ABE attribute counts;
-- RSA subscriber counts and modulus sizes;
-- AES key size and fixed comparison parameters.
+- general cache and thermal settings;
+- timing duration;
+- idle-baseline, warmup, measurement, and tail durations;
+- repetition counts;
+- payload sizes and attribute counts;
+- subscriber counts and RSA key sizes;
+- fixed comparison values and result directories.
 
+The laptop and Raspberry Pi copies of this file must agree. The orchestrators load the local file for orchestration/reporting and source the remote file before executing the Go benchmark binary.
+
+## Running a scenario
+
+Run one orchestrator from the repository root:
+
+```sh
+python orchestrate/orchestrate_aes_ascon.py
+python orchestrate/orchestrate_json_cbor.py
+python orchestrate/orchestrate_payload_scaling.py
+python orchestrate/orchestrate_attribute_key_scaling.py
+```
+
+Each orchestrator performs the complete scenario and replaces its result files. The common sequence is:
+
+1. load the environment;
+2. create the local result directory;
+3. build the Go benchmark binary on the Raspberry Pi;
+4. allow the device to stabilize;
+5. record one idle power baseline and run all energy cases;
+6. run all timing cases;
+7. generate the HTML report and charts.
+
+Attribute/key scaling additionally clears and provisions its fixture cache, records independent memory cases, and then continues with energy and timing.
+
+Run scenarios sequentially. Concurrent experiments would compete for Raspberry Pi CPU, memory, temperature, and power.
+
+## Regenerating reports
+
+If the raw files already exist, regenerate a report without rerunning the hardware benchmarks:
+
+```sh
+python -m report.analysis.aes_ascon_report
+python -m report.analysis.json_cbor_report
+python -m report.analysis.payload_scaling_report
+python -m report.analysis.attribute_key_scaling_report
+```
+
+Each report module loads `environment/benchmark.env` and reads from its configured result directory.
 
 ## Results
 
-Each run writes directly to [`microbenchmark/results/`](microbenchmark/results) through a Docker volume and replaces the files for the corresponding scenario:
+Generated results live under `results/` and are intentionally ignored by Git.
 
-- `bench_output.txt` — raw Go benchmark output;
-- `report.html` — tables, summary statistics, methodology notes, and embedded chart references;
-- `*.png` — generated comparison charts.
+| Directory | Raw files | Charts |
+| --- | --- | --- |
+| `results/aes_ascon/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
+| `results/json_cbor/` | `timing.txt`, `energy.txt` | `latency.png`, `size.png`, `energy.png` |
+| `results/payload_scaling/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
+| `results/attribute_key_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `cpabe_attributes.png`, `rsa_subscribers.png`, `rsa_key_bits.png`, `energy.png`, `peak_memory.png`, and four comparison charts |
 
-The repository includes the latest generated result set:
+Every directory also receives `report.html`. Timing and energy thermal observations are reported separately.
 
-- [Payload-size scaling report](microbenchmark/results/payload-scaling/report.html)
-- [Attribute and key scaling report](microbenchmark/results/attribute-key-scaling/report.html)
-- [JSON/CBOR report](microbenchmark/results/json-cbor/report.html)
-- [AES/ASCON report with acceleration](microbenchmark/results/aes-ascon/with-acceleration/report.html)
-- [AES/ASCON report without acceleration](microbenchmark/results/aes-ascon/without-acceleration/report.html)
-
-Because benchmark results depend on the host CPU, system load, Docker runtime, and hardware acceleration support, comparisons should be made from reports produced on the same machine under similar conditions.
+The raw energy format contains one scenario-level `[baseline]`, followed by parameterized `[case ...]` sections containing independent `[run]` sections. Each run stores its own `ns/op`, throttling flag, and UM24C samples.
 
 ## Repository structure
 
 ```text
 .
-├── .github/workflows/ci.yml        # Compose, build, static, and test validation
-├── docs/
-│   ├── Benchmark Matrix.pdf        # Experiment design and benchmark matrix
-│   └── Thesis Proposal.pdf         # Thesis proposal
-└── microbenchmark/
-    ├── config/benchmark.env        # Complete experiment configuration
-    ├── docker-compose.yml          # One service per benchmark scenario/variant
-    ├── Dockerfile                  # Reproducible Go + Python benchmark image
-    ├── golang/
-    │   ├── benchmark/              # Go benchmark implementations
-    │   ├── cryptography/           # AES-GCM, ASCON, RSA, and CP-ABE adapters
-    │   ├── envelope/               # JSON and CBOR envelope representations
-    │   └── utils/                  # Environment parsing and test-data helpers
-    ├── python/
-    │   ├── src/                    # Scenario report generators
-    │   │   └── reporting/          # Shared parsing, statistics, chart, and HTML code
-    │   └── template/               # HTML report templates
-    ├── results/                    # Raw outputs, HTML reports, and charts
-    └── script/
-        ├── run-sequentially.sh     # Recommended full-suite entry point
-        └── run-*.sh                # Per-scenario container entry points
+├── benchmark/
+│   ├── cache/                    # Provisioned benchmark fixtures
+│   ├── cmd/provision/            # Attribute/key fixture provisioning binary
+│   ├── cryptography/             # AES-GCM, ASCON, RSA, and CP-ABE adapters
+│   ├── envelope/                 # JSON and CBOR envelope representations
+│   ├── micro/                    # Timing, energy, and memory benchmarks
+│   ├── thermal/                  # Cooldown and throttling observation
+│   └── utility/                  # Environment, memory, and byte helpers
+├── environment/benchmark.env     # Shared experiment configuration
+├── orchestrate/                  # Supported laptop-side scenario entry points
+├── report/
+│   ├── analysis/                 # Scenario analysis and shared statistics/loading
+│   ├── model/                    # Slim benchmark object graph
+│   ├── render/                   # Chart and HTML rendering
+│   └── template/                 # Scenario HTML templates
+├── results/                      # Generated raw results, charts, and reports
+├── um24c/                        # UM24C serial protocol integration
+├── requirements.txt              # Python dependencies
+└── AGENTS.md                     # Repository guidance for coding agents
 ```
+
+## Validation
+
+Export the variables from `environment/benchmark.env` before running the Go test suite. On a POSIX shell:
+
+```sh
+cd benchmark
+set -a
+. ../environment/benchmark.env
+set +a
+go test ./...
+cd ..
+```
+
+Python and formatting checks can be run from the repository root:
+
+```sh
+python -m compileall -q orchestrate report um24c
+python -c "import report.analysis.aes_ascon_report; import report.analysis.json_cbor_report; import report.analysis.payload_scaling_report; import report.analysis.attribute_key_scaling_report"
+python -m black --check orchestrate report um24c
+gofmt -d $(git ls-files '*.go')
+git diff --check
+```
+
+The `gofmt` command uses POSIX command substitution; use the equivalent file-list expansion in PowerShell if needed.
+
+## Docker status
+
+The Python orchestrators above are the current supported execution path. Files under `orchestrate/docker/` and the present CI workflow still contain stale paths from an older layout and should not be used as execution documentation until they are updated.

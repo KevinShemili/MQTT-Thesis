@@ -113,6 +113,7 @@ def build_benchmark_binary():
 
 def run_energy_case(meter, output, algorithm, operation, attribute_count):
 
+    print(f"Energy: {algorithm} {operation} {attribute_count}Attrs")
     output.write(
         f"\n[case algorithm={algorithm} operation={operation} parameter_value={attribute_count}]\n"
     )
@@ -233,6 +234,7 @@ def orchestrate_energy():
 
 def run_timing_case(output, algorithm, operation, attribute_count):
 
+    print(f"Timing: {algorithm} {operation} {attribute_count}Attrs")
     benchmark_case = (
         f"^BenchmarkEnvelope{operation}$/" f"^{algorithm}$/" f"^{attribute_count}Attrs$"
     )

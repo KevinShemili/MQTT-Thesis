@@ -112,6 +112,7 @@ def build_benchmark_binary():
 
 def run_energy_case(meter, output, algorithm, operation, payload_size):
 
+    print(f"Energy: {algorithm} {operation} {payload_size}B")
     output.write(
         f"\n[case algorithm={algorithm} operation={operation} parameter_value={payload_size}]\n"
     )
@@ -221,6 +222,7 @@ def orchestrate_energy():
 
 def run_timing_case(output, algorithm, operation, payload_size):
 
+    print(f"Timing: {algorithm} {operation} {payload_size}B")
     benchmark_case = (
         f"^BenchmarkAESASCON{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )

@@ -141,6 +141,7 @@ def build_binaries():
 
 def run_provision_case(algorithm, parameter_value):
 
+    print(f"Provision: {algorithm} {parameter_value}")
     command = (
         f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
@@ -187,6 +188,7 @@ def orchestrate_provision():
 
 def run_memory_case(output, operation, algorithm, parameter_value):
 
+    print(f"Memory: {algorithm} {operation} {parameter_value}")
     benchmark_case = (
         f"^BenchmarkAttributeKeyScaling{operation}$/"
         f"^{algorithm}$/"
@@ -246,6 +248,7 @@ def orchestrate_memory():
 
 def run_energy_case(meter, output, algorithm, operation, parameter_value):
 
+    print(f"Energy: {algorithm} {operation} {parameter_value}")
     output.write(
         f"\n[case "
         f"algorithm={algorithm} "
@@ -368,6 +371,7 @@ def run_timing_case(
     output, algorithm, operation, parameter_value, benchmark_time, runs
 ):
 
+    print(f"Timing: {algorithm} {operation} {parameter_value}")
     benchmark_case = (
         f"^BenchmarkAttributeKeyScaling{operation}$/"
         f"^{algorithm}$/"
