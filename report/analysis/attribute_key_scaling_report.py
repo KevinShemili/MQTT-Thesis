@@ -606,6 +606,7 @@ def main() -> None:
         {key: (value["means"], value["cis"]) for key, value in memory_results.items()},
         fixed_rsa_key_bits,
         fixed_rsa_decrypt_memory,
+        baseline_memory_mean / MEGABYTE,
         str(result_directory / PEAK_MEMORY_PLOT),
     )
     plot_ciphertext_size_crossover(

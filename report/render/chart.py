@@ -22,6 +22,10 @@ AXIS_HEADROOM = 1.03
 CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 TOTAL_CIPHERTEXT_COLOR = TEAL
 RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
+AES_ASCON_MAIN_TICK_MIN = 4 * KILOBYTE
+AES_ASCON_ZOOM_MAX = KILOBYTE
+PEAK_RSS_AXIS_PADDING = 0.08
+PEAK_RSS_FALLBACK_PADDING = 0.01
 
 
 def draw_summary(
@@ -164,6 +168,48 @@ def calculate_axis_top(means: list[float], confidence_intervals: list[float]) ->
     )
 
 
+def _configure_peak_rss_axes(
+    panels: list[
+        tuple[
+            Axes,
+            list[int],
+            list[tuple[str, list[float], list[float], str]],
+        ]
+    ],
+    baseline_memory_mean: float,
+) -> None:
+    bounds = [baseline_memory_mean]
+
+    for _, _, series in panels:
+        for _, means, confidence_intervals, _ in series:
+            for mean, confidence_interval in zip(means, confidence_intervals):
+                if not isnan(mean) and not isnan(confidence_interval):
+                    bounds.extend(
+                        [mean - confidence_interval, mean + confidence_interval]
+                    )
+
+    lower_bound = min(bounds)
+    upper_bound = max(bounds)
+    value_range = upper_bound - lower_bound
+    padding = value_range * PEAK_RSS_AXIS_PADDING
+
+    if padding == 0:
+        padding = (
+            max(abs(lower_bound), abs(upper_bound), 1.0) * PEAK_RSS_FALLBACK_PADDING
+        )
+
+    for axis, _, _ in panels:
+        axis.axhline(
+            baseline_memory_mean,
+            color=TEAL,
+            linestyle="--",
+            linewidth=1.8,
+            label="Runtime baseline",
+        )
+        axis.set_yscale("linear")
+        axis.set_ylim(lower_bound - padding, upper_bound + padding)
+
+
 def save_figure(figure: Figure, output_path: str) -> None:
     figure.savefig(output_path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(figure)
@@ -299,6 +345,8 @@ def _plot_aes_ascon_results(
     title: str,
     y_label: str,
     output_path: str,
+    with_small_payload_zoom: bool = False,
+    baseline_memory_mean: float | None = None,
 ) -> None:
     panels = []
 
@@ -311,15 +359,112 @@ def _plot_aes_ascon_results(
 
         panels.append((operation, series))
 
-    _plot_operation_comparison(
-        payload_sizes,
-        panels,
-        title,
-        "Payload size",
-        y_label,
-        output_path,
-        byte_tick_step=16 * KILOBYTE,
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+    rendered_panels = []
+
+    for axis, (operation, series) in zip(axes, panels):
+        _draw_summaries(axis, payload_sizes, series, with_ci=True)
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload size")
+        axis.set_ylabel(y_label)
+        if baseline_memory_mean is None:
+            axis.set_ylim(bottom=0)
+        _configure_aes_ascon_main_axis(axis, payload_sizes)
+        rendered_panels.append((axis, payload_sizes, series))
+
+        if with_small_payload_zoom:
+            _draw_aes_ascon_small_payload_zoom(axis, payload_sizes, series)
+
+    if baseline_memory_mean is not None:
+        _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
+
+    for axis in axes:
+        axis.legend(fontsize=10, loc="upper left")
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+def _configure_aes_ascon_main_axis(
+    axis: Axes,
+    payload_sizes: list[int],
+) -> None:
+    tick_values = [
+        payload_size
+        for payload_size in payload_sizes
+        if payload_size >= AES_ASCON_MAIN_TICK_MIN
+    ]
+
+    axis.set_xscale("linear")
+    axis.set_yscale("linear")
+    axis.set_xticks(tick_values)
+    axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in tick_values
+        ]
     )
+    axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
+    apply_value_grid(axis)
+
+
+def _draw_aes_ascon_small_payload_zoom(
+    axis: Axes,
+    payload_sizes: list[int],
+    series: list[tuple[str, list[float], list[float], str]],
+) -> None:
+    zoom_indexes = [
+        index
+        for index, payload_size in enumerate(payload_sizes)
+        if payload_size <= AES_ASCON_ZOOM_MAX
+    ]
+    zoom_payload_sizes = [payload_sizes[index] for index in zoom_indexes]
+    zoom_axis = axis.inset_axes([0.30, 0.55, 0.46, 0.38])  # type: ignore
+    zoom_series = []
+
+    for label, means, confidence_intervals, color in series:
+        zoom_means = [means[index] for index in zoom_indexes]
+        zoom_confidence_intervals = [
+            confidence_intervals[index] for index in zoom_indexes
+        ]
+        zoom_series.append((label, zoom_means, zoom_confidence_intervals, color))
+        draw_summary(
+            zoom_axis,
+            zoom_payload_sizes,
+            zoom_means,
+            zoom_confidence_intervals,
+            label,
+            color,
+            with_ci=True,
+            linewidth=1.3,
+            markersize=3.5,
+            capsize=2.5,
+        )
+
+    zoom_axis.set_xscale("linear")
+    zoom_axis.set_yscale("linear")
+    zoom_axis.set_xlim(0, zoom_payload_sizes[-1] * AXIS_HEADROOM)
+    zoom_axis.set_ylim(
+        0,
+        max(
+            calculate_axis_top(means, confidence_intervals)
+            for _, means, confidence_intervals, _ in zoom_series
+        )
+        * 1.10,
+    )
+    zoom_axis.set_xticks(zoom_payload_sizes)
+    zoom_axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in zoom_payload_sizes
+        ],
+        rotation=90,
+        ha="center",
+    )
+    zoom_axis.set_title("Small payloads", fontsize=8)
+    zoom_axis.tick_params(axis="both", labelsize=7)
+    apply_value_grid(zoom_axis, linewidth=0.4)
 
 
 def plot_aes_ascon_latency(
@@ -331,8 +476,9 @@ def plot_aes_ascon_latency(
         payload_sizes,
         results,
         "AES-GCM vs. ASCON: Latency vs. Payload Size",
-        "Latency (µs) ± 95% CI",
+        "Latency (µs/op)",
         output_path,
+        with_small_payload_zoom=True,
     )
 
 
@@ -345,7 +491,7 @@ def plot_aes_ascon_throughput(
         payload_sizes,
         results,
         "AES-GCM vs. ASCON: Throughput vs. Payload Size",
-        "Throughput (MB/s) ± 95% CI",
+        "Throughput (MB/s)",
         output_path,
     )
 
@@ -359,22 +505,25 @@ def plot_aes_ascon_energy(
         payload_sizes,
         results,
         "AES-GCM vs. ASCON: Energy per Operation vs. Payload Size",
-        "Energy (µJ/op) ± 95% CI",
+        "Energy (µJ/op)",
         output_path,
+        with_small_payload_zoom=True,
     )
 
 
 def plot_aes_ascon_memory(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    baseline_memory_mean: float,
     output_path: str,
 ) -> None:
     _plot_aes_ascon_results(
         payload_sizes,
         results,
         "AES-GCM vs. ASCON: Peak Process Memory vs. Payload Size",
-        "Peak RSS (MB) ± 95% CI",
+        "Peak RSS (MB)",
         output_path,
+        baseline_memory_mean=baseline_memory_mean,
     )
 
 
@@ -760,6 +909,7 @@ def plot_attribute_key_scaling_memory(
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     fixed_rsa_key_bits: int,
     subscriber_decrypt_reference: float,
+    baseline_memory_mean: float,
     output_path: str,
 ) -> None:
     attribute_counts = parameter_values_by_algorithm["CPABEAttributes"]
@@ -818,9 +968,19 @@ def plot_attribute_key_scaling_memory(
         axis.set_xlabel(x_label)
         axis.set_xticks(parameter_values)
         apply_value_grid(axis)
+
+    _configure_peak_rss_axes(
+        [
+            (axis, parameter_values, series)
+            for axis, parameter_values, _, _, series in panels
+        ],
+        baseline_memory_mean,
+    )
+
+    for axis in axes:
         axis.legend(fontsize=9)
 
-    axes[0].set_ylabel("Peak RSS (MB) ± 95% CI")
+    axes[0].set_ylabel("Peak RSS (MB)")
 
     figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
     save_figure(figure, output_path)

@@ -353,6 +353,7 @@ def main():
     plot_aes_ascon_memory(
         payload_sizes,
         memory_plot_results,
+        baseline_memory_mean / MEGABYTE,
         str(result_directory / MEMORY_PLOT),
     )
 
