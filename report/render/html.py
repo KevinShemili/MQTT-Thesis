@@ -6,16 +6,14 @@ CONFIDENCE_LEVEL = "95%"
 
 # A row is marked where the Raspberry Pi firmware throttled the clock while that case was
 # being measured, which makes the measurement a pessimistic bound rather than an invalid
-# one. The column is drawn only where something actually throttled, since a column of
-# identical marks repeated across every table would bury the rows that matter
+# one.
 THERMAL_MARK = "&#9888;"
 
 # A row the rest of the report is quoted against, ex. the fixed RSA key size the
 # cross-schema comparisons use, is marked so it can be found among the swept values
 REFERENCE_ROW_CLASS = "reference-row"
 THERMAL_FLAGGED_NOTE = (
-    "&#9888; marks a case measured while the Raspberry Pi firmware was thermally "
-    "throttling. Those measurements are a pessimistic bound, not an invalid one."
+    "marks a case measured while the Raspberry Pi firmware was thermally " "throttling."
 )
 THERMAL_CLEAN_NOTE = "No thermal throttling occurred while these cases were measured."
 
@@ -24,18 +22,11 @@ def build_html_table(
     headers: Sequence[str],
     rows: Sequence[Sequence[str]],
     throttled: list[bool] | None = None,
-    thermal_header: str = "Thermal",
     highlighted: list[bool] | None = None,
 ) -> str:
 
-    flagged = throttled is not None and any(throttled)
-
     lines = ["<table>", "<thead>", "<tr>"]
     lines += [f"<th>{header}</th>" for header in headers]
-
-    if flagged:
-        lines.append(f"<th>{thermal_header}</th>")
-
     lines += ["</tr>", "</thead>", "<tbody>"]
 
     for index, row in enumerate(rows):
@@ -45,23 +36,31 @@ def build_html_table(
         else:
             lines.append("<tr>")
 
-        lines += [f"<td>{cell}</td>" for cell in row]
-
-        if flagged:
-            mark = THERMAL_MARK if throttled[index] else ""  # type: ignore
-            lines.append(f'<td class="thermal">{mark}</td>')
+        for column_index, cell in enumerate(row):
+            if column_index == 0 and throttled is not None and throttled[index]:
+                cell = (
+                    f'{cell}<span class="thermal-mark" '
+                    f'title="Thermally throttled">{THERMAL_MARK}</span>'
+                )
+            lines.append(f"<td>{cell}</td>")
 
         lines.append("</tr>")
 
     lines += ["</tbody>", "</table>"]
 
-    # The note explains the mark where there is one, and confirms the absence of
-    # throttling where the column has been left out
-    if throttled is not None:
-        note = THERMAL_FLAGGED_NOTE if flagged else THERMAL_CLEAN_NOTE
-        lines.append(f'<p class="table-note">{note}</p>')
-
     return "\n".join(lines)
+
+
+def build_thermal_legend(throttled: Sequence[bool]) -> str:
+    if any(throttled):
+        return (
+            '<div class="thermal-status thermal-status-flagged">'
+            f'<span class="thermal-symbol">{THERMAL_MARK}</span>'
+            f"<span>{THERMAL_FLAGGED_NOTE}</span>"
+            "</div>"
+        )
+
+    return f'<div class="thermal-status">{THERMAL_CLEAN_NOTE}</div>'
 
 
 def build_html_generic_data(
@@ -122,14 +121,10 @@ def _build_data_table(
 def _build_aes_ascon_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
-    runs: int,
 ) -> dict[str, str]:
     headers = [
         "Payload",
         "Latency (ns/op)",
-        "Throughput (MB/s)",
-        "Tag + Nonce (B)",
-        f"Iters (Σ{runs} runs)",
     ]
     specifications = [
         ("EncryptAesTable", ("AES-GCM", "Encrypt")),
@@ -148,15 +143,32 @@ def _build_aes_ascon_tables(
                     values["latency_means"],
                     values["latency_cis"],
                 ),
-                _mean_ci_column(
-                    values["throughput_means"],
-                    values["throughput_cis"],
-                    decimals=1,
-                ),
-                [f"{value:.0f}" for value in values["overhead_bytes"]],
-                [f"{value:,}" for value in values["iterations"]],
             ],
             values["timing_throttled"],
+        )
+
+    return tables
+
+
+def _build_aes_ascon_memory_tables(
+    payload_sizes: list[int],
+    memory: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    specifications = [
+        ("EncryptAesMemoryTable", ("AES-GCM", "Encrypt")),
+        ("EncryptAsconMemoryTable", ("ASCON", "Encrypt")),
+        ("DecryptAesMemoryTable", ("AES-GCM", "Decrypt")),
+        ("DecryptAsconMemoryTable", ("ASCON", "Decrypt")),
+    ]
+    tables = {}
+    for placeholder, case in specifications:
+        values = memory[case]
+        tables[placeholder] = _build_data_table(
+            ["Payload", "Peak RSS (MB)"],
+            [
+                [format_byte_size(value, compact=True) for value in payload_sizes],
+                _mean_ci_column(values["means"], values["cis"]),
+            ],
         )
 
     return tables
@@ -199,20 +211,31 @@ def write_aes_ascon_report(
     payload_sizes = report_data["payload_sizes"]
     cases = report_data["cases"]
     plots = report_data["plots"]
+    timing_throttled = [
+        flag for values in cases.values() for flag in values["timing_throttled"]
+    ]
+    energy_throttled = [
+        flag for values in cases.values() for flag in values["energy_throttled"]
+    ]
 
     placeholders = {
-        **build_html_generic_data(
-            report_data["runs"],
-            report_data["t_multiplier"],
-            report_data["total_iterations"],
-        ),
-        **_build_aes_ascon_tables(payload_sizes, cases, report_data["runs"]),
+        "RunCount": str(report_data["runs"]),
+        "ConfidenceLevel": CONFIDENCE_LEVEL,
+        "TMultiplier": str(report_data["t_multiplier"]),
+        **_build_aes_ascon_tables(payload_sizes, cases),
         **_build_aes_ascon_energy_tables(payload_sizes, cases),
+        **_build_aes_ascon_memory_tables(payload_sizes, report_data["memory"]),
+        "TimingThermalLegend": build_thermal_legend(timing_throttled),
+        "EnergyThermalLegend": build_thermal_legend(energy_throttled),
+        "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
+        "EnergyBaselineDuration": f'{report_data["energy_baseline_duration"]:g}',
+        "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
         "ThroughputPlot": plots["throughput"],
         "EnergyPlot": plots["energy"],
+        "MemoryPlot": plots["memory"],
     }
 
     build_html_report(template_path, report_path, placeholders)
@@ -300,6 +323,12 @@ def write_json_cbor_report(
     attribute_counts = report_data["attribute_counts"]
     cases = report_data["cases"]
     plots = report_data["plots"]
+    timing_throttled = [
+        flag for values in cases.values() for flag in values["timing_throttled"]
+    ]
+    energy_throttled = [
+        flag for values in cases.values() for flag in values["energy_throttled"]
+    ]
 
     placeholders = {
         **build_html_generic_data(
@@ -309,6 +338,10 @@ def write_json_cbor_report(
         ),
         **_build_json_cbor_tables(attribute_counts, cases, report_data["runs"]),
         **_build_json_cbor_energy_tables(attribute_counts, cases),
+        "TimingThermalLegend": build_thermal_legend(timing_throttled),
+        "EnergyThermalLegend": build_thermal_legend(energy_throttled),
+        "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
+        "EnergyBaselineDuration": f'{report_data["energy_baseline_duration"]:g}',
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
@@ -408,6 +441,12 @@ def write_payload_scaling_report(
     payload_sizes = report_data["payload_sizes"]
     cases = report_data["cases"]
     plots = report_data["plots"]
+    timing_throttled = [
+        flag for values in cases.values() for flag in values["timing_throttled"]
+    ]
+    energy_throttled = [
+        flag for values in cases.values() for flag in values["energy_throttled"]
+    ]
 
     placeholders = {
         **build_html_generic_data(
@@ -421,6 +460,10 @@ def write_payload_scaling_report(
             report_data["runs"],
         ),
         **_build_payload_scaling_energy_tables(payload_sizes, cases),
+        "TimingThermalLegend": build_thermal_legend(timing_throttled),
+        "EnergyThermalLegend": build_thermal_legend(energy_throttled),
+        "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
+        "EnergyBaselineDuration": f'{report_data["energy_baseline_duration"]:g}',
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
@@ -511,7 +554,6 @@ def _build_attribute_timing_table(
         headers,
         _rows_from_columns(columns),
         values["timing_throttled"],
-        thermal_header="THERMAL",
         highlighted=highlighted,
     )
 
@@ -595,7 +637,6 @@ def _build_attribute_keygen_table(report_data: dict[str, Any]) -> str:
         ],
         rows,
         values["timing_throttled"],
-        thermal_header="THERMAL",
     )
 
 
@@ -767,6 +808,16 @@ def write_attribute_key_scaling_report(
     plots = report_data["plots"]
     attributes = report_data["attribute_counts"]
     subscribers = report_data["subscriber_counts"]
+    timing_throttled = [
+        flag
+        for values in report_data["cases"].values()
+        for flag in values["timing_throttled"]
+    ]
+    energy_throttled = [
+        flag
+        for values in report_data["cases"].values()
+        for flag in values["energy_throttled"]
+    ]
 
     fanout = build_rsa_circle_visualization(
         comparisons["bytes_per_subscriber"],
@@ -786,6 +837,10 @@ def write_attribute_key_scaling_report(
         "RsaKeyBitsKeygenTable": _build_attribute_keygen_table(report_data),
         **_build_attribute_energy_tables(report_data),
         **_build_attribute_memory_report_tables(report_data),
+        "TimingThermalLegend": build_thermal_legend(timing_throttled),
+        "EnergyThermalLegend": build_thermal_legend(energy_throttled),
+        "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
+        "EnergyBaselineDuration": f'{report_data["energy_baseline_duration"]:g}',
         "PeakMemoryDeltas": _build_memory_delta_strip(report_data),
         "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
         "MinAttributeLabel": format_attribute_label(attributes[0]),

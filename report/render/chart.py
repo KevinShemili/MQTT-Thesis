@@ -364,6 +364,20 @@ def plot_aes_ascon_energy(
     )
 
 
+def plot_aes_ascon_memory(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_aes_ascon_results(
+        payload_sizes,
+        results,
+        "AES-GCM vs. ASCON: Peak Process Memory vs. Payload Size",
+        "Peak RSS (MB) ± 95% CI",
+        output_path,
+    )
+
+
 def _plot_payload_scaling_results(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],

@@ -609,15 +609,64 @@
             white-space: nowrap;
         }
 
-        td.thermal {
+        .thermal-mark {
+            display: inline-block;
+            margin-left: 6px;
             color: var(--warm);
-            text-align: center;
+            font-size: 14px;
+            font-weight: 900;
+            vertical-align: middle;
         }
 
-        .table-note {
-            margin: 10px 14px 12px;
-            color: var(--muted);
+        .section-legend {
+            display: grid;
+            gap: 9px;
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border: 1px solid #f0cf9c;
+            border-radius: 14px;
+            background: var(--warm-soft);
+        }
+
+        .legend-item,
+        .thermal-status {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .legend-label {
+            color: #8a4b08;
             font-size: 11px;
+            font-weight: 850;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .legend-copy,
+        .thermal-status {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .thermal-status-flagged,
+        .thermal-symbol {
+            color: #92400e;
+        }
+
+        .thermal-symbol {
+            font-size: 16px;
+            font-weight: 900;
+        }
+
+        .memory-note {
+            margin: 0 0 18px;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--surface-soft);
+            color: var(--muted);
+            font-size: 12px;
         }
 
         tbody tr:nth-child(even) {
@@ -913,6 +962,14 @@
                     and the operation time reported by the same energy run.</p>
             </div>
 
+            <div class="section-legend">
+                <div class="legend-item">
+                    <span class="legend-label">Idle baseline</span>
+                    <strong>{{EnergyBaseline}}</strong>
+                </div>
+                {{EnergyThermalLegend}}
+            </div>
+
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-frame">
@@ -966,7 +1023,11 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Numerical Results</h2>
+                <h2>Timing Results</h2>
+            </div>
+
+            <div class="section-legend">
+                {{TimingThermalLegend}}
             </div>
 
             <div class="operation-group">
@@ -1045,6 +1106,9 @@
             <div class="baseline-legend">
                 <span>Baseline</span><strong>{{BaselineRss}}</strong>
             </div>
+
+            <p class="memory-note">Memory uses the same power-meter-equipped physical test bed as Timing and
+                Energy, a setup known to induce Raspberry Pi undervoltage and throttling.</p>
 
             <div class="plot-stack">
                 <article class="plot-card">

@@ -4,7 +4,7 @@ import numpy as np
 from scipy import stats
 
 from report.model.energy.energy_aggregation import EnergyAggregation
-from report.model.energy.energy_case import NS_PER_OP, EnergySample
+from report.model.energy.energy_case import NS_PER_OP, EnergyCase
 from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import MemoryCase
 from report.model.timing.timing_aggregation import TimingAggregation
@@ -36,12 +36,14 @@ def timing_statistics(
 # Calculate energy-per-operation means and confidence intervals
 def energy_statistics(
     aggregations: list[EnergyAggregation],
-    baseline_samples: list[EnergySample],
+    baseline_cases: list[EnergyCase],
 ) -> tuple[list[float], list[float]]:
 
     means = []
     confidence_intervals = []
-    idle_power_w = fmean(sample.power_w for sample in baseline_samples)
+    idle_power_w = fmean(
+        fmean(sample.power_w for sample in case.samples) for case in baseline_cases
+    )
 
     for aggregation in aggregations:
 
@@ -53,6 +55,20 @@ def energy_statistics(
         confidence_intervals.append(confidence_interval)
 
     return means, confidence_intervals
+
+
+# Calculate idle-baseline energy statistics across independent sampling windows
+def energy_baseline_statistics(
+    cases: list[EnergyCase],
+    baseline_duration: float,
+) -> tuple[float, float]:
+
+    values = [
+        fmean(sample.power_w for sample in case.samples) * baseline_duration
+        for case in cases
+    ]
+
+    return _mean_and_confidence_interval(values)
 
 
 # Calculate mean and confidence interval for independent memory cases

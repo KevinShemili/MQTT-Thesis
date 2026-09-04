@@ -2,6 +2,8 @@ package main
 
 import (
 	"benchmark/cache"
+	"benchmark/cryptography/aes"
+	"benchmark/cryptography/ascon"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
 	"benchmark/utility"
@@ -13,6 +15,8 @@ import (
 const cpabeAttributesAlgorithm = "CPABEAttributes"
 const rsaSubscribersAlgorithm = "RSASubscribers"
 const rsaKeyBitsAlgorithm = "RSAKeyBits"
+const aesGCMAlgorithm = "AES-GCM"
+const asconAlgorithm = "ASCON"
 
 // The point of this program is to provide the fixture data for one benchmark case
 // It does so by populating the cache, allowing the benchmark processes to just load it
@@ -37,23 +41,110 @@ func main() {
 		panic(err)
 	}
 
-	aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
-	aesKey := provisionAESKey(aesKeySize)
-
 	switch algorithm {
 
 	case cpabeAttributesAlgorithm:
+		aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
+		aesKey := provisionAESKey(aesKeySize)
 		provisionCPABE(parameterValue, aesKeySize, aesKey)
 
 	case rsaSubscribersAlgorithm:
 		provisionRSASubscribers(parameterValue)
 
 	case rsaKeyBitsAlgorithm:
+		aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
+		aesKey := provisionAESKey(aesKeySize)
 		provisionRSAKeyBits(parameterValue, aesKey)
+
+	case aesGCMAlgorithm:
+		provisionAESGCM(parameterValue)
+
+	case asconAlgorithm:
+		provisionASCON(parameterValue)
 
 	default:
 		panic(fmt.Sprintf("unknown algorithm %q", algorithm))
 	}
+}
+
+func provisionAESGCM(payloadSize int) {
+
+	keySize := utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE")
+	key := provisionAESKey(keySize)
+	cipher := aes.NewAES(key)
+	plaintext := provisionAESASCONPlaintext(payloadSize)
+	nonce := provisionAESGCMNonce(cipher.NonceSize())
+
+	cache.StoreFile(
+		cache.CreateAESGCMCiphertextFileName(payloadSize),
+		cipher.Seal(nil, nonce, plaintext, nil),
+	)
+}
+
+func provisionASCON(payloadSize int) {
+
+	keySize := utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE")
+	key := provisionASCONKey(keySize)
+	cipher := ascon.NewASCON(key)
+	plaintext := provisionAESASCONPlaintext(payloadSize)
+	nonce := provisionASCONNonce(cipher.NonceSize())
+
+	cache.StoreFile(
+		cache.CreateASCONCiphertextFileName(payloadSize),
+		cipher.Seal(nil, nonce, plaintext, nil),
+	)
+}
+
+func provisionAESASCONPlaintext(payloadSize int) []byte {
+
+	fileName := cache.CreateAESASCONPlaintextFileName(payloadSize)
+	if plaintext, found := cache.FindFile(fileName); found {
+		return plaintext
+	}
+
+	plaintext := utility.GenerateRandomBytes(payloadSize)
+	cache.StoreFile(fileName, plaintext)
+
+	return plaintext
+}
+
+func provisionAESGCMNonce(nonceSize int) []byte {
+
+	fileName := cache.CreateAESGCMNonceFileName()
+	if nonce, found := cache.FindFile(fileName); found {
+		return nonce
+	}
+
+	nonce := utility.GenerateRandomBytes(nonceSize)
+	cache.StoreFile(fileName, nonce)
+
+	return nonce
+}
+
+func provisionASCONKey(keySize int) []byte {
+
+	fileName := cache.CreateASCONKeyFileName(keySize)
+	if key, found := cache.FindFile(fileName); found {
+		return key
+	}
+
+	key := utility.GenerateRandomBytes(keySize)
+	cache.StoreFile(fileName, key)
+
+	return key
+}
+
+func provisionASCONNonce(nonceSize int) []byte {
+
+	fileName := cache.CreateASCONNonceFileName()
+	if nonce, found := cache.FindFile(fileName); found {
+		return nonce
+	}
+
+	nonce := utility.GenerateRandomBytes(nonceSize)
+	cache.StoreFile(fileName, nonce)
+
+	return nonce
 }
 
 func provisionAESKey(aesKeySize int) []byte {

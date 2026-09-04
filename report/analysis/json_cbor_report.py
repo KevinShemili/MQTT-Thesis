@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
     confidence_interval_multiplier,
+    energy_baseline_statistics,
     energy_statistics,
     timing_statistics,
 )
@@ -14,7 +15,7 @@ from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
-    EnergySample,
+    EnergyCase,
 )
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
@@ -135,7 +136,7 @@ def to_microjoules(values: list[float]) -> list[float]:
 def analyze_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
-    energy_baseline_samples: list[EnergySample],
+    energy_baseline_cases: list[EnergyCase],
 ):
 
     latency_means, latency_cis = timing_statistics(
@@ -155,7 +156,7 @@ def analyze_case(
 
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
-        energy_baseline_samples,
+        energy_baseline_cases,
     )
 
     overhead_bytes = [
@@ -202,6 +203,7 @@ def main() -> None:
 
     runs = parse_int_env("JSON_CBOR_RUNS")
     attribute_counts = parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS")
+    baseline_duration = parse_int_env("BASELINE_DURATION")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
@@ -243,7 +245,7 @@ def main() -> None:
             case_results[(format_name, operation)] = analyze_case(
                 timing_aggregations,
                 energy_aggregations,
-                summary.energy_baseline_samples,
+                summary.energy_baseline_cases,
             )
 
     latency_results = {
@@ -292,11 +294,18 @@ def main() -> None:
     total_iterations = sum(
         sum(values["iterations"]) for values in case_results.values()
     )
+    energy_baseline_mean, energy_baseline_ci = energy_baseline_statistics(
+        summary.energy_baseline_cases,
+        baseline_duration,
+    )
 
     report_data = {
         "runs": runs,
         "t_multiplier": confidence_interval_multiplier(runs),
         "total_iterations": total_iterations,
+        "energy_baseline_mean": energy_baseline_mean,
+        "energy_baseline_ci": energy_baseline_ci,
+        "energy_baseline_duration": baseline_duration,
         "attribute_counts": attribute_counts,
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,

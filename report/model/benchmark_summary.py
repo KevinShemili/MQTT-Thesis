@@ -1,5 +1,5 @@
 from .energy.energy_aggregation import EnergyAggregation
-from .energy.energy_case import EnergySample
+from .energy.energy_case import EnergyCase
 from .memory.memory_aggregation import MemoryAggregation
 from .memory.memory_case import MemoryCase
 from .timing.timing_aggregation import TimingAggregation
@@ -14,7 +14,7 @@ class BenchmarkSummary:
         self.memory_baseline_cases: list[MemoryCase] = []
         self.memory_aggregations: list[MemoryAggregation] = []
 
-        self.energy_baseline_samples: list[EnergySample] = []
+        self.energy_baseline_cases: list[EnergyCase] = []
         self.energy_aggregations: list[EnergyAggregation] = []
 
     # Find a specific timing aggregation

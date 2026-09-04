@@ -44,12 +44,6 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
 			}
 
-			// Additional Overhead = Nonce Size + Tag Size
-			b.ReportMetric(
-				float64(aes.Overhead()+aes.NonceSize()),
-				"additional_overhead_bytes",
-			)
-
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
 			} else {
@@ -89,12 +83,6 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			for b.Loop() {
 				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
 			}
-
-			// Additional Overhead = Nonce Size + Tag Size
-			b.ReportMetric(
-				float64(ascon.Overhead()+ascon.NonceSize()),
-				"additional_overhead_bytes",
-			)
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -144,12 +132,6 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
 			}
 
-			// Additional Overhead = Nonce Size + Tag Size
-			b.ReportMetric(
-				float64(aes.Overhead()+aes.NonceSize()),
-				"additional_overhead_bytes",
-			)
-
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
 			} else {
@@ -192,12 +174,6 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			for b.Loop() {
 				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
 			}
-
-			// Additional Overhead = Nonce Size + Tag Size
-			b.ReportMetric(
-				float64(ascon.Overhead()+ascon.NonceSize()),
-				"additional_overhead_bytes",
-			)
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")

@@ -206,15 +206,16 @@ def orchestrate_energy():
     with closing(UM24C(UM24C_PORT)) as um24c:
 
         print(f"Using UM24C on Port {UM24C_PORT}")
-        print(f"Collection of Idle Baseline Power for {BASELINE_DURATION}s...")
-
-        # Record Baseline
-        baseline_samples = read_um24c(um24c, BASELINE_DURATION)
+        print(
+            f"Collection of {RUNS} Idle Baseline Power Windows "
+            f"for {BASELINE_DURATION}s each..."
+        )
 
         with ENERGY_RESULT_FILE.open("w", encoding="utf-8") as output:
 
-            output.write("[baseline]\n")
-            write_to_file(output, baseline_samples)
+            for _ in range(RUNS):
+                output.write("[baseline]\n")
+                write_to_file(output, read_um24c(um24c, BASELINE_DURATION))
 
             for attribute_count in ATTRIBUTE_COUNTS:
 

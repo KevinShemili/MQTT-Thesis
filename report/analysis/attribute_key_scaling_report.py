@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
     confidence_interval_multiplier,
+    energy_baseline_statistics,
     energy_statistics,
     linear_regression_statistics,
     memory_case_statistics,
@@ -18,7 +19,7 @@ from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
-    EnergySample,
+    EnergyCase,
 )
 from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import PEAK_RSS_BYTES
@@ -184,12 +185,12 @@ def add_timing_measurement(
 def analyze_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
-    energy_baseline_samples: list[EnergySample],
+    energy_baseline_cases: list[EnergyCase],
 ) -> dict:
     latency_means, latency_cis = timing_statistics(timing_aggregations, NS_PER_OP)
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
-        energy_baseline_samples,
+        energy_baseline_cases,
     )
 
     return {
@@ -206,12 +207,12 @@ def analyze_case(
 def analyze_keygen_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
-    energy_baseline_samples: list[EnergySample],
+    energy_baseline_cases: list[EnergyCase],
 ) -> dict:
     result = analyze_case(
         timing_aggregations,
         energy_aggregations,
-        energy_baseline_samples,
+        energy_baseline_cases,
     )
     (
         medians,
@@ -275,6 +276,7 @@ def main() -> None:
     subscriber_counts = parse_int_list_env("ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT")
     rsa_key_bits = parse_int_list_env("ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES")
     fixed_rsa_key_bits = parse_int_env("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
+    baseline_duration = parse_int_env("BASELINE_DURATION")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
@@ -329,13 +331,13 @@ def main() -> None:
             result = analyze_keygen_case(
                 timing_aggregations,
                 energy_aggregations,
-                summary.energy_baseline_samples,
+                summary.energy_baseline_cases,
             )
         else:
             result = analyze_case(
                 timing_aggregations,
                 energy_aggregations,
-                summary.energy_baseline_samples,
+                summary.energy_baseline_cases,
             )
 
         if (algorithm, operation) in (
@@ -629,10 +631,17 @@ def main() -> None:
     total_iterations = sum(
         sum(result["iterations"]) for result in case_results.values()
     )
+    energy_baseline_mean, energy_baseline_ci = energy_baseline_statistics(
+        summary.energy_baseline_cases,
+        baseline_duration,
+    )
     report_data = {
         "runs": runs,
         "t_multiplier": confidence_interval_multiplier(runs),
         "total_iterations": total_iterations,
+        "energy_baseline_mean": energy_baseline_mean,
+        "energy_baseline_ci": energy_baseline_ci,
+        "energy_baseline_duration": baseline_duration,
         "attribute_counts": attribute_counts,
         "subscriber_counts": subscriber_counts,
         "rsa_key_bits": rsa_key_bits,

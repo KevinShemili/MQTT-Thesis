@@ -214,7 +214,7 @@ def _load_energy_results(
 
     current_aggregation = None
     current_case = None
-    reading_baseline = False
+    current_baseline_case = None
 
     with Path(filepath).open("r", encoding="utf-8") as file:
 
@@ -227,7 +227,8 @@ def _load_energy_results(
 
             if line == "[baseline]":
 
-                reading_baseline = True
+                current_baseline_case = EnergyCase()
+                summary.energy_baseline_cases.append(current_baseline_case)
                 current_aggregation = None
                 current_case = None
 
@@ -249,7 +250,7 @@ def _load_energy_results(
 
                 summary.energy_aggregations.append(current_aggregation)
 
-                reading_baseline = False
+                current_baseline_case = None
                 current_case = None
 
                 continue
@@ -293,8 +294,8 @@ def _load_energy_results(
 
                 sample = _parse_energy_sample(line)
 
-                if reading_baseline:
-                    summary.energy_baseline_samples.append(sample)
+                if current_baseline_case is not None:
+                    current_baseline_case.add_sample(sample)
 
                 elif current_case is not None:
                     current_case.add_sample(sample)

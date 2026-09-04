@@ -92,7 +92,7 @@
 
         .metadata {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 14px;
             margin-top: 16px;
         }
@@ -267,15 +267,55 @@
             white-space: nowrap;
         }
 
-        td.thermal {
+        .thermal-mark {
+            display: inline-block;
+            margin-left: 6px;
             color: var(--warm);
-            text-align: center;
+            font-size: 14px;
+            font-weight: 900;
+            vertical-align: middle;
         }
 
-        .table-note {
-            margin: 10px 14px 12px;
-            color: var(--muted);
+        .section-legend {
+            display: grid;
+            gap: 9px;
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border: 1px solid #f0cf9c;
+            border-radius: 14px;
+            background: var(--warm-soft);
+        }
+
+        .legend-item,
+        .thermal-status {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .legend-label {
+            color: #8a4b08;
             font-size: 11px;
+            font-weight: 850;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .legend-copy,
+        .thermal-status,
+        .memory-note {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .thermal-status-flagged,
+        .thermal-symbol {
+            color: #92400e;
+        }
+
+        .thermal-symbol {
+            font-size: 16px;
+            font-weight: 900;
         }
 
         tbody tr:nth-child(even) {
@@ -363,16 +403,15 @@
                 <div class="metric-label">Student t</div>
                 <div class="metric-value">{{TMultiplier}}</div>
             </div>
-
-            <div class="metric">
-                <div class="metric-label">Crypto operations</div>
-                <div class="metric-value">{{TotalIterations}}</div>
-            </div>
         </section>
 
         <section class="section">
             <div class="section-heading">
-                <h2>Scaling Results</h2>
+                <h2>Timing</h2>
+            </div>
+
+            <div class="section-legend">
+                {{TimingThermalLegend}}
             </div>
 
             <div class="plot-stack">
@@ -395,12 +434,6 @@
                         <img src="{{ThroughputPlot}}" alt="AES-GCM and ASCON throughput over payload size">
                     </div>
                 </article>
-            </div>
-        </section>
-
-        <section class="section">
-            <div class="section-heading">
-                <h2>Numerical Results</h2>
             </div>
 
             <div class="operation-group">
@@ -450,9 +483,15 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Energy Results</h2>
-                <p>Idle power is subtracted from each load measurement. Only power samples in the steady-state
-                    interval [{{EnergyWindowStart}} s, {{EnergyWindowEnd}} s) are included.</p>
+                <h2>Energy</h2>
+            </div>
+
+            <div class="section-legend">
+                <div class="legend-item">
+                    <span class="legend-label">Idle baseline</span>
+                    <strong>{{EnergyBaseline}}</strong>
+                </div>
+                {{EnergyThermalLegend}}
             </div>
 
             <div class="plot-stack">
@@ -507,6 +546,65 @@
                         <div class="table-wrapper">
                             {{DecryptAsconEnergyTable}}
                         </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Memory</h2>
+            </div>
+
+            <div class="section-legend">
+                <div class="legend-item">
+                    <span class="legend-label">Runtime baseline</span>
+                    <strong>{{BaselineRss}}</strong>
+                </div>
+                <div class="memory-note">Memory uses the same power-meter-equipped physical test bed as Timing and
+                    Energy, a setup known to induce Raspberry Pi undervoltage and throttling.</div>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Peak Process Memory vs. Payload Size</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{MemoryPlot}}" alt="AES-GCM and ASCON peak process memory over payload size">
+                    </div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Encrypt</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>AES-GCM: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{EncryptAesMemoryTable}}</div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>ASCON: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{EncryptAsconMemoryTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Decrypt</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>AES-GCM: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{DecryptAesMemoryTable}}</div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>ASCON: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{DecryptAsconMemoryTable}}</div>
                     </div>
                 </div>
             </div>
