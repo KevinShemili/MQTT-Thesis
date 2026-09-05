@@ -17,6 +17,7 @@ const rsaSubscribersAlgorithm = "RSASubscribers"
 const rsaKeyBitsAlgorithm = "RSAKeyBits"
 const aesGCMAlgorithm = "AES-GCM"
 const asconAlgorithm = "ASCON"
+const payloadScalingAlgorithm = "PayloadScaling"
 
 // The point of this program is to provide the fixture data for one benchmark case
 // It does so by populating the cache, allowing the benchmark processes to just load it
@@ -62,8 +63,40 @@ func main() {
 	case asconAlgorithm:
 		provisionASCON(parameterValue)
 
+	case payloadScalingAlgorithm:
+		provisionPayloadScaling(parameterValue)
+
 	default:
 		panic(fmt.Sprintf("unknown algorithm %q", algorithm))
+	}
+}
+
+func provisionPayloadScaling(payloadSize int) {
+
+	aesKeySize := utility.ParseIntFromEnv("PAYLOAD_SCALING_AES_KEY_SIZE")
+	attributeCount := utility.ParseIntFromEnv("PAYLOAD_SCALING_ATTRIBUTE_COUNT")
+	rsaKeyBits := utility.ParseIntFromEnv("PAYLOAD_SCALING_RSA_KEY_BITS")
+
+	aesKey := provisionAESKey(aesKeySize)
+	cipher := aes.NewAES(aesKey)
+	plaintext := utility.GenerateRandomBytes(payloadSize)
+	nonce := provisionAESGCMNonce(cipher.NonceSize())
+
+	cache.StoreFile(
+		cache.CreatePayloadScalingPlaintextFileName(payloadSize),
+		plaintext,
+	)
+	cache.StoreFile(
+		cache.CreatePayloadScalingCiphertextFileName(payloadSize),
+		cipher.Seal(nil, nonce, plaintext, nil),
+	)
+
+	if _, found := cache.FindFile(cache.CreateCPABECiphertextFileName(attributeCount)); !found {
+		provisionCPABE(attributeCount, aesKeySize, aesKey)
+	}
+
+	if _, found := cache.FindFile(cache.CreateRSACiphertextFileName(rsaKeyBits, 0)); !found {
+		provisionRSAKeyBits(rsaKeyBits, aesKey)
 	}
 }
 

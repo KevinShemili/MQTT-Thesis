@@ -280,9 +280,11 @@ def _plot_operation_comparison(
     byte_tick_step: int | None = None,
     legend_location: str | None = None,
     zoom_first_panel: bool = False,
+    baseline_memory_mean: float | None = None,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle(title, fontsize=13)
+    rendered_panels = []
 
     for index, (axis, (operation, series)) in enumerate(zip(axes, panels)):
         _draw_summaries(axis, parameter_values, series, with_ci=True)
@@ -290,6 +292,7 @@ def _plot_operation_comparison(
         axis.set_xlabel(x_label)
         axis.set_ylabel(y_label)
         axis.set_ylim(bottom=0)
+        rendered_panels.append((axis, parameter_values, series))
 
         if byte_tick_step is None:
             configure_attribute_axis(parameter_values, axis)
@@ -303,6 +306,14 @@ def _plot_operation_comparison(
 
         if zoom_first_panel and index == 0:
             _draw_zoom(axis, parameter_values, series[:2])
+
+    if baseline_memory_mean is not None:
+        _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
+        for axis in axes:
+            legend_options = {"fontsize": 10}
+            if legend_location is not None:
+                legend_options["loc"] = legend_location
+            axis.legend(**legend_options)
 
     figure.tight_layout()
     save_figure(figure, output_path)
@@ -606,6 +617,7 @@ def _plot_payload_scaling_results(
     y_label: str,
     output_path: str,
     zoom_first_panel: bool = False,
+    baseline_memory_mean: float | None = None,
 ) -> None:
     panels = []
 
@@ -634,6 +646,7 @@ def _plot_payload_scaling_results(
         byte_tick_step=4 * MEGABYTE,
         legend_location="upper left",
         zoom_first_panel=zoom_first_panel,
+        baseline_memory_mean=baseline_memory_mean,
     )
 
 
@@ -666,6 +679,42 @@ def plot_payload_scaling_throughput(
     )
 
 
+def plot_payload_scaling_wire_size(
+    payload_sizes: list[int],
+    wire_sizes: dict[str, list[float]],
+    output_path: str,
+) -> None:
+    figure, axis = plt.subplots(figsize=(8.5, 5.2))
+
+    for scheme, label, color in (
+        ("PSK", "PSK", TEAL),
+        ("RSA", "RSA", VIOLET),
+        ("CPABE", "CP-ABE", CRIMSON),
+    ):
+        axis.plot(
+            payload_sizes,
+            wire_sizes[scheme],
+            label=label,
+            color=color,
+            marker="o",
+            linewidth=1.8,
+            markersize=5,
+        )
+
+    axis.set_title(
+        "PSK vs. RSA vs. CP-ABE: Wire Size vs. Payload Size",
+        fontsize=13,
+    )
+    axis.set_xlabel("Payload Size")
+    axis.set_ylabel("Wire Size (bytes)")
+    axis.set_ylim(bottom=0)
+    configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
+    axis.legend(fontsize=10)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
 def plot_payload_scaling_energy(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
@@ -678,6 +727,22 @@ def plot_payload_scaling_energy(
         "Energy (µJ/op) ± 95% CI",
         output_path,
         zoom_first_panel=True,
+    )
+
+
+def plot_payload_scaling_memory(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    baseline_memory_mean: float,
+    output_path: str,
+) -> None:
+    _plot_payload_scaling_results(
+        payload_sizes,
+        results,
+        "PSK vs. RSA vs. CP-ABE: Peak Process Memory vs. Payload Size",
+        "Peak RSS (MB)",
+        output_path,
+        baseline_memory_mean=baseline_memory_mean,
     )
 
 

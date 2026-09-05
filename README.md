@@ -10,7 +10,7 @@ Go implements the benchmark workloads. Python on the laptop builds and executes 
 | --- | --- | --- | --- |
 | AES vs. ASCON | Payload size | AES-GCM and ASCON Encrypt/Decrypt | Latency, throughput, wire overhead, energy/op, iterations, thermal state |
 | JSON vs. CBOR | Attribute count | JSON, CBOR, and CBOR with integer keys Serialize/Deserialize | Latency, encoded size, format overhead, energy/op, iterations, thermal state |
-| Payload scaling | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput, wire size/overhead, energy/op, iterations, thermal state |
+| Payload scaling | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput chart, wire size, energy/op, peak RSS, and thermal state |
 | Attribute and key scaling | CP-ABE attributes, RSA subscribers, and RSA key bits | CP-ABE and RSA Encrypt/Decrypt plus RSA key generation | Latency, sizes, energy/op, peak RSS, distributions, regressions, crossovers, and comparisons |
 
 ## How the pipeline works
@@ -128,7 +128,7 @@ Each orchestrator performs the complete scenario and replaces its result files. 
 6. run all timing cases;
 7. generate the HTML report and charts.
 
-Attribute/key scaling additionally clears and provisions its fixture cache, records independent memory cases, and then continues with energy and timing.
+Scenarios that report peak RSS additionally clear and provision their fixture cache, record independent memory cases, and then continue with energy and timing.
 
 Run scenarios sequentially. Concurrent experiments would compete for Raspberry Pi CPU, memory, temperature, and power.
 
@@ -153,7 +153,7 @@ Generated results live under `results/` and are intentionally ignored by Git.
 | --- | --- | --- |
 | `results/aes_ascon/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
 | `results/json_cbor/` | `timing.txt`, `energy.txt` | `latency.png`, `size.png`, `energy.png` |
-| `results/payload_scaling/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
+| `results/payload_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `throughput.png`, `wire_size.png`, `energy.png`, `memory.png` |
 | `results/attribute_key_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `cpabe_attributes.png`, `rsa_subscribers.png`, `rsa_key_bits.png`, `energy.png`, `peak_memory.png`, and four comparison charts |
 
 Every directory also receives `report.html`. Timing and energy thermal observations are reported separately.

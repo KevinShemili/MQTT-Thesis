@@ -411,15 +411,10 @@ def write_json_cbor_report(
 def _build_payload_scaling_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
-    runs: int,
 ) -> dict[str, str]:
     headers = [
-        "Raw Size",
+        "Payload",
         "Latency (µs/op)",
-        "Throughput (MB/s)",
-        "Wire Size",
-        "Overhead (%)",
-        f"Iters (Σ{runs} runs)",
     ]
     specifications = [
         ("EncryptPskTable", ("PSK", "Encrypt")),
@@ -440,22 +435,26 @@ def _build_payload_scaling_tables(
                     values["latency_means"],
                     values["latency_cis"],
                 ),
-                _mean_ci_column(
-                    values["throughput_means"],
-                    values["throughput_cis"],
-                    decimals=1,
-                ),
-                [format_byte_size(round(value)) for value in values["wire_sizes"]],
-                [
-                    f"{value:.2f}%" if value >= 0.01 else "&lt;0.01%"
-                    for value in values["overhead_percents"]
-                ],
-                [f"{value:,}" for value in values["iterations"]],
             ],
             values["timing_throttled"],
         )
 
     return tables
+
+
+def _build_payload_scaling_wire_size_table(
+    payload_sizes: list[int],
+    wire_sizes: dict[str, list[float]],
+) -> str:
+    return _build_data_table(
+        ["Payload", "PSK Wire Size", "RSA Wire Size", "CP-ABE Wire Size"],
+        [
+            [format_byte_size(value) for value in payload_sizes],
+            [format_byte_size(round(value)) for value in wire_sizes["PSK"]],
+            [format_byte_size(round(value)) for value in wire_sizes["RSA"]],
+            [format_byte_size(round(value)) for value in wire_sizes["CPABE"]],
+        ],
+    )
 
 
 def _build_payload_scaling_energy_tables(
@@ -489,6 +488,32 @@ def _build_payload_scaling_energy_tables(
     return tables
 
 
+def _build_payload_scaling_memory_tables(
+    payload_sizes: list[int],
+    memory: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    specifications = [
+        ("EncryptPskMemoryTable", ("PSK", "Encrypt")),
+        ("EncryptRsaMemoryTable", ("RSA", "Encrypt")),
+        ("EncryptCpabeMemoryTable", ("CPABE", "Encrypt")),
+        ("DecryptPskMemoryTable", ("PSK", "Decrypt")),
+        ("DecryptRsaMemoryTable", ("RSA", "Decrypt")),
+        ("DecryptCpabeMemoryTable", ("CPABE", "Decrypt")),
+    ]
+    tables = {}
+    for placeholder, case in specifications:
+        values = memory[case]
+        tables[placeholder] = _build_data_table(
+            ["Payload", "Peak RSS (MB)"],
+            [
+                [format_byte_size(value) for value in payload_sizes],
+                _mean_ci_column(values["means"], values["cis"]),
+            ],
+        )
+
+    return tables
+
+
 def write_payload_scaling_report(
     report_data: dict[str, Any],
     template_path: str,
@@ -505,26 +530,33 @@ def write_payload_scaling_report(
     ]
 
     placeholders = {
-        **build_html_generic_data(
-            report_data["runs"],
-            report_data["t_multiplier"],
-            report_data["total_iterations"],
-        ),
+        "RunCount": str(report_data["runs"]),
+        "ConfidenceLevel": CONFIDENCE_LEVEL,
         **_build_payload_scaling_tables(
             payload_sizes,
             cases,
-            report_data["runs"],
+        ),
+        "WireSizeTable": _build_payload_scaling_wire_size_table(
+            payload_sizes,
+            report_data["wire_sizes"],
         ),
         **_build_payload_scaling_energy_tables(payload_sizes, cases),
+        **_build_payload_scaling_memory_tables(
+            payload_sizes,
+            report_data["memory"],
+        ),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
         "EnergyBaselineDuration": f'{report_data["energy_baseline_duration"]:g}',
+        "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
         "ThroughputPlot": plots["throughput"],
+        "WireSizePlot": plots["wire_size"],
         "EnergyPlot": plots["energy"],
+        "MemoryPlot": plots["memory"],
     }
 
     build_html_report(template_path, report_path, placeholders)

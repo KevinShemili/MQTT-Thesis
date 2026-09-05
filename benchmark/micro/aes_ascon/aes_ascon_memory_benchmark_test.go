@@ -4,9 +4,9 @@ import (
 	"benchmark/cache"
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/ascon"
+	"benchmark/memory"
 	"benchmark/micro/aes_ascon/shared"
 	"benchmark/thermal"
-	"benchmark/utility"
 	"fmt"
 	"runtime"
 	"runtime/debug"
@@ -38,7 +38,7 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 				cipher.Seal(nil, nonce, plaintext, nil)
 			}
 
-			if peakBytes, isAvailable := utility.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -60,7 +60,7 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 				cipher.Seal(nil, nonce, plaintext, nil)
 			}
 
-			if peakBytes, isAvailable := utility.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -87,7 +87,7 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 				cipher.Open(nil, nonce, ciphertext, nil)
 			}
 
-			if peakBytes, isAvailable := utility.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -109,7 +109,7 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 				cipher.Open(nil, nonce, ciphertext, nil)
 			}
 
-			if peakBytes, isAvailable := utility.PeakResidentMemory(); isPrepared && isAvailable {
+			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 				b.ReportMetric(peakBytes, "peak_rss_bytes")
 			}
 		})
@@ -128,7 +128,7 @@ func BenchmarkAESASCONMemoryBaseline(benchmark *testing.B) {
 		for b.Loop() {
 		}
 
-		if peakBytes, isAvailable := utility.PeakResidentMemory(); isPrepared && isAvailable {
+		if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
 			b.ReportMetric(peakBytes, "peak_rss_bytes")
 		}
 	})
@@ -139,5 +139,5 @@ func preparePeakMemoryMeasurement() bool {
 	runtime.GC()
 	debug.FreeOSMemory()
 
-	return utility.ResetPeakResidentMemory()
+	return memory.ResetPeakResidentMemory()
 }

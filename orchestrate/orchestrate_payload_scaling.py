@@ -19,10 +19,14 @@ ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
 # Raspberry Pi - SSH
 SSH_TARGET = "pi"
+REMOTE_PROJECT_DIRECTORY = "/home/thesis/MQTT-Thesis"
 REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
 REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
+REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
 REMOTE_PACKAGE = "./micro/payload_scaling"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision"
 REMOTE_BINARY = "/tmp/payload-scaling-benchmark"
+REMOTE_PROVISION_BINARY = "/tmp/payload-scaling-provision"
 
 # UM24C Bluetooth serial port
 UM24C_PORT = "COM11"
@@ -39,6 +43,7 @@ def load_environment_variables():
     global TAIL_DURATION
     global TOTAL_WORKLOAD_DURATION
     global RESULT_DIRECTORY
+    global MEMORY_RESULT_FILE
     global TIMING_RESULT_FILE
     global ENERGY_RESULT_FILE
 
@@ -63,6 +68,7 @@ def load_environment_variables():
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
     RESULT_DIRECTORY = PROJECT_ROOT / os.environ["PAYLOAD_SCALING_RESULT_DIR"]
+    MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
     TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
     ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
 
@@ -96,19 +102,115 @@ def write_to_file(output, samples):
         )
 
 
-def build_benchmark_binary():
+def build_binaries():
 
     command = (
         f"cd {REMOTE_BENCHMARK_DIRECTORY}; "
         f"/usr/local/go/bin/go test -c "
         f"-o {REMOTE_BINARY} "
-        f"{REMOTE_PACKAGE}"
+        f"{REMOTE_PACKAGE} && "
+        f"/usr/local/go/bin/go build "
+        f"-o {REMOTE_PROVISION_BINARY} "
+        f"{REMOTE_PROVISION_PACKAGE}"
     )
 
     subprocess.run(
         ["ssh", SSH_TARGET, command],
         check=True,
     )
+
+
+def run_provision_case(payload_size):
+
+    print(f"Provision: PayloadScaling {payload_size}B")
+    command = (
+        f"cd {REMOTE_PROJECT_DIRECTORY} && "
+        f"set -a && "
+        f". {REMOTE_ENVIRONMENT_FILE} && "
+        f"set +a && "
+        f"{REMOTE_PROVISION_BINARY} "
+        f"PayloadScaling "
+        f"{payload_size}"
+    )
+
+    result = subprocess.run(
+        ["ssh", SSH_TARGET, command],
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Provision Failed: PayloadScaling {payload_size}B\n{result.stderr}"
+        )
+
+
+def orchestrate_provision():
+
+    print("Provisioning Payload Scaling Fixtures...")
+
+    subprocess.run(
+        ["ssh", SSH_TARGET, f"rm -rf {REMOTE_CACHE_DIRECTORY}"],
+        check=True,
+    )
+
+    for payload_size in PAYLOAD_SIZES:
+        run_provision_case(payload_size)
+
+    print("Finished Provisioning")
+
+
+def run_memory_case(output, operation, algorithm, payload_size):
+
+    print(f"Memory: {algorithm} {operation} {payload_size}B")
+    benchmark_case = (
+        f"^BenchmarkPayloadScaling{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
+    )
+
+    command = (
+        f"cd {REMOTE_PROJECT_DIRECTORY} && "
+        f"set -a && "
+        f". {REMOTE_ENVIRONMENT_FILE} && "
+        f"set +a && "
+        f"{REMOTE_BINARY}"
+        f" -test.run=^$"
+        f" -test.bench='{benchmark_case}'"
+        f" -test.benchtime=1x"
+        f" -test.count=1"
+        f" -test.timeout=0"
+    )
+
+    for _ in range(RUNS):
+        result = subprocess.run(
+            ["ssh", SSH_TARGET, command],
+            stdout=output,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Memory Benchmark Failed: "
+                f"{algorithm} {operation} {payload_size}B\n"
+                f"{result.stderr}"
+            )
+
+
+def orchestrate_memory():
+
+    with MEMORY_RESULT_FILE.open("w", encoding="utf-8") as output:
+
+        run_memory_case(output, "MemoryBaseline", "Runtime", 0)
+
+        for payload_size in PAYLOAD_SIZES:
+            run_memory_case(output, "MemoryEncrypt", "PSK", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "PSK", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "RSA", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "RSA", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "CPABE", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "CPABE", payload_size)
+
+    print(f"Finished: {MEMORY_RESULT_FILE}")
 
 
 def run_energy_case(meter, output, algorithm, operation, payload_size):
@@ -296,10 +398,19 @@ def main():
     # Create Result Directory Under Root
     RESULT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
-    # Build the Binary
-    build_benchmark_binary()
+    # Build Benchmark & Provision Binaries
+    build_binaries()
 
-    # Allow Energy-Baseline to Stabilize after Build
+    # Provision Memory Fixtures
+    orchestrate_provision()
+
+    # Allow Device to Stabilize after Provisioning
+    time.sleep(5)
+
+    # Run Memory Benchmark
+    orchestrate_memory()
+
+    # Allow Device to Stabilize before Energy Measurement
     time.sleep(5)
 
     # Run Energy Benchmark

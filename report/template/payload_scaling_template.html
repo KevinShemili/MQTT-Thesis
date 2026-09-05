@@ -92,7 +92,7 @@
 
         .metadata {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 16px;
         }
@@ -308,6 +308,11 @@
             color: #92400e;
         }
 
+        .memory-note {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .thermal-symbol {
             font-size: 16px;
             font-weight: 900;
@@ -393,21 +398,15 @@
                 <div class="metric-label">Confidence interval</div>
                 <div class="metric-value">{{ConfidenceLevel}}</div>
             </div>
-
-            <div class="metric">
-                <div class="metric-label">Student t</div>
-                <div class="metric-value">{{TMultiplier}}</div>
-            </div>
-
-            <div class="metric">
-                <div class="metric-label">Crypto operations</div>
-                <div class="metric-value">{{TotalIterations}}</div>
-            </div>
         </section>
 
         <section class="section">
             <div class="section-heading">
-                <h2>Scaling Results</h2>
+                <h2>Timing</h2>
+            </div>
+
+            <div class="section-legend">
+                {{TimingThermalLegend}}
             </div>
 
             <div class="plot-stack">
@@ -429,16 +428,6 @@
                         <img src="{{ThroughputPlot}}" alt="Scheme throughput over payload size">
                     </div>
                 </article>
-            </div>
-        </section>
-
-        <section class="section">
-            <div class="section-heading">
-                <h2>Timing Results</h2>
-            </div>
-
-            <div class="section-legend">
-                {{TimingThermalLegend}}
             </div>
 
             <div class="operation-group">
@@ -504,7 +493,35 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Energy Results</h2>
+                <h2>Size</h2>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Wire Size vs. Payload Size</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{WireSizePlot}}" alt="PSK, RSA, and CP-ABE wire size over payload size">
+                    </div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <div class="table-block">
+                    <h3>Payload and Wire Size Comparison</h3>
+
+                    <div class="table-wrapper">
+                        {{WireSizeTable}}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Energy</h2>
             </div>
 
             <div class="section-legend">
@@ -583,6 +600,75 @@
                         <div class="table-wrapper">
                             {{DecryptCpabeEnergyTable}}
                         </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Memory</h2>
+            </div>
+
+            <div class="section-legend">
+                <div class="legend-item">
+                    <span class="legend-label">Runtime baseline</span>
+                    <strong>{{BaselineRss}}</strong>
+                </div>
+                <div class="memory-note">Memory uses the same power-meter-equipped physical test bed as Timing and
+                    Energy, a setup known to induce Raspberry Pi undervoltage and throttling.</div>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Peak Process Memory vs. Payload Size</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{MemoryPlot}}" alt="PSK, RSA, and CP-ABE peak process memory over payload size">
+                    </div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Encrypt</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>PSK: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{EncryptPskMemoryTable}}</div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>RSA: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{EncryptRsaMemoryTable}}</div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CP-ABE: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{EncryptCpabeMemoryTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Decrypt</h3>
+
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>PSK: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{DecryptPskMemoryTable}}</div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>RSA: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{DecryptRsaMemoryTable}}</div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CP-ABE: Peak Process Memory</h3>
+                        <div class="table-wrapper">{{DecryptCpabeMemoryTable}}</div>
                     </div>
                 </div>
             </div>

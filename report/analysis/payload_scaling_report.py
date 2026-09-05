@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
-    confidence_interval_multiplier,
     energy_baseline_statistics,
     energy_statistics,
+    memory_case_statistics,
+    memory_statistics,
     timing_statistics,
 )
 from report.config import REPORT_NAME, TEMPLATE_DIR, parse_int_env, parse_int_list_env
@@ -17,6 +18,8 @@ from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
     EnergyCase,
 )
+from report.model.memory.memory_aggregation import MemoryAggregation
+from report.model.memory.memory_case import PEAK_RSS_BYTES
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
     ADDITIONAL_OVERHEAD_BYTES,
@@ -27,9 +30,11 @@ from report.model.timing.timing_case import (
 from report.render.chart import (
     plot_payload_scaling_energy,
     plot_payload_scaling_latency,
+    plot_payload_scaling_memory,
     plot_payload_scaling_throughput,
+    plot_payload_scaling_wire_size,
 )
-from report.render.formatting import NS_PER_MICROSECOND
+from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
 from report.render.html import write_payload_scaling_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -45,12 +50,15 @@ PARAMETER_BY_ALGORITHM = {
 PARAMETER_SUFFIX = "B"
 
 TIMING_RESULT_NAME = "timing.txt"
+MEMORY_RESULT_NAME = "memory.txt"
 ENERGY_RESULT_NAME = "energy.txt"
 REPORT_TEMPLATE_NAME = "payload_scaling_template.html"
 
 LATENCY_PLOT = "latency.png"
 THROUGHPUT_PLOT = "throughput.png"
+WIRE_SIZE_PLOT = "wire_size.png"
 ENERGY_PLOT = "energy.png"
+MEMORY_PLOT = "memory.png"
 
 MICROJOULES_PER_JOULE = 1_000_000
 
@@ -91,22 +99,30 @@ def collect_energy_aggregations(
     return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
+def collect_memory_aggregations(
+    summary: BenchmarkSummary,
+    scheme: str,
+    operation: str,
+    payload_sizes: list[int],
+) -> list[MemoryAggregation]:
+
+    matching_aggregations = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.memory_aggregations
+        if aggregation.algorithm == scheme
+        and aggregation.operation == operation
+        and aggregation.parameter == PARAMETER
+    }
+
+    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
+
+
 def collect_overhead(
     aggregations: list[TimingAggregation],
 ) -> list[float]:
 
     return [
         aggregation.cases[0].measurements[ADDITIONAL_OVERHEAD_BYTES]
-        for aggregation in aggregations
-    ]
-
-
-def collect_iterations(
-    aggregations: list[TimingAggregation],
-) -> list[int]:
-
-    return [
-        sum(case.iterations for case in aggregation.cases)
         for aggregation in aggregations
     ]
 
@@ -139,6 +155,10 @@ def to_microjoules(values: list[float]) -> list[float]:
     return [value * MICROJOULES_PER_JOULE for value in values]
 
 
+def to_megabytes(values: list[float]) -> list[float]:
+    return [value / MEGABYTE for value in values]
+
+
 def analyze_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
@@ -167,20 +187,31 @@ def analyze_case(
         "throughput_cis": throughput_cis,
         "energy_means": to_microjoules(energy_means),
         "energy_cis": to_microjoules(energy_cis),
-        "iterations": collect_iterations(timing_aggregations),
         "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
         "energy_throttled": collect_energy_throttle_flags(energy_aggregations),
     }
 
 
-def calculate_wire_data(
+def analyze_memory_case(
+    aggregations: list[MemoryAggregation],
+) -> dict:
+
+    means, confidence_intervals = memory_statistics(aggregations, PEAK_RSS_BYTES)
+
+    return {
+        "means": to_megabytes(means),
+        "cis": to_megabytes(confidence_intervals),
+    }
+
+
+def calculate_wire_sizes(
     payload_sizes: list[int],
     encrypt_aggregations: list[TimingAggregation],
-):
+) -> list[float]:
 
     overhead_bytes = collect_overhead(encrypt_aggregations)
 
-    wire_sizes = [
+    return [
         payload_size + overhead
         for payload_size, overhead in zip(
             payload_sizes,
@@ -188,17 +219,6 @@ def calculate_wire_data(
             strict=True,
         )
     ]
-
-    overhead_percents = [
-        overhead / payload_size * 100.0
-        for payload_size, overhead in zip(
-            payload_sizes,
-            overhead_bytes,
-            strict=True,
-        )
-    ]
-
-    return overhead_bytes, wire_sizes, overhead_percents
 
 
 def main() -> None:
@@ -216,12 +236,14 @@ def main() -> None:
 
     result_directory = PROJECT_ROOT / os.environ["PAYLOAD_SCALING_RESULT_DIR"]
     timing_result_file = result_directory / TIMING_RESULT_NAME
+    memory_result_file = result_directory / MEMORY_RESULT_NAME
     energy_result_file = result_directory / ENERGY_RESULT_NAME
     template_path = Path(TEMPLATE_DIR) / REPORT_TEMPLATE_NAME
     report_path = result_directory / REPORT_NAME
 
     summary = load_summary(
         timing_filepath=str(timing_result_file),
+        memory_filepath=str(memory_result_file),
         energy_filepath=str(energy_result_file),
         case_prefix=BENCHMARK_PREFIX,
         parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
@@ -257,21 +279,27 @@ def main() -> None:
             )
 
             if operation == "Encrypt":
-                wire_data[scheme] = calculate_wire_data(
+                wire_data[scheme] = calculate_wire_sizes(
                     payload_sizes,
                     timing_aggregations,
                 )
 
-    for scheme in ("PSK", "RSA", "CPABE"):
-        overhead_bytes, wire_sizes, overhead_percents = wire_data[scheme]
+    baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
+        summary.memory_baseline_cases,
+        PEAK_RSS_BYTES,
+    )
 
+    memory_results = {}
+    for scheme in ("PSK", "RSA", "CPABE"):
         for operation in ("Encrypt", "Decrypt"):
-            case_results[(scheme, operation)].update(
-                {
-                    "overhead_bytes": overhead_bytes,
-                    "wire_sizes": wire_sizes,
-                    "overhead_percents": overhead_percents,
-                }
+            memory_aggregations = collect_memory_aggregations(
+                summary,
+                scheme,
+                f"Memory{operation}",
+                payload_sizes,
+            )
+            memory_results[(scheme, operation)] = analyze_memory_case(
+                memory_aggregations
             )
 
     latency_results = {
@@ -310,15 +338,30 @@ def main() -> None:
         str(result_directory / THROUGHPUT_PLOT),
     )
 
+    plot_payload_scaling_wire_size(
+        payload_sizes,
+        wire_data,
+        str(result_directory / WIRE_SIZE_PLOT),
+    )
+
     plot_payload_scaling_energy(
         payload_sizes,
         energy_results,
         str(result_directory / ENERGY_PLOT),
     )
 
-    total_iterations = sum(
-        sum(values["iterations"]) for values in case_results.values()
+    memory_plot_results = {
+        case: (values["means"], values["cis"])
+        for case, values in memory_results.items()
+    }
+
+    plot_payload_scaling_memory(
+        payload_sizes,
+        memory_plot_results,
+        baseline_memory_mean / MEGABYTE,
+        str(result_directory / MEMORY_PLOT),
     )
+
     energy_baseline_mean, energy_baseline_ci = energy_baseline_statistics(
         summary.energy_baseline_cases,
         baseline_duration,
@@ -326,8 +369,6 @@ def main() -> None:
 
     report_data = {
         "runs": runs,
-        "t_multiplier": confidence_interval_multiplier(runs),
-        "total_iterations": total_iterations,
         "energy_baseline_mean": energy_baseline_mean,
         "energy_baseline_ci": energy_baseline_ci,
         "energy_baseline_duration": baseline_duration,
@@ -335,10 +376,16 @@ def main() -> None:
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
+        "wire_sizes": wire_data,
+        "memory": memory_results,
+        "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
+        "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "plots": {
             "latency": LATENCY_PLOT,
             "throughput": THROUGHPUT_PLOT,
+            "wire_size": WIRE_SIZE_PLOT,
             "energy": ENERGY_PLOT,
+            "memory": MEMORY_PLOT,
         },
     }
 

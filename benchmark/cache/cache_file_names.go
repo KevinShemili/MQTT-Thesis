@@ -47,6 +47,16 @@ func CreateAESGCMCiphertextFileName(payloadSize int) string {
 	return fmt.Sprintf("aes-gcm-ciphertext-%d", payloadSize)
 }
 
+// Identifier for file that stores a payload-scaling plaintext of a specific size
+func CreatePayloadScalingPlaintextFileName(payloadSize int) string {
+	return fmt.Sprintf("payload-scaling-plaintext-%d", payloadSize)
+}
+
+// Identifier for file that stores a payload-scaling ciphertext of a specific size
+func CreatePayloadScalingCiphertextFileName(payloadSize int) string {
+	return fmt.Sprintf("payload-scaling-ciphertext-%d", payloadSize)
+}
+
 // Identifier for file that stores an ASCON ciphertext for a specific payload size
 func CreateASCONCiphertextFileName(payloadSize int) string {
 	return fmt.Sprintf("ascon-ciphertext-%d", payloadSize)
