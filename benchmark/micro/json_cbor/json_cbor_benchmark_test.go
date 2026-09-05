@@ -49,9 +49,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
 			jsonEnvelopeSize := len(envelope.SerializeJSON(env))
@@ -67,7 +64,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -111,9 +107,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
 			cborEnvelopeSize := len(envelope.SerializeCBOR(env))
@@ -129,7 +122,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -173,9 +165,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
 			cborEnvelopeSize := len(envelope.SerializeCBORKeyAsInt(env))
@@ -191,7 +180,6 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -240,9 +228,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
 			// Serialize outside timed loop so only deserialization is measured
 			serializedEnvelope := envelope.SerializeJSON(env)
 
@@ -255,9 +240,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			for b.Loop() {
 				envelope.DeserializeJSON(serializedEnvelope)
 			}
-
-			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -301,9 +283,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
 			// Serialize outside timed loop so only deserialization is measured
 			serializedEnvelope := envelope.SerializeCBOR(env)
 
@@ -316,9 +295,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			for b.Loop() {
 				envelope.DeserializeCBOR(serializedEnvelope)
 			}
-
-			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -362,9 +338,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 				AESCiphertext: aesCiphertext,
 			}
 
-			// Size before serialization overhead is added
-			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
-
 			// Serialize outside timed loop so only deserialization is measured
 			serializedEnvelope := envelope.SerializeCBORKeyAsInt(env)
 
@@ -377,9 +350,6 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			for b.Loop() {
 				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
 			}
-
-			b.ReportMetric(float64(len(serializedEnvelope)), "envelope_bytes")
-			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")

@@ -482,6 +482,45 @@ def plot_aes_ascon_latency(
     )
 
 
+def plot_aes_ascon_latency_speedup(
+    payload_sizes: list[int],
+    speedups: dict[str, list[float]],
+    output_path: str,
+) -> None:
+    positions = list(range(len(payload_sizes)))
+    payload_labels = [
+        formatting.format_byte_size(payload_size, compact=True)
+        for payload_size in payload_sizes
+    ]
+    measured_values = speedups["Encrypt"] + speedups["Decrypt"]
+    measured_minimum = min(measured_values)
+    measured_maximum = max(measured_values)
+    margin = (measured_maximum - measured_minimum) * 0.08
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("ASCON Relative Speedup vs. AES-GCM", fontsize=13)
+
+    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
+        axis.plot(
+            positions,
+            speedups[operation],
+            color=VIOLET,
+            marker="o",
+            linewidth=1.8,
+            markersize=5,
+        )
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel("Speedup vs AES-GCM (×)")
+        axis.set_xticks(positions)
+        axis.set_xticklabels(payload_labels)
+        axis.set_xlim(-0.5, len(positions) - 0.5)
+        axis.set_ylim(measured_minimum - margin, measured_maximum + margin)
+        apply_value_grid(axis)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
 def plot_aes_ascon_throughput(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
@@ -509,6 +548,39 @@ def plot_aes_ascon_energy(
         output_path,
         with_small_payload_zoom=True,
     )
+
+
+def plot_aes_ascon_energy_reduction(
+    payload_sizes: list[int],
+    reductions: dict[str, list[float]],
+    output_path: str,
+) -> None:
+    positions = list(range(len(payload_sizes)))
+    payload_labels = [
+        formatting.format_byte_size(payload_size, compact=True)
+        for payload_size in payload_sizes
+    ]
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("ASCON Energy Reduction vs. AES-GCM", fontsize=13)
+
+    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
+        axis.bar(
+            positions,
+            reductions[operation],
+            width=0.65,
+            color=VIOLET,
+        )
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel("Energy Reduction vs AES-GCM (%)")
+        axis.set_xticks(positions)
+        axis.set_xticklabels(payload_labels)
+        axis.set_xlim(-0.5, len(positions) - 0.5)
+        axis.set_ylim(0, 100)
+        apply_value_grid(axis)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
 
 
 def plot_aes_ascon_memory(
@@ -664,6 +736,43 @@ def _plot_json_cbor_results(
     )
 
 
+def _plot_json_cbor_relative_results(
+    attribute_counts: list[int],
+    results: dict[tuple[str, str], list[float]],
+    title: str,
+    y_label: str,
+    y_limits: dict[str, tuple[float, float]],
+    output_path: str,
+) -> None:
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+
+    for axis, operation in zip(axes, ("Serialize", "Deserialize"), strict=True):
+        for format_name, label, color in (
+            ("CBOR", "CBOR", VIOLET),
+            ("CBORKeyAsInt", "CBOR-int", TEAL),
+        ):
+            axis.plot(
+                attribute_counts,
+                results[(format_name, operation)],
+                label=label,
+                color=color,
+                marker="o",
+                linewidth=1.8,
+                markersize=5,
+            )
+
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Attribute Count")
+        axis.set_ylabel(y_label)
+        axis.set_ylim(*y_limits[operation])
+        configure_attribute_axis(attribute_counts, axis)
+        axis.legend(fontsize=10)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
 def plot_json_cbor_latency(
     attribute_counts: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
@@ -673,42 +782,44 @@ def plot_json_cbor_latency(
         attribute_counts,
         results,
         "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
-        "Latency (µs) ± 95% CI",
+        "Latency (µs)",
+        output_path,
+    )
+
+
+def plot_json_cbor_latency_speedup(
+    attribute_counts: list[int],
+    speedups: dict[tuple[str, str], list[float]],
+    output_path: str,
+) -> None:
+    _plot_json_cbor_relative_results(
+        attribute_counts,
+        speedups,
+        "Relative Latency Speedup vs. Policy Attributes",
+        "Speedup vs JSON (×)",
+        {
+            "Serialize": (4.0, 6.5),
+            "Deserialize": (18.0, 60.0),
+        },
         output_path,
     )
 
 
 def plot_json_cbor_size(
     attribute_counts: list[int],
-    results: dict[str, tuple[list[float], list[float], list[float]]],
+    envelope_sizes: dict[str, list[int]],
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(
-        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Attribute Count",
-        fontsize=13,
-    )
+    figure, axis = plt.subplots(figsize=(8.5, 5.2))
 
     for format_name, label, color in (
         ("JSON", "JSON", AMBER),
         ("CBOR", "CBOR", VIOLET),
         ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
     ):
-        envelope_means, envelope_cis, overhead_bytes = results[format_name]
-
-        draw_summary(
-            axes[0],
+        axis.plot(
             attribute_counts,
-            envelope_means,
-            envelope_cis,
-            label,
-            color,
-            with_ci=True,
-        )
-
-        axes[1].plot(
-            attribute_counts,
-            overhead_bytes,
+            envelope_sizes[format_name],
             label=label,
             color=color,
             marker="o",
@@ -716,16 +827,73 @@ def plot_json_cbor_size(
             markersize=5,
         )
 
-    for axis, title, y_label in (
-        (axes[0], "Absolute Size", "Envelope size (bytes)"),
-        (axes[1], "Format Tax", "Bytes added over raw payload"),
+    axis.set_title(
+        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Attribute Count",
+        fontsize=13,
+    )
+    axis.set_xlabel("Attribute Count")
+    axis.set_ylabel("Envelope size (bytes)")
+    axis.set_ylim(bottom=0)
+    configure_attribute_axis(attribute_counts, axis)
+    axis.legend(fontsize=10)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+def plot_json_cbor_size_reduction(
+    attribute_counts: list[int],
+    reductions: dict[str, list[float]],
+    output_path: str,
+) -> None:
+    figure, axis = plt.subplots(figsize=(8.5, 5.2))
+
+    for format_name, label, color in (
+        ("CBOR", "CBOR", VIOLET),
+        ("CBORKeyAsInt", "CBOR-int", TEAL),
     ):
-        axis.set_title(title, fontsize=11)
-        axis.set_xlabel("Attribute Count")
-        axis.set_ylabel(y_label)
-        axis.set_ylim(bottom=0)
-        configure_attribute_axis(attribute_counts, axis)
-        axis.legend(fontsize=10)
+        axis.plot(
+            attribute_counts,
+            reductions[format_name],
+            label=label,
+            color=color,
+            marker="o",
+            linewidth=1.8,
+            markersize=5,
+        )
+
+    axis.set_title("Envelope Size Reduction vs. JSON", fontsize=13)
+    axis.set_xlabel("Attribute Count")
+    axis.set_ylabel("Size Reduction vs JSON (%)")
+    axis.set_ylim(24.0, 26.5)
+    configure_attribute_axis(attribute_counts, axis)
+    axis.legend(fontsize=10)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+def plot_json_cbor_integer_key_size_reduction(
+    attribute_counts: list[int],
+    reductions: list[float],
+    output_path: str,
+) -> None:
+    figure, axis = plt.subplots(figsize=(8.5, 5.2))
+
+    axis.plot(
+        attribute_counts,
+        reductions,
+        color=TEAL,
+        marker="o",
+        linewidth=1.8,
+        markersize=5,
+    )
+
+    axis.set_title("CBOR-int Additional Size Reduction vs. CBOR", fontsize=13)
+    axis.set_xlabel("Attribute Count")
+    axis.set_ylabel("Additional Size Reduction vs CBOR (%)")
+    axis.set_ylim(bottom=0)
+    configure_attribute_axis(attribute_counts, axis)
 
     figure.tight_layout()
     save_figure(figure, output_path)
@@ -741,6 +909,24 @@ def plot_json_cbor_energy(
         results,
         "JSON vs. CBOR vs. CBOR (Int Keys): Energy per Operation vs. Policy Attributes",
         "Energy (µJ/op) ± 95% CI",
+        output_path,
+    )
+
+
+def plot_json_cbor_energy_reduction(
+    attribute_counts: list[int],
+    reductions: dict[tuple[str, str], list[float]],
+    output_path: str,
+) -> None:
+    _plot_json_cbor_relative_results(
+        attribute_counts,
+        reductions,
+        "Energy Reduction vs. JSON",
+        "Energy Reduction vs JSON (%)",
+        {
+            "Serialize": (58.0, 70.0),
+            "Deserialize": (89.0, 97.0),
+        },
         output_path,
     )
 

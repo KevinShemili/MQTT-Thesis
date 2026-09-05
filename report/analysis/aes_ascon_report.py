@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
-    confidence_interval_multiplier,
     energy_baseline_statistics,
     energy_statistics,
     memory_case_statistics,
@@ -29,7 +28,9 @@ from report.model.timing.timing_case import (
 )
 from report.render.chart import (
     plot_aes_ascon_energy,
+    plot_aes_ascon_energy_reduction,
     plot_aes_ascon_latency,
+    plot_aes_ascon_latency_speedup,
     plot_aes_ascon_memory,
     plot_aes_ascon_throughput,
 )
@@ -59,8 +60,10 @@ REPORT_TEMPLATE_NAME = "aes_ascon_template.html"
 
 # Plots
 LATENCY_PLOT = "latency.png"
+LATENCY_SPEEDUP_PLOT = "latency_speedup.png"
 THROUGHPUT_PLOT = "throughput.png"
 ENERGY_PLOT = "energy.png"
+ENERGY_REDUCTION_PLOT = "energy_reduction.png"
 MEMORY_PLOT = "memory.png"
 
 # Unit Conversion
@@ -326,6 +329,45 @@ def main():
         for case, values in case_results.items()
     }
 
+    latency_speedups = {
+        operation: [
+            aes_latency / ascon_latency
+            for aes_latency, ascon_latency in zip(
+                case_results[("AES-GCM", operation)]["latency_means"],
+                case_results[("ASCON", operation)]["latency_means"],
+                strict=True,
+            )
+        ]
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+    energy_reductions = {
+        operation: [
+            (aes_energy - ascon_energy) / aes_energy * 100.0
+            for aes_energy, ascon_energy in zip(
+                case_results[("AES-GCM", operation)]["energy_means"],
+                case_results[("ASCON", operation)]["energy_means"],
+                strict=True,
+            )
+        ]
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+    interpretations = {
+        "latency_speedup": {
+            "encrypt_min": min(latency_speedups["Encrypt"]),
+            "encrypt_max": max(latency_speedups["Encrypt"]),
+            "decrypt_min": min(latency_speedups["Decrypt"]),
+            "decrypt_max": max(latency_speedups["Decrypt"]),
+        },
+        "energy_reduction": {
+            "encrypt_min": min(energy_reductions["Encrypt"]),
+            "encrypt_max": max(energy_reductions["Encrypt"]),
+            "decrypt_min": min(energy_reductions["Decrypt"]),
+            "decrypt_max": max(energy_reductions["Decrypt"]),
+        },
+    }
+
     memory_plot_results = {
         case: (values["means"], values["cis"])
         for case, values in memory_results.items()
@@ -338,6 +380,12 @@ def main():
         str(result_directory / LATENCY_PLOT),
     )
 
+    plot_aes_ascon_latency_speedup(
+        payload_sizes,
+        latency_speedups,
+        str(result_directory / LATENCY_SPEEDUP_PLOT),
+    )
+
     plot_aes_ascon_throughput(
         payload_sizes,
         throughput_results,
@@ -348,6 +396,12 @@ def main():
         payload_sizes,
         energy_results,
         str(result_directory / ENERGY_PLOT),
+    )
+
+    plot_aes_ascon_energy_reduction(
+        payload_sizes,
+        energy_reductions,
+        str(result_directory / ENERGY_REDUCTION_PLOT),
     )
 
     plot_aes_ascon_memory(
@@ -365,7 +419,6 @@ def main():
     # Prepare Report Data
     report_data = {
         "runs": runs,
-        "t_multiplier": confidence_interval_multiplier(runs),
         "payload_sizes": payload_sizes,
         "energy_baseline_mean": energy_baseline_mean,
         "energy_baseline_ci": energy_baseline_ci,
@@ -373,13 +426,16 @@ def main():
         "energy_window_start": warmup_duration,
         "energy_window_end": (warmup_duration + measurement_duration),
         "cases": case_results,
+        "interpretations": interpretations,
         "memory": memory_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "plots": {
             "latency": LATENCY_PLOT,
+            "latency_speedup": LATENCY_SPEEDUP_PLOT,
             "throughput": THROUGHPUT_PLOT,
             "energy": ENERGY_PLOT,
+            "energy_reduction": ENERGY_REDUCTION_PLOT,
             "memory": MEMORY_PLOT,
         },
     }

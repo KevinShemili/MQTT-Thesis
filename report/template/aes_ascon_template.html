@@ -92,7 +92,7 @@
 
         .metadata {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 16px;
         }
@@ -188,6 +188,44 @@
             border: 1px solid #e5e1dc;
             border-radius: 14px;
             background: #ffffff;
+        }
+
+        .comparison-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .comparison-explanation {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 24px;
+            border: 1px solid var(--border);
+            border-radius: 19px;
+            background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        }
+
+        .comparison-label {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 850;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .comparison-value {
+            margin-top: 7px;
+            font-size: 25px;
+            font-weight: 850;
+            letter-spacing: -0.025em;
+        }
+
+        .comparison-explanation p {
+            margin: 12px 0 0 0;
+            color: var(--muted);
+            font-size: 13.5px;
         }
 
         .operation-group+.operation-group {
@@ -331,6 +369,7 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .comparison-row,
             .table-row {
                 grid-template-columns: 1fr;
             }
@@ -398,11 +437,6 @@
                 <div class="metric-label">Confidence interval</div>
                 <div class="metric-value">{{ConfidenceLevel}}</div>
             </div>
-
-            <div class="metric">
-                <div class="metric-label">Student t</div>
-                <div class="metric-value">{{TMultiplier}}</div>
-            </div>
         </section>
 
         <section class="section">
@@ -424,6 +458,28 @@
                         <img src="{{LatencyPlot}}" alt="AES-GCM and ASCON latency over payload size">
                     </div>
                 </article>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>ASCON Relative Speedup vs. AES-GCM</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{LatencySpeedupPlot}}" alt="ASCON encryption and decryption latency speedup relative to AES-GCM over payload size">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">ASCON Latency Speedup over AES-GCM</div>
+                        <p><strong>Encrypt</strong></p>
+                        <div class="comparison-value">{{LatencySpeedupEncryptMin}}× –
+                            {{LatencySpeedupEncryptMax}}×</div>
+                        <p><strong>Decrypt</strong></p>
+                        <div class="comparison-value">{{LatencySpeedupDecryptMin}}× –
+                            {{LatencySpeedupDecryptMax}}×</div>
+                    </aside>
+                </div>
 
                 <article class="plot-card">
                     <div class="plot-copy">
@@ -504,6 +560,28 @@
                         <img src="{{EnergyPlot}}" alt="AES-GCM and ASCON energy per operation over payload size">
                     </div>
                 </article>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>ASCON Energy Reduction vs. AES-GCM</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{EnergyReductionPlot}}" alt="ASCON encryption and decryption energy reduction relative to AES-GCM over payload size">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">ASCON Energy Reduction relative to AES-GCM</div>
+                        <p><strong>Encrypt</strong></p>
+                        <div class="comparison-value">{{EnergyReductionEncryptMin}}% –
+                            {{EnergyReductionEncryptMax}}%</div>
+                        <p><strong>Decrypt</strong></p>
+                        <div class="comparison-value">{{EnergyReductionDecryptMin}}% –
+                            {{EnergyReductionDecryptMax}}%</div>
+                    </aside>
+                </div>
             </div>
 
             <div class="operation-group">

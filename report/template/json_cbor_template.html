@@ -92,7 +92,7 @@
 
         .metadata {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 16px;
         }
@@ -188,6 +188,44 @@
             border: 1px solid #e5e1dc;
             border-radius: 14px;
             background: #ffffff;
+        }
+
+        .comparison-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .comparison-explanation {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 24px;
+            border: 1px solid var(--border);
+            border-radius: 19px;
+            background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        }
+
+        .comparison-label {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 850;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .comparison-value {
+            margin-top: 7px;
+            font-size: 25px;
+            font-weight: 850;
+            letter-spacing: -0.025em;
+        }
+
+        .comparison-explanation p {
+            margin: 12px 0 0 0;
+            color: var(--muted);
+            font-size: 13.5px;
         }
 
         .operation-group+.operation-group {
@@ -330,6 +368,7 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .comparison-row,
             .table-row {
                 grid-template-columns: 1fr;
             }
@@ -397,53 +436,52 @@
                 <div class="metric-label">Confidence interval</div>
                 <div class="metric-value">{{ConfidenceLevel}}</div>
             </div>
-
-            <div class="metric">
-                <div class="metric-label">Student t</div>
-                <div class="metric-value">{{TMultiplier}}</div>
-            </div>
-
-            <div class="metric">
-                <div class="metric-label">Marshal operations</div>
-                <div class="metric-value">{{TotalIterations}}</div>
-            </div>
         </section>
 
         <section class="section">
             <div class="section-heading">
-                <h2>Scaling Results</h2>
+                <h2>Timing</h2>
+            </div>
+
+            <div class="section-legend">
+                {{TimingThermalLegend}}
             </div>
 
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Serialization Latency vs. Policy Attributes</h3>
+                        <h3>Serialization and Deserialization Latency vs. Policy Attributes</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{LatencyPlot}}" alt="Serialization latency over policy attribute count">
+                        <img src="{{LatencyPlot}}" alt="JSON and CBOR serialization and deserialization latency over policy attribute count">
                     </div>
                 </article>
 
-                <article class="plot-card">
-                    <div class="plot-copy">
-                        <h3>Envelope Size vs. Policy Attributes</h3>
-                    </div>
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>Relative Latency Speedup vs. Policy Attributes</h3>
+                        </div>
 
-                    <div class="plot-frame">
-                        <img src="{{SizePlot}}" alt="Envelope size and format overhead over policy attribute count">
-                    </div>
-                </article>
-            </div>
-        </section>
+                        <div class="plot-frame">
+                            <img src="{{LatencySpeedupPlot}}" alt="CBOR serialization and deserialization latency speedup relative to JSON over policy attribute count">
+                        </div>
+                    </article>
 
-        <section class="section">
-            <div class="section-heading">
-                <h2>Timing Results</h2>
-            </div>
-
-            <div class="section-legend">
-                {{TimingThermalLegend}}
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Latency Speedup over JSON</div>
+                        <p><strong>Serialize</strong><br>
+                            CBOR: {{LatencySpeedupSerializeCborMin}}× – {{LatencySpeedupSerializeCborMax}}×<br>
+                            CBOR-int: {{LatencySpeedupSerializeCborIntMin}}× –
+                            {{LatencySpeedupSerializeCborIntMax}}×</p>
+                        <p><strong>Deserialize</strong><br>
+                            CBOR: {{LatencySpeedupDeserializeCborMin}}× –
+                            {{LatencySpeedupDeserializeCborMax}}×<br>
+                            CBOR-int: {{LatencySpeedupDeserializeCborIntMin}}× –
+                            {{LatencySpeedupDeserializeCborIntMax}}×</p>
+                    </aside>
+                </div>
             </div>
 
             <div class="operation-group">
@@ -509,7 +547,94 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Energy Results</h2>
+                <h2>Size</h2>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Envelope Size vs. Policy Attributes</h3>
+                    </div>
+
+                    <div class="plot-frame">
+                        <img src="{{SizePlot}}" alt="JSON and CBOR envelope size over policy attribute count">
+                    </div>
+                </article>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>Envelope Size Reduction vs. JSON</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{SizeReductionPlot}}" alt="CBOR envelope size reduction relative to JSON over policy attribute count">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Envelope Size Reduction relative to JSON</div>
+                        <p><strong>CBOR</strong><br>
+                            {{SizeReductionCborMin}}% – {{SizeReductionCborMax}}%</p>
+                        <p><strong>CBOR-int</strong><br>
+                            {{SizeReductionCborIntMin}}% – {{SizeReductionCborIntMax}}%</p>
+                    </aside>
+                </div>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>CBOR-int Additional Size Reduction vs. CBOR</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{IntegerKeySizeReductionPlot}}" alt="Additional envelope size reduction from CBOR integer keys over policy attribute count">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Additional Envelope Size Reduction from CBOR-int relative to
+                            CBOR</div>
+                        <p><strong>{{MinAttributeCount}} attribute</strong><br>
+                            {{IntegerKeySizeReductionFirst}}%</p>
+                        <p><strong>{{MaxAttributeCount}} attributes</strong><br>
+                            {{IntegerKeySizeReductionLast}}%</p>
+                    </aside>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <div class="table-row">
+                    <div class="table-block">
+                        <h3>JSON: Envelope Size</h3>
+
+                        <div class="table-wrapper">
+                            {{JsonSizeTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CBOR: Envelope Size</h3>
+
+                        <div class="table-wrapper">
+                            {{CborSizeTable}}
+                        </div>
+                    </div>
+
+                    <div class="table-block">
+                        <h3>CBOR (Int Keys): Envelope Size</h3>
+
+                        <div class="table-wrapper">
+                            {{CborKeyAsIntSizeTable}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Energy</h2>
             </div>
 
             <div class="section-legend">
@@ -530,6 +655,31 @@
                         <img src="{{EnergyPlot}}" alt="JSON and CBOR energy per operation over policy attribute count">
                     </div>
                 </article>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>Energy Reduction vs. JSON</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{EnergyReductionPlot}}" alt="CBOR serialization and deserialization energy reduction relative to JSON over policy attribute count">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Energy Reduction relative to JSON</div>
+                        <p><strong>Serialize</strong><br>
+                            CBOR: {{EnergyReductionSerializeCborMin}}% – {{EnergyReductionSerializeCborMax}}%<br>
+                            CBOR-int: {{EnergyReductionSerializeCborIntMin}}% –
+                            {{EnergyReductionSerializeCborIntMax}}%</p>
+                        <p><strong>Deserialize</strong><br>
+                            CBOR: {{EnergyReductionDeserializeCborMin}}% –
+                            {{EnergyReductionDeserializeCborMax}}%<br>
+                            CBOR-int: {{EnergyReductionDeserializeCborIntMin}}% –
+                            {{EnergyReductionDeserializeCborIntMax}}%</p>
+                    </aside>
+                </div>
             </div>
 
             <div class="operation-group">

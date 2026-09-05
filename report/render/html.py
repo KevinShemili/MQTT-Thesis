@@ -13,9 +13,9 @@ THERMAL_MARK = "&#9888;"
 # cross-schema comparisons use, is marked so it can be found among the swept values
 REFERENCE_ROW_CLASS = "reference-row"
 THERMAL_FLAGGED_NOTE = (
-    "marks a case measured while the Raspberry Pi firmware was thermally " "throttling."
+    "Marks a case measured while the Raspberry Pi firmware was throttled."
 )
-THERMAL_CLEAN_NOTE = "No thermal throttling occurred while these cases were measured."
+THERMAL_CLEAN_NOTE = "No throttling occurred while these cases were measured."
 
 
 def build_html_table(
@@ -211,6 +211,9 @@ def write_aes_ascon_report(
     payload_sizes = report_data["payload_sizes"]
     cases = report_data["cases"]
     plots = report_data["plots"]
+    interpretations = report_data["interpretations"]
+    latency_speedup = interpretations["latency_speedup"]
+    energy_reduction = interpretations["energy_reduction"]
     timing_throttled = [
         flag for values in cases.values() for flag in values["timing_throttled"]
     ]
@@ -221,7 +224,6 @@ def write_aes_ascon_report(
     placeholders = {
         "RunCount": str(report_data["runs"]),
         "ConfidenceLevel": CONFIDENCE_LEVEL,
-        "TMultiplier": str(report_data["t_multiplier"]),
         **_build_aes_ascon_tables(payload_sizes, cases),
         **_build_aes_ascon_energy_tables(payload_sizes, cases),
         **_build_aes_ascon_memory_tables(payload_sizes, report_data["memory"]),
@@ -233,26 +235,31 @@ def write_aes_ascon_report(
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
+        "LatencySpeedupPlot": plots["latency_speedup"],
+        "LatencySpeedupEncryptMin": f'{latency_speedup["encrypt_min"]:.1f}',
+        "LatencySpeedupEncryptMax": f'{latency_speedup["encrypt_max"]:.1f}',
+        "LatencySpeedupDecryptMin": f'{latency_speedup["decrypt_min"]:.1f}',
+        "LatencySpeedupDecryptMax": f'{latency_speedup["decrypt_max"]:.1f}',
         "ThroughputPlot": plots["throughput"],
         "EnergyPlot": plots["energy"],
+        "EnergyReductionPlot": plots["energy_reduction"],
+        "EnergyReductionEncryptMin": f'{energy_reduction["encrypt_min"]:.1f}',
+        "EnergyReductionEncryptMax": f'{energy_reduction["encrypt_max"]:.1f}',
+        "EnergyReductionDecryptMin": f'{energy_reduction["decrypt_min"]:.1f}',
+        "EnergyReductionDecryptMax": f'{energy_reduction["decrypt_max"]:.1f}',
         "MemoryPlot": plots["memory"],
     }
 
     build_html_report(template_path, report_path, placeholders)
 
 
-def _build_json_cbor_tables(
+def _build_json_cbor_timing_tables(
     attribute_counts: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
-    runs: int,
 ) -> dict[str, str]:
     headers = [
         "Attributes",
         "Latency (µs/op)",
-        "Raw (B)",
-        "Envelope Size (B)",
-        "Format Overhead (%)",
-        f"Iters (Σ{runs} runs)",
     ]
     specifications = [
         ("SerializeJsonTable", ("JSON", "Serialize")),
@@ -273,12 +280,30 @@ def _build_json_cbor_tables(
                     values["latency_means"],
                     values["latency_cis"],
                 ),
-                [f"{value:,.0f}" for value in values["raw_size_means"]],
-                [f"{value:,.0f}" for value in values["envelope_size_means"]],
-                [f"{value:.2f}%" for value in values["overhead_percents"]],
-                [f"{value:,}" for value in values["iterations"]],
             ],
             values["timing_throttled"],
+        )
+
+    return tables
+
+
+def _build_json_cbor_size_tables(
+    attribute_counts: list[int],
+    sizes: dict[str, list[int]],
+) -> dict[str, str]:
+    specifications = [
+        ("JsonSizeTable", "JSON"),
+        ("CborSizeTable", "CBOR"),
+        ("CborKeyAsIntSizeTable", "CBORKeyAsInt"),
+    ]
+    tables = {}
+    for placeholder, format_name in specifications:
+        tables[placeholder] = _build_data_table(
+            ["Attributes", "Envelope Size (B)"],
+            [
+                [str(value) for value in attribute_counts],
+                [f"{value:,}" for value in sizes[format_name]],
+            ],
         )
 
     return tables
@@ -323,6 +348,11 @@ def write_json_cbor_report(
     attribute_counts = report_data["attribute_counts"]
     cases = report_data["cases"]
     plots = report_data["plots"]
+    interpretations = report_data["interpretations"]
+    latency_speedup = interpretations["latency_speedup"]
+    size_reduction = interpretations["size_reduction"]
+    integer_key_size_reduction = interpretations["integer_key_size_reduction"]
+    energy_reduction = interpretations["energy_reduction"]
     timing_throttled = [
         flag for values in cases.values() for flag in values["timing_throttled"]
     ]
@@ -331,12 +361,10 @@ def write_json_cbor_report(
     ]
 
     placeholders = {
-        **build_html_generic_data(
-            report_data["runs"],
-            report_data["t_multiplier"],
-            report_data["total_iterations"],
-        ),
-        **_build_json_cbor_tables(attribute_counts, cases, report_data["runs"]),
+        "RunCount": str(report_data["runs"]),
+        "ConfidenceLevel": CONFIDENCE_LEVEL,
+        **_build_json_cbor_timing_tables(attribute_counts, cases),
+        **_build_json_cbor_size_tables(attribute_counts, report_data["sizes"]),
         **_build_json_cbor_energy_tables(attribute_counts, cases),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
@@ -345,8 +373,36 @@ def write_json_cbor_report(
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
+        "LatencySpeedupPlot": plots["latency_speedup"],
+        "LatencySpeedupSerializeCborMin": f'{latency_speedup["serialize_cbor_min"]:.1f}',
+        "LatencySpeedupSerializeCborMax": f'{latency_speedup["serialize_cbor_max"]:.1f}',
+        "LatencySpeedupSerializeCborIntMin": f'{latency_speedup["serialize_cbor_int_min"]:.1f}',
+        "LatencySpeedupSerializeCborIntMax": f'{latency_speedup["serialize_cbor_int_max"]:.1f}',
+        "LatencySpeedupDeserializeCborMin": f'{latency_speedup["deserialize_cbor_min"]:.1f}',
+        "LatencySpeedupDeserializeCborMax": f'{latency_speedup["deserialize_cbor_max"]:.1f}',
+        "LatencySpeedupDeserializeCborIntMin": f'{latency_speedup["deserialize_cbor_int_min"]:.1f}',
+        "LatencySpeedupDeserializeCborIntMax": f'{latency_speedup["deserialize_cbor_int_max"]:.1f}',
         "SizePlot": plots["size"],
+        "SizeReductionPlot": plots["size_reduction"],
+        "SizeReductionCborMin": f'{size_reduction["cbor_min"]:.1f}',
+        "SizeReductionCborMax": f'{size_reduction["cbor_max"]:.1f}',
+        "SizeReductionCborIntMin": f'{size_reduction["cbor_int_min"]:.1f}',
+        "SizeReductionCborIntMax": f'{size_reduction["cbor_int_max"]:.1f}',
+        "IntegerKeySizeReductionPlot": plots["integer_key_size_reduction"],
+        "IntegerKeySizeReductionFirst": f'{integer_key_size_reduction["first"]:.2f}',
+        "IntegerKeySizeReductionLast": f'{integer_key_size_reduction["last"]:.2f}',
         "EnergyPlot": plots["energy"],
+        "EnergyReductionPlot": plots["energy_reduction"],
+        "EnergyReductionSerializeCborMin": f'{energy_reduction["serialize_cbor_min"]:.1f}',
+        "EnergyReductionSerializeCborMax": f'{energy_reduction["serialize_cbor_max"]:.1f}',
+        "EnergyReductionSerializeCborIntMin": f'{energy_reduction["serialize_cbor_int_min"]:.1f}',
+        "EnergyReductionSerializeCborIntMax": f'{energy_reduction["serialize_cbor_int_max"]:.1f}',
+        "EnergyReductionDeserializeCborMin": f'{energy_reduction["deserialize_cbor_min"]:.1f}',
+        "EnergyReductionDeserializeCborMax": f'{energy_reduction["deserialize_cbor_max"]:.1f}',
+        "EnergyReductionDeserializeCborIntMin": f'{energy_reduction["deserialize_cbor_int_min"]:.1f}',
+        "EnergyReductionDeserializeCborIntMax": f'{energy_reduction["deserialize_cbor_int_max"]:.1f}',
+        "MinAttributeCount": f'{interpretations["min_attribute_count"]:,}',
+        "MaxAttributeCount": f'{interpretations["max_attribute_count"]:,}',
     }
 
     build_html_report(template_path, report_path, placeholders)
