@@ -423,7 +423,7 @@
     <main class="page">
         <header class="hero">
             <div class="eyebrow">Microbenchmark Scenario 3</div>
-            <h1>Envelope Serialization under Attribute Scaling</h1>
+            <h1>Envelope Serialization under Attribute Count Scaling</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -450,22 +450,22 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Serialization and Deserialization Latency vs. Policy Attributes</h3>
+                        <h3>Serialization and Deserialization Latency vs. Attribute Count</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{LatencyPlot}}" alt="JSON and CBOR serialization and deserialization latency over policy attribute count">
+                        <img src="{{LatencyPlot}}" alt="JSON and CBOR serialization and deserialization latency over attribute count">
                     </div>
                 </article>
 
                 <div class="comparison-row">
                     <article class="plot-card">
                         <div class="plot-copy">
-                            <h3>Relative Latency Speedup vs. Policy Attributes</h3>
+                            <h3>Relative Latency Speedup vs. Attribute Count</h3>
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{LatencySpeedupPlot}}" alt="CBOR serialization and deserialization latency speedup relative to JSON over policy attribute count">
+                            <img src="{{LatencySpeedupPlot}}" alt="CBOR serialization and deserialization latency speedup relative to JSON over attribute count">
                         </div>
                     </article>
 
@@ -473,12 +473,12 @@
                         <div class="comparison-label">Latency Speedup over JSON</div>
                         <p><strong>Serialize</strong><br>
                             CBOR: {{LatencySpeedupSerializeCborMin}}× – {{LatencySpeedupSerializeCborMax}}×<br>
-                            CBOR-int: {{LatencySpeedupSerializeCborIntMin}}× –
+                            CBOR (Int Keys): {{LatencySpeedupSerializeCborIntMin}}× –
                             {{LatencySpeedupSerializeCborIntMax}}×</p>
                         <p><strong>Deserialize</strong><br>
                             CBOR: {{LatencySpeedupDeserializeCborMin}}× –
                             {{LatencySpeedupDeserializeCborMax}}×<br>
-                            CBOR-int: {{LatencySpeedupDeserializeCborIntMin}}× –
+                            CBOR (Int Keys): {{LatencySpeedupDeserializeCborIntMin}}× –
                             {{LatencySpeedupDeserializeCborIntMax}}×</p>
                     </aside>
                 </div>
@@ -489,7 +489,7 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>JSON: Attribute Scaling</h3>
+                        <h3>JSON: Attribute Count Scaling</h3>
 
                         <div class="table-wrapper">
                             {{SerializeJsonTable}}
@@ -497,7 +497,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CBOR: Attribute Scaling</h3>
+                        <h3>CBOR: Attribute Count Scaling</h3>
 
                         <div class="table-wrapper">
                             {{SerializeCborTable}}
@@ -505,7 +505,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CBOR (Int Keys): Attribute Scaling</h3>
+                        <h3>CBOR (Int Keys): Attribute Count Scaling</h3>
 
                         <div class="table-wrapper">
                             {{SerializeCborKeyAsIntTable}}
@@ -519,7 +519,7 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>JSON: Attribute Scaling</h3>
+                        <h3>JSON: Attribute Count Scaling</h3>
 
                         <div class="table-wrapper">
                             {{DeserializeJsonTable}}
@@ -527,7 +527,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CBOR: Attribute Scaling</h3>
+                        <h3>CBOR: Attribute Count Scaling</h3>
 
                         <div class="table-wrapper">
                             {{DeserializeCborTable}}
@@ -535,7 +535,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CBOR (Int Keys): Attribute Scaling</h3>
+                        <h3>CBOR (Int Keys): Attribute Count Scaling</h3>
 
                         <div class="table-wrapper">
                             {{DeserializeCborKeyAsIntTable}}
@@ -553,11 +553,11 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Envelope Size vs. Policy Attributes</h3>
+                        <h3>Envelope Size vs. Attribute Count</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{SizePlot}}" alt="JSON and CBOR envelope size over policy attribute count">
+                        <img src="{{SizePlot}}" alt="JSON and CBOR envelope size over attribute count">
                     </div>
                 </article>
 
@@ -568,7 +568,7 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{SizeReductionPlot}}" alt="CBOR envelope size reduction relative to JSON over policy attribute count">
+                            <img src="{{SizeReductionPlot}}" alt="CBOR envelope size reduction relative to JSON over attribute count">
                         </div>
                     </article>
 
@@ -576,7 +576,7 @@
                         <div class="comparison-label">Envelope Size Reduction relative to JSON</div>
                         <p><strong>CBOR</strong><br>
                             {{SizeReductionCborMin}}% – {{SizeReductionCborMax}}%</p>
-                        <p><strong>CBOR-int</strong><br>
+                        <p><strong>CBOR (Int Keys)</strong><br>
                             {{SizeReductionCborIntMin}}% – {{SizeReductionCborIntMax}}%</p>
                         <p>Using integer CBOR keys reduced envelope size by a fixed additional
                             {{IntegerKeySizeSavingBytes}} B at every tested attribute count. Consequently, the
@@ -631,11 +631,11 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Energy per Operation vs. Policy Attributes</h3>
+                        <h3>Energy per Operation vs. Attribute Count</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{EnergyPlot}}" alt="JSON and CBOR energy per operation over policy attribute count">
+                        <img src="{{EnergyPlot}}" alt="JSON and CBOR energy per operation over attribute count">
                     </div>
                 </article>
 
@@ -646,7 +646,7 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{EnergyReductionPlot}}" alt="CBOR serialization and deserialization energy reduction relative to JSON over policy attribute count">
+                            <img src="{{EnergyReductionPlot}}" alt="CBOR serialization and deserialization energy reduction relative to JSON over attribute count">
                         </div>
                     </article>
 
@@ -654,12 +654,12 @@
                         <div class="comparison-label">Energy Reduction relative to JSON</div>
                         <p><strong>Serialize</strong><br>
                             CBOR: {{EnergyReductionSerializeCborMin}}% – {{EnergyReductionSerializeCborMax}}%<br>
-                            CBOR-int: {{EnergyReductionSerializeCborIntMin}}% –
+                            CBOR (Int Keys): {{EnergyReductionSerializeCborIntMin}}% –
                             {{EnergyReductionSerializeCborIntMax}}%</p>
                         <p><strong>Deserialize</strong><br>
                             CBOR: {{EnergyReductionDeserializeCborMin}}% –
                             {{EnergyReductionDeserializeCborMax}}%<br>
-                            CBOR-int: {{EnergyReductionDeserializeCborIntMin}}% –
+                            CBOR (Int Keys): {{EnergyReductionDeserializeCborIntMin}}% –
                             {{EnergyReductionDeserializeCborIntMax}}%</p>
                     </aside>
                 </div>

@@ -300,7 +300,7 @@ def _plot_aes_ascon_results(
     for axis, (operation, series) in zip(axes, panels):
         _draw_summaries(axis, payload_sizes, series, with_ci=True)
         axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload size")
+        axis.set_xlabel("Payload Size")
         axis.set_ylabel(y_label)
         if baseline_memory_mean is None:
             axis.set_ylim(bottom=0)
@@ -975,7 +975,7 @@ def _plot_json_cbor_results(
     formats = (
         ("JSON", "JSON", AMBER),
         ("CBOR", "CBOR", VIOLET),
-        ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
+        ("CBORKeyAsInt", "CBOR (Int Keys)", TEAL),
     )
 
     for operation in ("Serialize", "Deserialize"):
@@ -1011,7 +1011,7 @@ def _plot_json_cbor_relative_results(
     for axis, operation in zip(axes, ("Serialize", "Deserialize"), strict=True):
         for format_name, label, color in (
             ("CBOR", "CBOR", VIOLET),
-            ("CBORKeyAsInt", "CBOR-int", TEAL),
+            ("CBORKeyAsInt", "CBOR (Int Keys)", TEAL),
         ):
             axis.plot(
                 attribute_counts,
@@ -1042,8 +1042,8 @@ def plot_json_cbor_latency(
     _plot_json_cbor_results(
         attribute_counts,
         results,
-        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Policy Attributes",
-        "Latency (µs)",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Attribute Count",
+        "Latency (µs/op)",
         output_path,
     )
 
@@ -1056,7 +1056,7 @@ def plot_json_cbor_latency_speedup(
     _plot_json_cbor_relative_results(
         attribute_counts,
         speedups,
-        "Relative Latency Speedup vs. Policy Attributes",
+        "Relative Latency Speedup vs. Attribute Count",
         "Speedup vs JSON (×)",
         {
             "Serialize": (4.0, 6.5),
@@ -1076,7 +1076,7 @@ def plot_json_cbor_size(
     for format_name, label, color in (
         ("JSON", "JSON", AMBER),
         ("CBOR", "CBOR", VIOLET),
-        ("CBORKeyAsInt", "CBOR (int keys)", TEAL),
+        ("CBORKeyAsInt", "CBOR (Int Keys)", TEAL),
     ):
         axis.plot(
             attribute_counts,
@@ -1122,7 +1122,7 @@ def plot_json_cbor_size_reduction(
         [position + bar_width / 2 for position in positions],
         reductions["CBORKeyAsInt"],
         width=bar_width,
-        label="CBOR-int",
+        label="CBOR (Int Keys)",
         color=TEAL,
     )
 
@@ -1149,8 +1149,8 @@ def plot_json_cbor_energy(
     _plot_json_cbor_results(
         attribute_counts,
         results,
-        "JSON vs. CBOR vs. CBOR (Int Keys): Energy per Operation vs. Policy Attributes",
-        "Energy (µJ/op) ± 95% CI",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Energy per Operation vs. Attribute Count",
+        "Energy (µJ/op)",
         output_path,
     )
 
@@ -1190,7 +1190,7 @@ def _plot_latency_and_size(
         draw_constant(latency_axis, value, parameter_values, label, color)
     _draw_summaries(size_axis, parameter_values, size_series)
     _configure_parameter_axis(
-        latency_axis, "Latency", "Latency (µs)", parameter_values, x_label
+        latency_axis, "Latency", "Latency (µs/op)", parameter_values, x_label
     )
     _configure_parameter_axis(
         size_axis,
@@ -1214,7 +1214,7 @@ def plot_cpabe_attributes(
     stored_key_means, stored_key_cis = results["stored_key"]
     _plot_latency_and_size(
         attribute_counts,
-        "CP-ABE Scaling with Policy Attribute Count",
+        "CP-ABE Scaling with Policy Attributes",
         "Policy Attributes",
         [
             ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
@@ -1244,7 +1244,7 @@ def plot_rsa_subscribers(
     )
     _plot_latency_and_size(
         subscriber_counts,
-        f"RSA Scaling with Subscriber Count (Fixed Key: {fixed_rsa_key_bits} bits)",
+        f"RSA Scaling with Subscribers (Fixed Key: {fixed_rsa_key_bits} bits)",
         "Subscribers",
         [("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER)],
         [
@@ -1283,7 +1283,7 @@ def plot_rsa_key_size_sensitivity(
     _configure_parameter_axis(
         axis,
         "RSA Key-Size Sensitivity (1 Subscriber)",
-        "Latency (µs)",
+        "Latency (µs/op)",
         rsa_key_bits,
         "RSA Key Bits",
     )
@@ -1525,7 +1525,7 @@ def plot_encrypt_latency_crossover(
     axis.set_xlim(0.0, x_limit)
     axis.set_ylim(0.0, largest_value * 1.12)
     axis.set_xlabel("Subscribers")
-    axis.set_ylabel("Publisher Encrypt Latency (µs)")
+    axis.set_ylabel("Publisher Encrypt Latency (µs/op)")
     apply_value_grid(axis)
     axis.legend(fontsize=9, loc="upper left")
 
@@ -1571,7 +1571,7 @@ def plot_decrypt_latency_comparison(
     axis.set_xlim(0.0, float(attribute_counts[-1]) * AXIS_HEADROOM)
     axis.set_ylim(0.0, largest_value * 1.15)
     axis.set_xlabel("Policy Attributes")
-    axis.set_ylabel("Decrypt Latency (µs)")
+    axis.set_ylabel("Decrypt Latency (µs/op)")
     apply_value_grid(axis)
     axis.legend(fontsize=9, loc="upper left")
 
@@ -1643,7 +1643,7 @@ def plot_encrypt_decrypt_asymmetry(
     axis.set_ylim(0.0, largest_value * 1.24)
     axis.set_xticks(positions)
     axis.set_xticklabels(scheme_labels)
-    axis.set_ylabel("Latency (µs)")
+    axis.set_ylabel("Latency (µs/op)")
     axis.set_title("Encrypt vs Decrypt Asymmetry", fontsize=12)
     axis.grid(False)
     axis.spines["top"].set_visible(False)

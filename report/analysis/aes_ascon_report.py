@@ -196,8 +196,8 @@ def analyze_case(
     )
 
     return {
-        "latency_means": latency_means,
-        "latency_cis": latency_cis,
+        "latency_means": to_microseconds(latency_means),
+        "latency_cis": to_microseconds(latency_cis),
         "throughput_means": throughput_means,
         "throughput_cis": throughput_cis,
         "energy_means": to_microjoules(energy_means),
@@ -305,8 +305,8 @@ def main():
     # Prepare Latency Chart Data
     latency_results = {
         case: (
-            to_microseconds(values["latency_means"]),
-            to_microseconds(values["latency_cis"]),
+            values["latency_means"],
+            values["latency_cis"],
         )
         for case, values in case_results.items()
     }
