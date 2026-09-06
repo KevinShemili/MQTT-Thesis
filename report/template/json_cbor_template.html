@@ -578,27 +578,10 @@
                             {{SizeReductionCborMin}}% – {{SizeReductionCborMax}}%</p>
                         <p><strong>CBOR-int</strong><br>
                             {{SizeReductionCborIntMin}}% – {{SizeReductionCborIntMax}}%</p>
-                    </aside>
-                </div>
-
-                <div class="comparison-row">
-                    <article class="plot-card">
-                        <div class="plot-copy">
-                            <h3>CBOR-int Additional Size Reduction vs. CBOR</h3>
-                        </div>
-
-                        <div class="plot-frame">
-                            <img src="{{IntegerKeySizeReductionPlot}}" alt="Additional envelope size reduction from CBOR integer keys over policy attribute count">
-                        </div>
-                    </article>
-
-                    <aside class="comparison-explanation">
-                        <div class="comparison-label">Additional Envelope Size Reduction from CBOR-int relative to
-                            CBOR</div>
-                        <p><strong>{{MinAttributeCount}} attribute</strong><br>
-                            {{IntegerKeySizeReductionFirst}}%</p>
-                        <p><strong>{{MaxAttributeCount}} attributes</strong><br>
-                            {{IntegerKeySizeReductionLast}}%</p>
+                        <p>Using integer CBOR keys reduced envelope size by a fixed additional
+                            {{IntegerKeySizeSavingBytes}} B at every tested attribute count. Consequently, the
+                            relative benefit decreased from {{IntegerKeySizeReductionFirst}}% at one attribute to
+                            {{IntegerKeySizeReductionLast}}% at fifty attributes.</p>
                     </aside>
                 </div>
             </div>

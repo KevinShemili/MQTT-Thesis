@@ -28,11 +28,13 @@ from report.model.timing.timing_case import (
     THROTTLED as TIMING_THROTTLED,
 )
 from report.render.chart import (
+    plot_payload_scaling_additional_energy,
     plot_payload_scaling_energy,
     plot_payload_scaling_latency,
+    plot_payload_scaling_latency_overhead_share,
     plot_payload_scaling_memory,
     plot_payload_scaling_throughput,
-    plot_payload_scaling_wire_size,
+    plot_payload_scaling_wire_expansion,
 )
 from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
 from report.render.html import write_payload_scaling_report
@@ -55,12 +57,15 @@ ENERGY_RESULT_NAME = "energy.txt"
 REPORT_TEMPLATE_NAME = "payload_scaling_template.html"
 
 LATENCY_PLOT = "latency.png"
+LATENCY_OVERHEAD_SHARE_PLOT = "latency_overhead_share.png"
 THROUGHPUT_PLOT = "throughput.png"
-WIRE_SIZE_PLOT = "wire_size.png"
+WIRE_EXPANSION_PLOT = "wire_expansion.png"
 ENERGY_PLOT = "energy.png"
+ADDITIONAL_ENERGY_PLOT = "additional_energy.png"
 MEMORY_PLOT = "memory.png"
 
 MICROJOULES_PER_JOULE = 1_000_000
+MICROJOULES_PER_MILLIJOULE = 1_000
 
 
 def collect_timing_aggregations(
@@ -221,6 +226,13 @@ def calculate_wire_sizes(
     ]
 
 
+def calculate_wire_expansion(
+    payload_sizes: list[int],
+    wire_sizes: list[float],
+) -> float:
+    return wire_sizes[0] - payload_sizes[0]
+
+
 def main() -> None:
 
     load_dotenv(
@@ -254,6 +266,7 @@ def main() -> None:
 
     case_results = {}
     wire_data = {}
+    wire_expansions = {}
 
     for scheme in ("PSK", "RSA", "CPABE"):
         for operation in ("Encrypt", "Decrypt"):
@@ -279,9 +292,14 @@ def main() -> None:
             )
 
             if operation == "Encrypt":
-                wire_data[scheme] = calculate_wire_sizes(
+                wire_sizes = calculate_wire_sizes(
                     payload_sizes,
                     timing_aggregations,
+                )
+                wire_data[scheme] = wire_sizes
+                wire_expansions[scheme] = calculate_wire_expansion(
+                    payload_sizes,
+                    wire_sizes,
                 )
 
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
@@ -326,10 +344,42 @@ def main() -> None:
         for case, values in case_results.items()
     }
 
+    latency_overhead_share = {
+        (scheme, operation): [
+            (scheme_latency - psk_latency) / scheme_latency * 100.0
+            for psk_latency, scheme_latency in zip(
+                case_results[("PSK", operation)]["latency_means"],
+                case_results[(scheme, operation)]["latency_means"],
+                strict=True,
+            )
+        ]
+        for scheme in ("RSA", "CPABE")
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+    additional_energy = {
+        (scheme, operation): [
+            (scheme_energy - psk_energy) / MICROJOULES_PER_MILLIJOULE
+            for psk_energy, scheme_energy in zip(
+                case_results[("PSK", operation)]["energy_means"],
+                case_results[(scheme, operation)]["energy_means"],
+                strict=True,
+            )
+        ]
+        for scheme in ("RSA", "CPABE")
+        for operation in ("Encrypt", "Decrypt")
+    }
+
     plot_payload_scaling_latency(
         payload_sizes,
         latency_results,
         str(result_directory / LATENCY_PLOT),
+    )
+
+    plot_payload_scaling_latency_overhead_share(
+        payload_sizes,
+        latency_overhead_share,
+        str(result_directory / LATENCY_OVERHEAD_SHARE_PLOT),
     )
 
     plot_payload_scaling_throughput(
@@ -338,16 +388,21 @@ def main() -> None:
         str(result_directory / THROUGHPUT_PLOT),
     )
 
-    plot_payload_scaling_wire_size(
-        payload_sizes,
-        wire_data,
-        str(result_directory / WIRE_SIZE_PLOT),
+    plot_payload_scaling_wire_expansion(
+        wire_expansions,
+        str(result_directory / WIRE_EXPANSION_PLOT),
     )
 
     plot_payload_scaling_energy(
         payload_sizes,
         energy_results,
         str(result_directory / ENERGY_PLOT),
+    )
+
+    plot_payload_scaling_additional_energy(
+        payload_sizes,
+        additional_energy,
+        str(result_directory / ADDITIONAL_ENERGY_PLOT),
     )
 
     memory_plot_results = {
@@ -377,14 +432,17 @@ def main() -> None:
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
         "wire_sizes": wire_data,
+        "wire_expansions": wire_expansions,
         "memory": memory_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "plots": {
             "latency": LATENCY_PLOT,
+            "latency_overhead_share": LATENCY_OVERHEAD_SHARE_PLOT,
             "throughput": THROUGHPUT_PLOT,
-            "wire_size": WIRE_SIZE_PLOT,
+            "wire_expansion": WIRE_EXPANSION_PLOT,
             "energy": ENERGY_PLOT,
+            "additional_energy": ADDITIONAL_ENERGY_PLOT,
             "memory": MEMORY_PLOT,
         },
     }

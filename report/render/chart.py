@@ -8,6 +8,7 @@ from report.render import formatting
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 from math import isnan
 from typing import Any
 
@@ -24,6 +25,7 @@ TOTAL_CIPHERTEXT_COLOR = TEAL
 RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
 AES_ASCON_MAIN_TICK_MIN = 4 * KILOBYTE
 AES_ASCON_ZOOM_MAX = KILOBYTE
+PAYLOAD_SCALING_ZOOM_MAX = 256 * KILOBYTE
 PEAK_RSS_AXIS_PADDING = 0.08
 PEAK_RSS_FALLBACK_PADDING = 0.01
 
@@ -234,42 +236,6 @@ def _draw_summaries(
         )
 
 
-def _draw_zoom(
-    axis: Axes,
-    parameter_values: list[int],
-    series: list[tuple[str, list[float], list[float], str]],
-) -> None:
-    zoom_axis = axis.inset_axes([0.08, 0.08, 0.47, 0.32])  # type: ignore
-    for label, means, confidence_intervals, color in series:
-        draw_summary(
-            zoom_axis,
-            parameter_values,
-            means,
-            confidence_intervals,
-            label,
-            color,
-            linewidth=1.6,
-            markersize=4,
-            capsize=3,
-        )
-
-    zoom_axis.set_ylim(
-        0.0,
-        max(
-            calculate_axis_top(means, confidence_intervals)
-            for _, means, confidence_intervals, _ in series
-        )
-        * 1.10,
-    )
-    zoom_axis.set_xlim(0, parameter_values[-1] * AXIS_HEADROOM)
-    zoom_axis.set_xticks([])
-    zoom_axis.set_title("PSK + RSA Zoom", fontsize=9)
-    zoom_axis.set_ylabel("µs", fontsize=8)
-    zoom_axis.tick_params(axis="both", labelsize=8)
-    apply_value_grid(zoom_axis, linewidth=0.4)
-    zoom_axis.legend(fontsize=8, loc="upper left")
-
-
 def _plot_operation_comparison(
     parameter_values: list[int],
     panels: list[tuple[str, list[tuple[str, list[float], list[float], str]]]],
@@ -279,14 +245,13 @@ def _plot_operation_comparison(
     output_path: str,
     byte_tick_step: int | None = None,
     legend_location: str | None = None,
-    zoom_first_panel: bool = False,
     baseline_memory_mean: float | None = None,
 ) -> None:
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle(title, fontsize=13)
     rendered_panels = []
 
-    for index, (axis, (operation, series)) in enumerate(zip(axes, panels)):
+    for axis, (operation, series) in zip(axes, panels):
         _draw_summaries(axis, parameter_values, series, with_ci=True)
         axis.set_title(operation, fontsize=11)
         axis.set_xlabel(x_label)
@@ -303,9 +268,6 @@ def _plot_operation_comparison(
         if legend_location is not None:
             legend_options["loc"] = legend_location
         axis.legend(**legend_options)
-
-        if zoom_first_panel and index == 0:
-            _draw_zoom(axis, parameter_values, series[:2])
 
     if baseline_memory_mean is not None:
         _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
@@ -616,7 +578,7 @@ def _plot_payload_scaling_results(
     title: str,
     y_label: str,
     output_path: str,
-    zoom_first_panel: bool = False,
+    with_small_payload_zoom: bool = False,
     baseline_memory_mean: float | None = None,
 ) -> None:
     panels = []
@@ -636,18 +598,137 @@ def _plot_payload_scaling_results(
 
         panels.append((operation, series))
 
-    _plot_operation_comparison(
-        payload_sizes,
-        panels,
-        title,
-        "Payload Size",
-        y_label,
-        output_path,
-        byte_tick_step=4 * MEGABYTE,
-        legend_location="upper left",
-        zoom_first_panel=zoom_first_panel,
-        baseline_memory_mean=baseline_memory_mean,
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+    rendered_panels = []
+
+    for axis, (operation, series) in zip(axes, panels):
+        _draw_summaries(axis, payload_sizes, series, with_ci=True)
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel(y_label)
+        if baseline_memory_mean is None:
+            axis.set_ylim(bottom=0)
+        _configure_payload_scaling_main_axis(axis, payload_sizes)
+        _configure_plain_y_axis(axis)
+        rendered_panels.append((axis, payload_sizes, series))
+
+        if with_small_payload_zoom:
+            detail_series = series[:2] if operation == "Encrypt" else series
+            detail_title = (
+                "PSK + RSA detail" if operation == "Encrypt" else "Small-payload detail"
+            )
+            _draw_payload_scaling_small_payload_zoom(
+                axis,
+                payload_sizes,
+                detail_series,
+                detail_title,
+            )
+
+    if baseline_memory_mean is not None:
+        _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
+
+    for axis in axes:
+        axis.legend(fontsize=10, loc="upper left")
+
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+def _configure_payload_scaling_main_axis(
+    axis: Axes,
+    payload_sizes: list[int],
+) -> None:
+    tick_values = [
+        payload_size
+        for payload_size in payload_sizes
+        if payload_size > PAYLOAD_SCALING_ZOOM_MAX
+    ]
+
+    axis.set_xscale("linear")
+    axis.set_yscale("linear")
+    axis.set_xticks(tick_values)
+    axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in tick_values
+        ]
     )
+    axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
+    apply_value_grid(axis)
+
+
+def _draw_payload_scaling_small_payload_zoom(
+    axis: Axes,
+    payload_sizes: list[int],
+    series: list[tuple[str, list[float], list[float], str]],
+    title: str,
+) -> None:
+    zoom_indexes = [
+        index
+        for index, payload_size in enumerate(payload_sizes)
+        if payload_size <= PAYLOAD_SCALING_ZOOM_MAX
+    ]
+    zoom_payload_sizes = [payload_sizes[index] for index in zoom_indexes]
+    zoom_axis = axis.inset_axes([0.30, 0.55, 0.46, 0.38])  # type: ignore
+    zoom_series = []
+
+    for label, means, confidence_intervals, color in series:
+        zoom_means = [means[index] for index in zoom_indexes]
+        zoom_confidence_intervals = [
+            confidence_intervals[index] for index in zoom_indexes
+        ]
+        zoom_series.append((label, zoom_means, zoom_confidence_intervals, color))
+        draw_summary(
+            zoom_axis,
+            zoom_payload_sizes,
+            zoom_means,
+            zoom_confidence_intervals,
+            label,
+            color,
+            with_ci=True,
+            linewidth=1.3,
+            markersize=3.5,
+            capsize=2.5,
+        )
+
+    zoom_axis.set_xscale("linear")
+    zoom_axis.set_yscale("linear")
+    zoom_axis.set_xlim(0, zoom_payload_sizes[-1] * AXIS_HEADROOM)
+    zoom_axis.set_ylim(
+        0,
+        max(
+            calculate_axis_top(means, confidence_intervals)
+            for _, means, confidence_intervals, _ in zoom_series
+        )
+        * 1.10,
+    )
+    visible_tick_values = [
+        payload_size
+        for payload_size in zoom_payload_sizes
+        if payload_size >= 4 * KILOBYTE
+    ]
+    zoom_axis.set_xticks(visible_tick_values)
+    zoom_axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in visible_tick_values
+        ],
+        rotation=90,
+        ha="center",
+    )
+    zoom_axis.set_title(title, fontsize=8)
+    zoom_axis.tick_params(axis="both", labelsize=7)
+    _configure_plain_y_axis(zoom_axis)
+    apply_value_grid(zoom_axis, linewidth=0.4)
+
+
+def _configure_plain_y_axis(axis: Axes) -> None:
+    axis.yaxis.set_major_formatter(FuncFormatter(_format_plain_number))
+
+
+def _format_plain_number(value: float, _position: float) -> str:
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
 def plot_payload_scaling_latency(
@@ -659,10 +740,89 @@ def plot_payload_scaling_latency(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
-        "Latency (µs) ± 95% CI",
+        "Latency (µs/op)",
         output_path,
-        zoom_first_panel=True,
+        with_small_payload_zoom=True,
     )
+
+
+def plot_payload_scaling_latency_overhead_share(
+    payload_sizes: list[int],
+    values: dict[tuple[str, str], list[float]],
+    output_path: str,
+) -> None:
+    positions = list(range(len(payload_sizes)))
+    payload_labels = [
+        formatting.format_byte_size(payload_size) for payload_size in payload_sizes
+    ]
+    bar_width = 0.38
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("Latency Overhead Share above PSK", fontsize=13)
+
+    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
+        rsa_values = values[("RSA", operation)]
+        cpabe_values = values[("CPABE", operation)]
+        rsa_bars = axis.bar(
+            [position - bar_width / 2 for position in positions],
+            rsa_values,
+            width=bar_width,
+            label="RSA",
+            color=VIOLET,
+        )
+        cpabe_bars = axis.bar(
+            [position + bar_width / 2 for position in positions],
+            cpabe_values,
+            width=bar_width,
+            label="CP-ABE",
+            color=CRIMSON,
+        )
+
+        axis.axhline(
+            0.0,
+            color=TEAL,
+            linestyle="--",
+            linewidth=1.8,
+            label="PSK reference (0%)",
+        )
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel("Latency Overhead Share above PSK (%)")
+        axis.set_yscale("linear")
+        lower_bound = min(0.0, min(rsa_values + cpabe_values))
+        upper_bound = max(0.0, max(rsa_values + cpabe_values))
+        padding = (upper_bound - lower_bound) * 0.14
+        axis.set_ylim(lower_bound - padding, upper_bound + padding)
+        axis.set_xticks(positions)
+        axis.set_xticklabels(payload_labels)
+        axis.set_xlim(-0.6, len(positions) - 0.4)
+        for bars, bar_values in (
+            (rsa_bars, rsa_values),
+            (cpabe_bars, cpabe_values),
+        ):
+            axis.bar_label(
+                bars,
+                labels=[
+                    "<0.1%" if 0 < value < 0.1 else f"{value:.1f}%"
+                    for value in bar_values
+                ],
+                padding=3,
+                fontsize=7,
+                rotation=90,
+            )
+        _configure_plain_y_axis(axis)
+        apply_value_grid(axis)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        fontsize=10,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.94),
+        ncol=3,
+    )
+    figure.tight_layout(rect=(0, 0, 1, 0.89))
+    save_figure(figure, output_path)
 
 
 def plot_payload_scaling_throughput(
@@ -674,42 +834,41 @@ def plot_payload_scaling_throughput(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
-        "Throughput (MB/s) ± 95% CI",
+        "Throughput (MB/s)",
         output_path,
     )
 
 
-def plot_payload_scaling_wire_size(
-    payload_sizes: list[int],
-    wire_sizes: dict[str, list[float]],
+def plot_payload_scaling_wire_expansion(
+    wire_expansions: dict[str, float],
     output_path: str,
 ) -> None:
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
-
-    for scheme, label, color in (
+    schemes = (
         ("PSK", "PSK", TEAL),
         ("RSA", "RSA", VIOLET),
         ("CPABE", "CP-ABE", CRIMSON),
-    ):
-        axis.plot(
-            payload_sizes,
-            wire_sizes[scheme],
-            label=label,
-            color=color,
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
+    )
+    values = [wire_expansions[scheme] for scheme, _, _ in schemes]
+    bars = axis.bar(
+        [label for _, label, _ in schemes],
+        values,
+        color=[color for _, _, color in schemes],
+    )
 
     axis.set_title(
-        "PSK vs. RSA vs. CP-ABE: Wire Size vs. Payload Size",
+        "PSK vs. RSA vs. CP-ABE: Fixed Wire Expansion per Message",
         fontsize=13,
     )
-    axis.set_xlabel("Payload Size")
-    axis.set_ylabel("Wire Size (bytes)")
+    axis.set_ylabel("Additional Bytes per Message")
     axis.set_ylim(bottom=0)
-    configure_byte_axis(axis, payload_sizes[-1], 4 * MEGABYTE)
-    axis.legend(fontsize=10)
+    axis.bar_label(
+        bars,
+        labels=[f"{round(value):,} B" for value in values],
+        padding=4,
+    )
+    _configure_plain_y_axis(axis)
+    apply_value_grid(axis)
 
     figure.tight_layout()
     save_figure(figure, output_path)
@@ -724,10 +883,86 @@ def plot_payload_scaling_energy(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Energy per Operation vs. Payload Size",
-        "Energy (µJ/op) ± 95% CI",
+        "Energy (µJ/op)",
         output_path,
-        zoom_first_panel=True,
+        with_small_payload_zoom=True,
     )
+
+
+def plot_payload_scaling_additional_energy(
+    payload_sizes: list[int],
+    values: dict[tuple[str, str], list[float]],
+    output_path: str,
+) -> None:
+    positions = list(range(len(payload_sizes)))
+    payload_labels = [
+        formatting.format_byte_size(payload_size) for payload_size in payload_sizes
+    ]
+    bar_width = 0.38
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("Additional Energy Cost over PSK", fontsize=13)
+
+    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
+        rsa_values = values[("RSA", operation)]
+        cpabe_values = values[("CPABE", operation)]
+        rsa_bars = axis.bar(
+            [position - bar_width / 2 for position in positions],
+            rsa_values,
+            width=bar_width,
+            label="RSA",
+            color=VIOLET,
+        )
+        cpabe_bars = axis.bar(
+            [position + bar_width / 2 for position in positions],
+            cpabe_values,
+            width=bar_width,
+            label="CP-ABE",
+            color=CRIMSON,
+        )
+
+        axis.axhline(
+            0.0,
+            color=TEAL,
+            linestyle="--",
+            linewidth=1.8,
+            label="PSK reference (0 mJ/op)",
+        )
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel("Additional Energy Cost over PSK (mJ/op)")
+        axis.set_yscale("linear")
+        lower_bound = min(0.0, min(rsa_values + cpabe_values))
+        upper_bound = max(0.0, max(rsa_values + cpabe_values))
+        padding = (upper_bound - lower_bound) * 0.14
+        axis.set_ylim(lower_bound - padding, upper_bound + padding)
+        axis.set_xticks(positions)
+        axis.set_xticklabels(payload_labels)
+        axis.set_xlim(-0.6, len(positions) - 0.4)
+        for bars, bar_values in (
+            (rsa_bars, rsa_values),
+            (cpabe_bars, cpabe_values),
+        ):
+            axis.bar_label(
+                bars,
+                labels=[f"{value:,.1f}" for value in bar_values],
+                padding=3,
+                fontsize=7,
+                rotation=90,
+            )
+        _configure_plain_y_axis(axis)
+        apply_value_grid(axis)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        fontsize=10,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.94),
+        ncol=3,
+    )
+    figure.tight_layout(rect=(0, 0, 1, 0.89))
+    save_figure(figure, output_path)
 
 
 def plot_payload_scaling_memory(
@@ -911,54 +1146,35 @@ def plot_json_cbor_size_reduction(
     reductions: dict[str, list[float]],
     output_path: str,
 ) -> None:
+    positions = list(range(len(attribute_counts)))
+    bar_width = 0.38
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
 
-    for format_name, label, color in (
-        ("CBOR", "CBOR", VIOLET),
-        ("CBORKeyAsInt", "CBOR-int", TEAL),
-    ):
-        axis.plot(
-            attribute_counts,
-            reductions[format_name],
-            label=label,
-            color=color,
-            marker="o",
-            linewidth=1.8,
-            markersize=5,
-        )
+    axis.bar(
+        [position - bar_width / 2 for position in positions],
+        reductions["CBOR"],
+        width=bar_width,
+        label="CBOR",
+        color=VIOLET,
+    )
+    axis.bar(
+        [position + bar_width / 2 for position in positions],
+        reductions["CBORKeyAsInt"],
+        width=bar_width,
+        label="CBOR-int",
+        color=TEAL,
+    )
 
     axis.set_title("Envelope Size Reduction vs. JSON", fontsize=13)
     axis.set_xlabel("Attribute Count")
     axis.set_ylabel("Size Reduction vs JSON (%)")
-    axis.set_ylim(24.0, 26.5)
-    configure_attribute_axis(attribute_counts, axis)
+    axis.set_yscale("linear")
+    axis.set_ylim(0.0, 30.0)
+    axis.set_xticks(positions)
+    axis.set_xticklabels([str(attribute_count) for attribute_count in attribute_counts])
+    axis.set_xlim(-0.6, len(positions) - 0.4)
+    apply_mesh_grid(axis)
     axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-
-def plot_json_cbor_integer_key_size_reduction(
-    attribute_counts: list[int],
-    reductions: list[float],
-    output_path: str,
-) -> None:
-    figure, axis = plt.subplots(figsize=(8.5, 5.2))
-
-    axis.plot(
-        attribute_counts,
-        reductions,
-        color=TEAL,
-        marker="o",
-        linewidth=1.8,
-        markersize=5,
-    )
-
-    axis.set_title("CBOR-int Additional Size Reduction vs. CBOR", fontsize=13)
-    axis.set_xlabel("Attribute Count")
-    axis.set_ylabel("Additional Size Reduction vs CBOR (%)")
-    axis.set_ylim(bottom=0)
-    configure_attribute_axis(attribute_counts, axis)
 
     figure.tight_layout()
     save_figure(figure, output_path)

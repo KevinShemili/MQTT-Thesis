@@ -153,7 +153,7 @@ Generated results live under `results/` and are intentionally ignored by Git.
 | --- | --- | --- |
 | `results/aes_ascon/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
 | `results/json_cbor/` | `timing.txt`, `energy.txt` | `latency.png`, `size.png`, `energy.png` |
-| `results/payload_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `throughput.png`, `wire_size.png`, `energy.png`, `memory.png` |
+| `results/payload_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `latency_overhead_share.png`, `throughput.png`, `wire_expansion.png`, `energy.png`, `additional_energy.png`, `memory.png` |
 | `results/attribute_key_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `cpabe_attributes.png`, `rsa_subscribers.png`, `rsa_key_bits.png`, `energy.png`, `peak_memory.png`, and four comparison charts |
 
 Every directory also receives `report.html`. Timing and energy thermal observations are reported separately.

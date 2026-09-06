@@ -25,7 +25,6 @@ from report.model.timing.timing_case import (
 from report.render.chart import (
     plot_json_cbor_energy,
     plot_json_cbor_energy_reduction,
-    plot_json_cbor_integer_key_size_reduction,
     plot_json_cbor_latency,
     plot_json_cbor_latency_speedup,
     plot_json_cbor_size,
@@ -54,7 +53,6 @@ LATENCY_PLOT = "latency.png"
 LATENCY_SPEEDUP_PLOT = "latency_speedup.png"
 SIZE_PLOT = "size.png"
 SIZE_REDUCTION_PLOT = "size_reduction.png"
-INTEGER_KEY_SIZE_REDUCTION_PLOT = "integer_key_size_reduction.png"
 ENERGY_PLOT = "energy.png"
 ENERGY_REDUCTION_PLOT = "energy_reduction.png"
 
@@ -311,6 +309,8 @@ def main() -> None:
             "cbor_int_max": max(size_reductions["CBORKeyAsInt"]),
         },
         "integer_key_size_reduction": {
+            "additional_bytes": size_results["CBOR"][0]
+            - size_results["CBORKeyAsInt"][0],
             "first": integer_key_size_reductions[0],
             "last": integer_key_size_reductions[-1],
         },
@@ -332,8 +332,6 @@ def main() -> None:
                 energy_reductions[("CBORKeyAsInt", "Deserialize")]
             ),
         },
-        "min_attribute_count": attribute_counts[0],
-        "max_attribute_count": attribute_counts[-1],
     }
 
     plot_json_cbor_latency(
@@ -358,12 +356,6 @@ def main() -> None:
         attribute_counts,
         size_reductions,
         str(result_directory / SIZE_REDUCTION_PLOT),
-    )
-
-    plot_json_cbor_integer_key_size_reduction(
-        attribute_counts,
-        integer_key_size_reductions,
-        str(result_directory / INTEGER_KEY_SIZE_REDUCTION_PLOT),
     )
 
     plot_json_cbor_energy(
@@ -399,7 +391,6 @@ def main() -> None:
             "latency_speedup": LATENCY_SPEEDUP_PLOT,
             "size": SIZE_PLOT,
             "size_reduction": SIZE_REDUCTION_PLOT,
-            "integer_key_size_reduction": INTEGER_KEY_SIZE_REDUCTION_PLOT,
             "energy": ENERGY_PLOT,
             "energy_reduction": ENERGY_REDUCTION_PLOT,
         },

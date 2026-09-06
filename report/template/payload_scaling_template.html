@@ -186,6 +186,37 @@
             background: #ffffff;
         }
 
+        .comparison-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .comparison-explanation {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 24px;
+            border: 1px solid var(--border);
+            border-radius: 19px;
+            background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
+        }
+
+        .comparison-label {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 850;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .comparison-explanation p {
+            margin: 12px 0 0 0;
+            color: var(--muted);
+            font-size: 13.5px;
+        }
+
         .operation-group+.operation-group {
             margin-top: 22px;
         }
@@ -331,6 +362,7 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .comparison-row,
             .table-row {
                 grid-template-columns: 1fr;
             }
@@ -419,6 +451,28 @@
                         <img src="{{LatencyPlot}}" alt="Scheme latency over payload size">
                     </div>
                 </article>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>Latency Overhead Share above PSK</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{LatencyOverheadSharePlot}}" alt="RSA and CP-ABE latency overhead share above PSK over payload size">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Latency Overhead Share above PSK</div>
+                        <p>Latency overhead share expresses the proportion of RSA or CP-ABE total latency
+                            attributable to additional cost above the PSK baseline at the same payload size. 0%
+                            indicates equal mean latency to PSK; larger values indicate that scheme-specific overhead
+                            dominates the operation. Negative values indicate a lower measured mean latency than PSK.
+                        </p>
+                    </aside>
+                </div>
+
                 <article class="plot-card">
                     <div class="plot-copy">
                         <h3>Throughput vs. Payload Size</h3>
@@ -499,11 +553,11 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Wire Size vs. Payload Size</h3>
+                        <h3>Fixed Wire Expansion per Message</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{WireSizePlot}}" alt="PSK, RSA, and CP-ABE wire size over payload size">
+                        <img src="{{WireExpansionPlot}}" alt="Fixed additional bytes per message for PSK, RSA, and CP-ABE">
                     </div>
                 </article>
             </div>
@@ -542,6 +596,26 @@
                         <img src="{{EnergyPlot}}" alt="Scheme energy per operation over payload size">
                     </div>
                 </article>
+
+                <div class="comparison-row">
+                    <article class="plot-card">
+                        <div class="plot-copy">
+                            <h3>Additional Energy Cost over PSK</h3>
+                        </div>
+
+                        <div class="plot-frame">
+                            <img src="{{AdditionalEnergyPlot}}" alt="Additional RSA and CP-ABE energy cost over PSK over payload size">
+                        </div>
+                    </article>
+
+                    <aside class="comparison-explanation">
+                        <div class="comparison-label">Additional Energy Cost over PSK</div>
+                        <p>Additional energy cost shows the difference between the RSA or CP-ABE mean energy per
+                            operation and the corresponding PSK mean. Zero indicates equal mean energy consumption;
+                            positive values indicate additional energy cost and negative values indicate a lower
+                            measured mean than PSK.</p>
+                    </aside>
+                </div>
             </div>
 
             <div class="operation-group">

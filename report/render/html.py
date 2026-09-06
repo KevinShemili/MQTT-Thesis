@@ -388,7 +388,7 @@ def write_json_cbor_report(
         "SizeReductionCborMax": f'{size_reduction["cbor_max"]:.1f}',
         "SizeReductionCborIntMin": f'{size_reduction["cbor_int_min"]:.1f}',
         "SizeReductionCborIntMax": f'{size_reduction["cbor_int_max"]:.1f}',
-        "IntegerKeySizeReductionPlot": plots["integer_key_size_reduction"],
+        "IntegerKeySizeSavingBytes": f'{integer_key_size_reduction["additional_bytes"]:,}',
         "IntegerKeySizeReductionFirst": f'{integer_key_size_reduction["first"]:.2f}',
         "IntegerKeySizeReductionLast": f'{integer_key_size_reduction["last"]:.2f}',
         "EnergyPlot": plots["energy"],
@@ -401,8 +401,6 @@ def write_json_cbor_report(
         "EnergyReductionDeserializeCborMax": f'{energy_reduction["deserialize_cbor_max"]:.1f}',
         "EnergyReductionDeserializeCborIntMin": f'{energy_reduction["deserialize_cbor_int_min"]:.1f}',
         "EnergyReductionDeserializeCborIntMax": f'{energy_reduction["deserialize_cbor_int_max"]:.1f}',
-        "MinAttributeCount": f'{interpretations["min_attribute_count"]:,}',
-        "MaxAttributeCount": f'{interpretations["max_attribute_count"]:,}',
     }
 
     build_html_report(template_path, report_path, placeholders)
@@ -553,9 +551,11 @@ def write_payload_scaling_report(
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "LatencyPlot": plots["latency"],
+        "LatencyOverheadSharePlot": plots["latency_overhead_share"],
         "ThroughputPlot": plots["throughput"],
-        "WireSizePlot": plots["wire_size"],
+        "WireExpansionPlot": plots["wire_expansion"],
         "EnergyPlot": plots["energy"],
+        "AdditionalEnergyPlot": plots["additional_energy"],
         "MemoryPlot": plots["memory"],
     }
 
