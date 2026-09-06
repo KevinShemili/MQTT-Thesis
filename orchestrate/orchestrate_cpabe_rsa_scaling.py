@@ -24,11 +24,11 @@ REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
 REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
 
-REMOTE_PACKAGE = "./micro/attribute_key_scaling"
+REMOTE_PACKAGE = "./micro/cpabe_rsa_scaling"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision"
 
-REMOTE_BINARY = "/tmp/attribute-key-scaling-benchmark"
-REMOTE_PROVISION_BINARY = "/tmp/attribute-key-scaling-provision"
+REMOTE_BINARY = "/tmp/cpabe-rsa-scaling-benchmark"
+REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-scaling-provision"
 
 # UM24C Bluetooth serial port
 UM24C_PORT = "COM11"
@@ -37,10 +37,10 @@ UM24C_PORT = "COM11"
 def load_environment_variables():
 
     global RUNS
-    global KEYGEN_RUNS
     global ATTRIBUTE_COUNTS
     global SUBSCRIBER_COUNTS
     global RSA_KEY_BITS
+    global FIXED_RSA_KEY_BITS
     global TIMING_DURATION
     global BASELINE_DURATION
     global WARMUP_DURATION
@@ -57,27 +57,27 @@ def load_environment_variables():
         override=True,
     )
 
-    RUNS = int(os.environ["ATTRIBUTE_KEY_SCALING_RUNS"])
-    KEYGEN_RUNS = int(os.environ["ATTRIBUTE_KEY_SCALING_KEYGEN_RUNS"])
+    RUNS = int(os.environ["CPABE_RSA_SCALING_RUNS"])
 
     ATTRIBUTE_COUNTS = [
         int(attribute_count)
-        for attribute_count in os.environ[
-            "ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT"
-        ].split(",")
+        for attribute_count in os.environ["CPABE_RSA_SCALING_ATTRIBUTE_COUNT"].split(
+            ","
+        )
     ]
 
     SUBSCRIBER_COUNTS = [
         int(subscriber_count)
-        for subscriber_count in os.environ[
-            "ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT"
-        ].split(",")
+        for subscriber_count in os.environ["CPABE_RSA_SCALING_SUBSCRIBER_COUNT"].split(
+            ","
+        )
     ]
 
     RSA_KEY_BITS = [
         int(rsa_key_bits)
-        for rsa_key_bits in os.environ["ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES"].split(",")
+        for rsa_key_bits in os.environ["CPABE_RSA_SCALING_RSA_KEY_SIZES"].split(",")
     ]
+    FIXED_RSA_KEY_BITS = int(os.environ["CPABE_RSA_SCALING_FIXED_RSA_KEY_SIZE"])
 
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])
 
@@ -88,7 +88,7 @@ def load_environment_variables():
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
-    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["ATTRIBUTE_KEY_SCALING_RESULT_DIR"]
+    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["CPABE_RSA_SCALING_RESULT_DIR"]
 
     MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
     ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
@@ -164,7 +164,7 @@ def run_provision_case(algorithm, parameter_value):
 
 def orchestrate_provision():
 
-    print("Provisioning Attribute & Key Scaling Fixtures...")
+    print("Provisioning CP-ABE vs. RSA Scaling Fixtures...")
 
     # Start with an empty fixture cache
     subprocess.run(
@@ -180,8 +180,7 @@ def orchestrate_provision():
         run_provision_case("CPABEAttributes", attribute_count)
     for subscriber_count in SUBSCRIBER_COUNTS:
         run_provision_case("RSASubscribers", subscriber_count)
-    for rsa_key_bits in RSA_KEY_BITS:
-        run_provision_case("RSAKeyBits", rsa_key_bits)
+    run_provision_case("RSAKeyBits", FIXED_RSA_KEY_BITS)
 
     print("Finished Provisioning")
 
@@ -190,7 +189,7 @@ def run_memory_case(output, operation, algorithm, parameter_value):
 
     print(f"Memory: {algorithm} {operation} {parameter_value}")
     benchmark_case = (
-        f"^BenchmarkAttributeKeyScaling{operation}$/"
+        f"^BenchmarkCPABERSAScaling{operation}$/"
         f"^{algorithm}$/"
         f"^{parameter_value}$"
     )
@@ -239,9 +238,12 @@ def orchestrate_memory():
         for subscriber_count in SUBSCRIBER_COUNTS:
             run_memory_case(output, "MemoryEncrypt", "RSASubscribers", subscriber_count)
 
-        for rsa_key_bits in RSA_KEY_BITS:
-            run_memory_case(output, "MemoryEncrypt", "RSAKeyBits", rsa_key_bits)
-            run_memory_case(output, "MemoryDecrypt", "RSAKeyBits", rsa_key_bits)
+        run_memory_case(
+            output,
+            "MemoryDecrypt",
+            "RSAKeyBits",
+            FIXED_RSA_KEY_BITS,
+        )
 
     print(f"Finished: {MEMORY_RESULT_FILE}")
 
@@ -257,7 +259,7 @@ def run_energy_case(meter, output, algorithm, operation, parameter_value):
     )
 
     benchmark_case = (
-        f"^BenchmarkAttributeKeyScalingEnergy{operation}$/"
+        f"^BenchmarkCPABERSAScalingEnergy{operation}$/"
         f"^{algorithm}$/"
         f"^{parameter_value}$"
     )
@@ -360,11 +362,14 @@ def orchestrate_energy():
                     um24c, output, "RSASubscribers", "Encrypt", subscriber_count
                 )
 
-            # RSA key-size scaling
-            for rsa_key_bits in RSA_KEY_BITS:
-                run_energy_case(um24c, output, "RSAKeyBits", "Encrypt", rsa_key_bits)
-                run_energy_case(um24c, output, "RSAKeyBits", "Decrypt", rsa_key_bits)
-                run_energy_case(um24c, output, "RSAKeyBits", "KeyGen", rsa_key_bits)
+            # Fixed RSA decrypt reference
+            run_energy_case(
+                um24c,
+                output,
+                "RSAKeyBits",
+                "Decrypt",
+                FIXED_RSA_KEY_BITS,
+            )
 
     print(f"Finished: {ENERGY_RESULT_FILE}")
 
@@ -375,7 +380,7 @@ def run_timing_case(
 
     print(f"Timing: {algorithm} {operation} {parameter_value}")
     benchmark_case = (
-        f"^BenchmarkAttributeKeyScaling{operation}$/"
+        f"^BenchmarkCPABERSAScaling{operation}$/"
         f"^{algorithm}$/"
         f"^{parameter_value}$"
     )
@@ -458,29 +463,18 @@ def orchestrate_timing():
                 RUNS,
             )
 
-        # RSA key generation
-        for rsa_key_bits in RSA_KEY_BITS:
-            run_timing_case(
-                output,
-                "RSAKeyBits",
-                "KeyGen",
-                rsa_key_bits,
-                "1x",
-                KEYGEN_RUNS,
-            )
-
     print(f"Finished: {TIMING_RESULT_FILE}")
 
 
 def generate_report():
 
-    print("Generating Attribute & Key Scaling HTML Report...")
+    print("Generating CP-ABE vs. RSA Scaling HTML Report...")
 
     subprocess.run(
         [
             sys.executable,
             "-m",
-            "report.analysis.attribute_key_scaling_report",
+            "report.analysis.cpabe_rsa_scaling_report",
         ],
         cwd=PROJECT_ROOT,
         check=True,

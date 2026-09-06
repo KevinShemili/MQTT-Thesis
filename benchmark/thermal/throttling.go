@@ -8,6 +8,7 @@ import (
 )
 
 // Live bits correspond to:
+// 0: Under-voltage detected
 // 1: Arm Freq Capped
 // 2: Currently throttled
 // 3: Soft temp limit

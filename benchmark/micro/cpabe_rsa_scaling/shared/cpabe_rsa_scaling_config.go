@@ -4,7 +4,7 @@ import (
 	"benchmark/utility"
 )
 
-type AttributeKeyScalingConfig struct {
+type CPABERSAScalingConfig struct {
 	AttributeCounts  []int
 	SubscriberCounts []int
 	RSAKeyBits       []int
@@ -12,23 +12,23 @@ type AttributeKeyScalingConfig struct {
 	AESKeySize       int
 }
 
-func NewAttributeKeyScalingConfig() AttributeKeyScalingConfig {
+func NewCPABERSAScalingConfig() CPABERSAScalingConfig {
 
-	return AttributeKeyScalingConfig{
+	return CPABERSAScalingConfig{
 		AttributeCounts: utility.ParseIntListFromEnv(
-			"ATTRIBUTE_KEY_SCALING_ATTRIBUTE_COUNT",
+			"CPABE_RSA_SCALING_ATTRIBUTE_COUNT",
 		),
 		SubscriberCounts: utility.ParseIntListFromEnv(
-			"ATTRIBUTE_KEY_SCALING_SUBSCRIBER_COUNT",
+			"CPABE_RSA_SCALING_SUBSCRIBER_COUNT",
 		),
 		RSAKeyBits: utility.ParseIntListFromEnv(
-			"ATTRIBUTE_KEY_SCALING_RSA_KEY_SIZES",
+			"CPABE_RSA_SCALING_RSA_KEY_SIZES",
 		),
 		FixedRSAKeyBits: utility.ParseIntFromEnv(
-			"ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE",
+			"CPABE_RSA_SCALING_FIXED_RSA_KEY_SIZE",
 		),
 		AESKeySize: utility.ParseIntFromEnv(
-			"ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE",
+			"CPABE_RSA_SCALING_AES_KEY_SIZE",
 		),
 	}
 }

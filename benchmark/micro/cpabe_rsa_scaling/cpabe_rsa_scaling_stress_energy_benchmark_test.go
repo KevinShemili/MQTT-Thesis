@@ -1,9 +1,8 @@
-package attribute_key_scaling
+package cpabe_rsa_scaling
 
 import (
 	"benchmark/cryptography/cpabe"
-	"benchmark/cryptography/rsa"
-	"benchmark/micro/attribute_key_scaling/shared"
+	"benchmark/micro/cpabe_rsa_scaling/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
@@ -16,9 +15,9 @@ var (
 	tailDuration   = time.Duration(utility.ParseIntFromEnv("TAIL_DURATION")) * time.Second
 )
 
-func BenchmarkAttributeKeyScalingEnergyEncrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAScalingEnergyEncrypt(benchmark *testing.B) {
 
-	config := shared.NewAttributeKeyScalingConfig()
+	config := shared.NewCPABERSAScalingConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {
@@ -111,50 +110,11 @@ func BenchmarkAttributeKeyScalingEnergyEncrypt(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: Scaling key size in RSA
-	for _, rsaKeyBits := range config.RSAKeyBits {
-
-		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
-
-			publicKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
-
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-
-			thermal.WaitForCooldown()
-			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
-			fmt.Println("ENRG-START")
-
-			// Warm up in plain loop as we do not want results recorded
-			warmupDeadline := time.Now().Add(warmupDuration)
-			for time.Now().Before(warmupDeadline) {
-				publicKey.Encrypt(symmetricKey)
-			}
-
-			// Actually measure this region
-			for b.Loop() {
-				publicKey.Encrypt(symmetricKey)
-			}
-
-			// Keep same workload running after measured region
-			tailDeadline := time.Now().Add(tailDuration)
-			for time.Now().Before(tailDeadline) {
-				publicKey.Encrypt(symmetricKey)
-			}
-
-			if throttle.IsThrottled() {
-				b.ReportMetric(1, "throttled")
-			} else {
-				b.ReportMetric(0, "throttled")
-			}
-		})
-	}
 }
 
-func BenchmarkAttributeKeyScalingEnergyDecrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAScalingEnergyDecrypt(benchmark *testing.B) {
 
-	config := shared.NewAttributeKeyScalingConfig()
+	config := shared.NewCPABERSAScalingConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {
@@ -207,86 +167,37 @@ func BenchmarkAttributeKeyScalingEnergyDecrypt(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 2: Scaling key size in RSA
-	for _, rsaKeyBits := range config.RSAKeyBits {
+	// Fixed RSA-3072 decrypt reference. Subscriber count does not affect this operation.
+	rsaKeyBits := config.FixedRSAKeyBits
+	benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
+		privateKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+		symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+		asymmetricCiphertext := privateKey.Encrypt(symmetricKey)
 
-			privateKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+		thermal.WaitForCooldown()
+		throttle := thermal.NewThrottleWatch()
 
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+		fmt.Println("ENRG-START")
 
-			asymmetricCiphertext := privateKey.Encrypt(symmetricKey)
+		warmupDeadline := time.Now().Add(warmupDuration)
+		for time.Now().Before(warmupDeadline) {
+			privateKey.Decrypt(asymmetricCiphertext)
+		}
 
-			thermal.WaitForCooldown()
-			throttle := thermal.NewThrottleWatch()
+		for b.Loop() {
+			privateKey.Decrypt(asymmetricCiphertext)
+		}
 
-			// Let orchestrator know that the workload has started
-			fmt.Println("ENRG-START")
+		tailDeadline := time.Now().Add(tailDuration)
+		for time.Now().Before(tailDeadline) {
+			privateKey.Decrypt(asymmetricCiphertext)
+		}
 
-			// Warm up in plain loop as we do not want results recorded
-			warmupDeadline := time.Now().Add(warmupDuration)
-			for time.Now().Before(warmupDeadline) {
-				privateKey.Decrypt(asymmetricCiphertext)
-			}
-
-			// Actually measure this region
-			for b.Loop() {
-				privateKey.Decrypt(asymmetricCiphertext)
-			}
-
-			// Keep same workload running after measured region
-			tailDeadline := time.Now().Add(tailDuration)
-			for time.Now().Before(tailDeadline) {
-				privateKey.Decrypt(asymmetricCiphertext)
-			}
-
-			if throttle.IsThrottled() {
-				b.ReportMetric(1, "throttled")
-			} else {
-				b.ReportMetric(0, "throttled")
-			}
-		})
-	}
-}
-
-func BenchmarkAttributeKeyScalingEnergyKeyGen(benchmark *testing.B) {
-
-	config := shared.NewAttributeKeyScalingConfig()
-
-	// RSA key generation only
-	for _, rsaKeyBits := range config.RSAKeyBits {
-
-		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
-
-			thermal.WaitForCooldown()
-			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
-			fmt.Println("ENRG-START")
-
-			// Warm up in plain loop as we do not want results recorded
-			warmupDeadline := time.Now().Add(warmupDuration)
-			for time.Now().Before(warmupDeadline) {
-				_ = rsa.NewRSA(rsaKeyBits)
-			}
-
-			// Actually measure this region
-			for b.Loop() {
-				_ = rsa.NewRSA(rsaKeyBits)
-			}
-
-			// Keep same workload running after measured region
-			tailDeadline := time.Now().Add(tailDuration)
-			for time.Now().Before(tailDeadline) {
-				_ = rsa.NewRSA(rsaKeyBits)
-			}
-
-			if throttle.IsThrottled() {
-				b.ReportMetric(1, "throttled")
-			} else {
-				b.ReportMetric(0, "throttled")
-			}
-		})
-	}
+		if throttle.IsThrottled() {
+			b.ReportMetric(1, "throttled")
+		} else {
+			b.ReportMetric(0, "throttled")
+		}
+	})
 }

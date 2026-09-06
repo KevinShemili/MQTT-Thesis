@@ -1,18 +1,17 @@
-package attribute_key_scaling
+package cpabe_rsa_scaling
 
 import (
 	"benchmark/cryptography/cpabe"
-	"benchmark/cryptography/rsa"
-	"benchmark/micro/attribute_key_scaling/shared"
+	"benchmark/micro/cpabe_rsa_scaling/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
 )
 
-func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAScalingEncrypt(benchmark *testing.B) {
 
-	config := shared.NewAttributeKeyScalingConfig()
+	config := shared.NewCPABERSAScalingConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {
@@ -91,7 +90,7 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: Scaling key size in RSA
+	// Secondary sensitivity study: scaling RSA key size for one subscriber
 	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
@@ -124,9 +123,9 @@ func BenchmarkAttributeKeyScalingEncrypt(benchmark *testing.B) {
 	}
 }
 
-func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAScalingDecrypt(benchmark *testing.B) {
 
-	config := shared.NewAttributeKeyScalingConfig()
+	config := shared.NewCPABERSAScalingConfig()
 
 	// Scenario 1: CP-ABE scaling attribute count
 	for _, attributeCount := range config.AttributeCounts {
@@ -170,7 +169,7 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 2: RSA scaling key size
+	// Secondary sensitivity study: scaling RSA key size for one subscriber
 	for _, rsaKeyBits := range config.RSAKeyBits {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
@@ -191,51 +190,6 @@ func BenchmarkAttributeKeyScalingDecrypt(benchmark *testing.B) {
 			for b.Loop() {
 				privateKey.Decrypt(asymmetricCiphertext)
 			}
-
-			if throttle.IsThrottled() {
-				b.ReportMetric(1, "throttled")
-			} else {
-				b.ReportMetric(0, "throttled")
-			}
-		})
-	}
-}
-
-func BenchmarkAttributeKeyScalingKeyGen(benchmark *testing.B) {
-
-	config := shared.NewAttributeKeyScalingConfig()
-
-	// CP-ABE key issuance is deliberately not measured. It is executed by the attribute
-	// authority, which holds the master secret and is by definition a trusted,
-	// unconstrained entity, so it is never a cost the constrained device pays...
-
-	// However it is reported for RSA
-	// In RSA, key generation is a probabilistic prime search, so its cost is a random variable
-	// with a long right tail... hence an averaged figure is not representative
-
-	// Instead this case is run with an explicit -benchtime=1x, ensuring b.loop is executed exactly once,
-	// making ns/op a single sample...
-	// We use then -test.count = x to collect x samples, enabling reporting of:
-	// - Median
-	// - IQR
-	// - Min & Max
-	for _, rsaKeyBits := range config.RSAKeyBits {
-
-		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
-
-			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
-			thermal.WaitForCooldown()
-
-			// Start watching for thermal throttling, so it can be reported as a metric
-			throttle := thermal.NewThrottleWatch()
-
-			var schema rsa.RSA
-
-			for b.Loop() {
-				schema = rsa.NewRSA(rsaKeyBits)
-			}
-
-			b.ReportMetric(float64(schema.StoredKeySize()), "stored_key_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")

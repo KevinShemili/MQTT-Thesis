@@ -45,7 +45,7 @@ func main() {
 	switch algorithm {
 
 	case cpabeAttributesAlgorithm:
-		aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
+		aesKeySize := utility.ParseIntFromEnv("CPABE_RSA_SCALING_AES_KEY_SIZE")
 		aesKey := provisionAESKey(aesKeySize)
 		provisionCPABE(parameterValue, aesKeySize, aesKey)
 
@@ -53,7 +53,7 @@ func main() {
 		provisionRSASubscribers(parameterValue)
 
 	case rsaKeyBitsAlgorithm:
-		aesKeySize := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_AES_KEY_SIZE")
+		aesKeySize := utility.ParseIntFromEnv("CPABE_RSA_SCALING_AES_KEY_SIZE")
 		aesKey := provisionAESKey(aesKeySize)
 		provisionRSAKeyBits(parameterValue, aesKey)
 
@@ -243,7 +243,7 @@ func provisionCPABEAuthority() cpabe.CPABEAuthority {
 
 func provisionRSASubscribers(subscriberCount int) {
 
-	rsaKeyBits := utility.ParseIntFromEnv("ATTRIBUTE_KEY_SCALING_FIXED_RSA_KEY_SIZE")
+	rsaKeyBits := utility.ParseIntFromEnv("CPABE_RSA_SCALING_FIXED_RSA_KEY_SIZE")
 
 	for index := range subscriberCount {
 		provisionRSAKey(rsaKeyBits, index)

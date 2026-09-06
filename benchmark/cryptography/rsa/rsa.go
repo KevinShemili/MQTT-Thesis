@@ -43,11 +43,6 @@ func (r RSA) Decrypt(ciphertext []byte) []byte {
 	return plaintext
 }
 
-func (r RSA) StoredKeySize() int {
-
-	return len(MarshalPrivateKey(r.PrivateKey))
-}
-
 func MarshalPrivateKey(privateKey *rsa.PrivateKey) []byte {
 
 	return x509.MarshalPKCS1PrivateKey(privateKey)

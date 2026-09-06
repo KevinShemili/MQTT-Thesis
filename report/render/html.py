@@ -620,7 +620,7 @@ def format_slope(
     )
 
 
-def _build_attribute_timing_table(
+def _build_cpabe_rsa_timing_table(
     index_header: str,
     index_values: list[int],
     values: dict,
@@ -646,90 +646,83 @@ def _build_attribute_timing_table(
     )
 
 
-def _build_attribute_timing_report_tables(
+def _build_cpabe_rsa_timing_report_tables(
     report_data: dict[str, Any],
 ) -> dict[str, str]:
-    cases = report_data["cases"]
+    timing = report_data["timing"]
     attributes = report_data["attribute_counts"]
     subscribers = report_data["subscriber_counts"]
     rsa_key_bits = report_data["rsa_key_bits"]
     runs = report_data["runs"]
 
     return {
-        "CpabeEncryptTable": _build_attribute_timing_table(
+        "CpabeEncryptTable": _build_cpabe_rsa_timing_table(
             "ATTRIBUTES",
             attributes,
-            cases[("CPABEAttributes", "Encrypt")],
+            timing[("CPABEAttributes", "Encrypt")],
             runs,
             [("CIPHERTEXT", "ciphertext_means")],
         ),
-        "CpabeDecryptTable": _build_attribute_timing_table(
+        "CpabeDecryptTable": _build_cpabe_rsa_timing_table(
             "ATTRIBUTES",
             attributes,
-            cases[("CPABEAttributes", "Decrypt")],
+            timing[("CPABEAttributes", "Decrypt")],
             runs,
             [("STORED KEY", "stored_key_means")],
         ),
-        "RsaSubscribersEncryptTable": _build_attribute_timing_table(
+        "RsaSubscribersEncryptTable": _build_cpabe_rsa_timing_table(
             "SUBSCRIBERS",
             subscribers,
-            cases[("RSASubscribers", "Encrypt")],
+            timing[("RSASubscribers", "Encrypt")],
             runs,
             [
                 ("CIPHERTEXT", "ciphertext_means"),
                 ("CIPHERTEXT (TOTAL)", "total_ciphertext_means"),
             ],
         ),
-        "RsaKeyBitsEncryptTable": _build_attribute_timing_table(
-            "KEY BITS",
-            rsa_key_bits,
-            cases[("RSAKeyBits", "Encrypt")],
-            runs,
-            [("CIPHERTEXT", "ciphertext_means")],
-        ),
-        "RsaKeyBitsDecryptTable": _build_attribute_timing_table(
-            "KEY BITS",
-            rsa_key_bits,
-            cases[("RSAKeyBits", "Decrypt")],
-            runs,
-            [],
-            [value == report_data["fixed_rsa_key_bits"] for value in rsa_key_bits],
+        "RsaKeySizeSensitivityTable": build_html_table(
+            [
+                "KEY BITS",
+                "ENCRYPT LATENCY (µs/op)",
+                "DECRYPT LATENCY (µs/op)",
+                "CIPHERTEXT",
+            ],
+            _rows_from_columns(
+                [
+                    [str(value) for value in rsa_key_bits],
+                    _mean_ci_column(
+                        timing[("RSAKeyBits", "Encrypt")]["latency_means"],
+                        timing[("RSAKeyBits", "Encrypt")]["latency_cis"],
+                    ),
+                    _mean_ci_column(
+                        timing[("RSAKeyBits", "Decrypt")]["latency_means"],
+                        timing[("RSAKeyBits", "Decrypt")]["latency_cis"],
+                    ),
+                    [
+                        _format_byte_size(value)
+                        for value in timing[("RSAKeyBits", "Encrypt")][
+                            "ciphertext_means"
+                        ]
+                    ],
+                ]
+            ),
+            [
+                encrypt_throttled or decrypt_throttled
+                for encrypt_throttled, decrypt_throttled in zip(
+                    timing[("RSAKeyBits", "Encrypt")]["timing_throttled"],
+                    timing[("RSAKeyBits", "Decrypt")]["timing_throttled"],
+                    strict=True,
+                )
+            ],
+            highlighted=[
+                value == report_data["fixed_rsa_key_bits"] for value in rsa_key_bits
+            ],
         ),
     }
 
 
-def _build_attribute_keygen_table(report_data: dict[str, Any]) -> str:
-    values = report_data["cases"][("RSAKeyBits", "KeyGen")]
-    rows = []
-    for index, rsa_key_bits in enumerate(report_data["rsa_key_bits"]):
-        rows.append(
-            [
-                str(rsa_key_bits),
-                f'{values["medians"][index]:,.2f}',
-                f'{values["minimums"][index]:,.2f}',
-                f'{values["maximums"][index]:,.2f}',
-                f'{values["iqrs"][index]:,.2f}',
-                _format_byte_size(values["stored_key_means"][index]),
-                str(values["sample_counts"][index]),
-            ]
-        )
-    return build_html_table(
-        [
-            "KEY BITS",
-            "MEDIAN (ms)",
-            "MIN (ms)",
-            "MAX (ms)",
-            "IQR (ms)",
-            "STORED KEY",
-            "n",
-        ],
-        rows,
-        values["timing_throttled"],
-    )
-
-
-def _build_attribute_energy_tables(report_data: dict[str, Any]) -> dict[str, str]:
-    cases = report_data["cases"]
+def _build_cpabe_rsa_energy_tables(report_data: dict[str, Any]) -> dict[str, str]:
+    energy = report_data["energy"]
     specifications = (
         (
             "CpabeEncryptEnergyTable",
@@ -753,30 +746,16 @@ def _build_attribute_energy_tables(report_data: dict[str, Any]) -> dict[str, str
             "Encrypt",
         ),
         (
-            "RsaKeyBitsEncryptEnergyTable",
+            "RsaFixedDecryptEnergyTable",
             "KEY BITS",
-            report_data["rsa_key_bits"],
-            "RSAKeyBits",
-            "Encrypt",
-        ),
-        (
-            "RsaKeyBitsDecryptEnergyTable",
-            "KEY BITS",
-            report_data["rsa_key_bits"],
+            [report_data["fixed_rsa_key_bits"]],
             "RSAKeyBits",
             "Decrypt",
-        ),
-        (
-            "RsaKeyBitsKeygenEnergyTable",
-            "KEY BITS",
-            report_data["rsa_key_bits"],
-            "RSAKeyBits",
-            "KeyGen",
         ),
     )
     tables = {}
     for placeholder, header, parameter_values, algorithm, operation in specifications:
-        values = cases[(algorithm, operation)]
+        values = energy[(algorithm, operation)]
         tables[placeholder] = _build_data_table(
             [header, "ENERGY (µJ/op)"],
             [
@@ -788,51 +767,40 @@ def _build_attribute_energy_tables(report_data: dict[str, Any]) -> dict[str, str
     return tables
 
 
-def _build_attribute_memory_report_tables(
+def _build_cpabe_rsa_memory_report_tables(
     report_data: dict[str, Any],
 ) -> dict[str, str]:
     memory = report_data["memory"]
 
-    def table(index_header, index_values, encrypt, decrypt):
+    def table(index_header, index_values, values):
         return build_html_table(
-            [index_header, "ENCRYPT (MB)", "DECRYPT (MB)", "n"],
+            [index_header, "PEAK RSS (MB)", "n"],
             _rows_from_columns(
                 [
                     [str(value) for value in index_values],
-                    _mean_ci_column(encrypt["means"], encrypt["cis"]),
-                    _mean_ci_column(decrypt["means"], decrypt["cis"]),
-                    [str(value) for value in encrypt["sample_counts"]],
+                    _mean_ci_column(values["means"], values["cis"]),
+                    [str(value) for value in values["sample_counts"]],
                 ]
             ),
         )
 
     cpabe_encrypt = memory[("CPABEAttributes", "Encrypt")]
     cpabe_decrypt = memory[("CPABEAttributes", "Decrypt")]
-    rsa_encrypt = memory[("RSAKeyBits", "Encrypt")]
-    rsa_decrypt = memory[("RSAKeyBits", "Decrypt")]
     subscriber_encrypt = memory[("RSASubscribers", "Encrypt")]
-    decrypt_reference = format_mean_with_ci(
-        report_data["fixed_rsa_decrypt_memory"],
-        report_data["fixed_rsa_decrypt_memory_ci"],
-    )
-    subscriber_rows = _rows_from_columns(
-        [
-            [str(value) for value in report_data["subscriber_counts"]],
-            _mean_ci_column(subscriber_encrypt["means"], subscriber_encrypt["cis"]),
-            [decrypt_reference] * len(report_data["subscriber_counts"]),
-            [str(value) for value in subscriber_encrypt["sample_counts"]],
-        ]
-    )
+    rsa_decrypt = memory[("RSAKeyBits", "Decrypt")]
 
     return {
-        "PeakMemoryCpabeTable": table(
-            "ATTRIBUTES", report_data["attribute_counts"], cpabe_encrypt, cpabe_decrypt
+        "PeakMemoryCpabeEncryptTable": table(
+            "ATTRIBUTES", report_data["attribute_counts"], cpabe_encrypt
         ),
-        "PeakMemoryRsaSubscribersTable": build_html_table(
-            ["SUBSCRIBERS", "ENCRYPT (MB)", "DECRYPT (MB)", "n"], subscriber_rows
+        "PeakMemoryCpabeDecryptTable": table(
+            "ATTRIBUTES", report_data["attribute_counts"], cpabe_decrypt
         ),
-        "PeakMemoryRsaKeyBitsTable": table(
-            "KEY BITS", report_data["rsa_key_bits"], rsa_encrypt, rsa_decrypt
+        "PeakMemoryRsaSubscribersEncryptTable": table(
+            "SUBSCRIBERS", report_data["subscriber_counts"], subscriber_encrypt
+        ),
+        "PeakMemoryRsaFixedDecryptTable": table(
+            "KEY BITS", [report_data["fixed_rsa_key_bits"]], rsa_decrypt
         ),
     }
 
@@ -857,18 +825,6 @@ def _build_memory_delta_strip(report_data: dict[str, Any]) -> str:
             "subscribers",
             "subscriber_encrypt",
         ),
-        (
-            "RSA Key Size Encrypt",
-            report_data["rsa_key_bits"],
-            "key bits",
-            "rsa_encrypt",
-        ),
-        (
-            "RSA Key Size Decrypt",
-            report_data["rsa_key_bits"],
-            "key bits",
-            "rsa_decrypt",
-        ),
     )
     items = []
     for label, values, unit, name in labels:
@@ -886,7 +842,7 @@ def _build_memory_delta_strip(report_data: dict[str, Any]) -> str:
     return f'<div class="delta-strip">{"".join(items)}</div>'
 
 
-def write_attribute_key_scaling_report(
+def write_cpabe_rsa_scaling_report(
     report_data: dict[str, Any],
     template_path: str,
     report_path: str,
@@ -898,18 +854,18 @@ def write_attribute_key_scaling_report(
     subscribers = report_data["subscriber_counts"]
     timing_throttled = [
         flag
-        for values in report_data["cases"].values()
+        for values in report_data["timing"].values()
         for flag in values["timing_throttled"]
     ]
     energy_throttled = [
         flag
-        for values in report_data["cases"].values()
+        for values in report_data["energy"].values()
         for flag in values["energy_throttled"]
     ]
 
     fanout = build_rsa_circle_visualization(
         comparisons["bytes_per_subscriber"],
-        report_data["cases"][("RSASubscribers", "Encrypt")]["total_ciphertext_means"][
+        report_data["timing"][("RSASubscribers", "Encrypt")]["total_ciphertext_means"][
             -1
         ],
         subscribers[-1],
@@ -921,10 +877,9 @@ def write_attribute_key_scaling_report(
             report_data["total_iterations"],
         ),
         **fanout,
-        **_build_attribute_timing_report_tables(report_data),
-        "RsaKeyBitsKeygenTable": _build_attribute_keygen_table(report_data),
-        **_build_attribute_energy_tables(report_data),
-        **_build_attribute_memory_report_tables(report_data),
+        **_build_cpabe_rsa_timing_report_tables(report_data),
+        **_build_cpabe_rsa_energy_tables(report_data),
+        **_build_cpabe_rsa_memory_report_tables(report_data),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
@@ -939,7 +894,7 @@ def write_attribute_key_scaling_report(
         "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
         "CpabePlot": plots["cpabe"],
         "RsaSubscribersPlot": plots["rsa_subscribers"],
-        "RsaKeyBitsPlot": plots["rsa_key_bits"],
+        "RsaKeySizeSensitivityPlot": plots["rsa_key_size_sensitivity"],
         "EnergyPlot": plots["energy"],
         "BandwidthCrossoverFrame": build_plot_frame(plots["ciphertext_crossover"]),
         "EncryptCpuCrossoverFrame": build_plot_frame(plots["encrypt_crossover"]),
@@ -967,10 +922,9 @@ def write_attribute_key_scaling_report(
         ("RsaSubscriberEncrypt", "subscriber_encrypt", "µs", 2, True),
     )
     for placeholder, name, unit, decimals, thousands in regression_placeholders:
-        slope, _, r_squared, slope_ci = regressions[name]
+        slope, _, _, slope_ci = regressions[name]
         placeholders[f"{placeholder}Slope"] = format_slope(
             slope, slope_ci, unit, decimals=decimals, thousands=thousands
         )
-        placeholders[f"{placeholder}RSquared"] = f"{r_squared:.6f}"
 
     build_html_report(template_path, report_path, placeholders)

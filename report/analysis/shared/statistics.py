@@ -1,6 +1,5 @@
 from statistics import fmean
 
-import numpy as np
 from scipy import stats
 
 from report.model.energy.energy_aggregation import EnergyAggregation
@@ -101,52 +100,6 @@ def memory_statistics(
         confidence_intervals.append(confidence_interval)
 
     return means, confidence_intervals
-
-
-# Calculate distribution statistics for a timing measurement
-def timing_distribution_statistics(
-    aggregations: list[TimingAggregation],
-    measurement: str,
-) -> tuple[
-    list[float],
-    list[float],
-    list[float],
-    list[float],
-    list[float],
-    list[float],
-]:
-
-    medians = []
-    minimums = []
-    maximums = []
-    first_quartiles = []
-    third_quartiles = []
-    interquartile_ranges = []
-
-    for aggregation in aggregations:
-
-        values = [case.measurements[measurement] for case in aggregation.cases]
-        first_quartile, median, third_quartile = np.quantile(
-            values,
-            [0.25, 0.5, 0.75],
-            method="linear",
-        )
-
-        medians.append(float(median))
-        minimums.append(min(values))
-        maximums.append(max(values))
-        first_quartiles.append(float(first_quartile))
-        third_quartiles.append(float(third_quartile))
-        interquartile_ranges.append(float(third_quartile - first_quartile))
-
-    return (
-        medians,
-        minimums,
-        maximums,
-        first_quartiles,
-        third_quartiles,
-        interquartile_ranges,
-    )
 
 
 # Calculate a linear regression and the slope's 95% confidence interval

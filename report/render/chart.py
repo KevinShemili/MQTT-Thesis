@@ -22,7 +22,6 @@ PANEL_FIGURE_SIZE = (13, 5)
 AXIS_HEADROOM = 1.03
 CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 TOTAL_CIPHERTEXT_COLOR = TEAL
-RSA_KEY_BITS_COLORS = [TOTAL_CIPHERTEXT_COLOR, BLUE, AMBER, CRIMSON]
 AES_ASCON_MAIN_TICK_MIN = 4 * KILOBYTE
 AES_ASCON_ZOOM_MAX = KILOBYTE
 PAYLOAD_SCALING_ZOOM_MAX = 256 * KILOBYTE
@@ -67,44 +66,6 @@ def draw_constant(
         linestyle="--",
         linewidth=1.8,
         label=label,
-    )
-
-
-def draw_distribution(
-    axis: Axes,
-    parameter_values: list[int],
-    medians: list[float],
-    minimums: list[float],
-    maximums: list[float],
-    first_quartiles: list[float],
-    third_quartiles: list[float],
-    label: str,
-    color: str,
-) -> None:
-    quartile_errors = [
-        [median - lower for median, lower in zip(medians, first_quartiles)],
-        [upper - median for median, upper in zip(medians, third_quartiles)],
-    ]
-    axis.vlines(
-        parameter_values,
-        minimums,
-        maximums,
-        color=color,
-        linewidth=0.9,
-        alpha=0.55,
-    )
-
-    axis.errorbar(
-        parameter_values,
-        medians,
-        yerr=quartile_errors,
-        label=label,
-        color=color,
-        marker="o",
-        linewidth=1.8,
-        markersize=5,
-        capsize=6,
-        elinewidth=4.5,
     )
 
 
@@ -1300,34 +1261,16 @@ def plot_rsa_subscribers(
     )
 
 
-def plot_rsa_key_bits(
+def plot_rsa_key_size_sensitivity(
     rsa_key_bits: list[int],
     results: dict,
     output_path: str,
 ) -> None:
-    keygen = results["keygen"]
     encrypt_latency_means, encrypt_latency_cis = results["encrypt_latency"]
     decrypt_latency_means, decrypt_latency_cis = results["decrypt_latency"]
     ciphertext_means, ciphertext_cis = results["ciphertext"]
-    stored_key_means, stored_key_cis = results["stored_key"]
-    figure = plt.figure(figsize=(13, 7))
-    grid_spec = figure.add_gridspec(2, 2, hspace=0.34)
-    keygen_latency_axis = figure.add_subplot(grid_spec[0, 0])
-    latency_axis = figure.add_subplot(grid_spec[1, 0], sharex=keygen_latency_axis)
-    size_axis = figure.add_subplot(grid_spec[:, 1])
-    figure.suptitle("RSA Scaling with Key Size (1 Subscriber)", fontsize=13)
-
-    draw_distribution(
-        keygen_latency_axis,
-        rsa_key_bits,
-        keygen["medians"],
-        keygen["minimums"],
-        keygen["maximums"],
-        keygen["first_quartiles"],
-        keygen["third_quartiles"],
-        "Keygen",
-        CRIMSON,
-    )
+    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("RSA Key-Size Sensitivity (1 Subscriber)", fontsize=13)
 
     _draw_summaries(
         latency_axis,
@@ -1343,53 +1286,37 @@ def plot_rsa_key_bits(
         rsa_key_bits,
         [
             ("Ciphertext", ciphertext_means, ciphertext_cis, AMBER),
-            ("Private Key", stored_key_means, stored_key_cis, CRIMSON),
         ],
     )
-
-    keygen_latency_axis.set_title("Key Generation Latency", fontsize=11)
-    keygen_latency_axis.set_ylabel("Latency (ms), Median + IQR + Min-Max")
-    keygen_latency_axis.set_ylim(bottom=0)
-    keygen_latency_axis.set_xticks(rsa_key_bits)
-    keygen_latency_axis.tick_params(axis="x", labelbottom=True)
-    keygen_latency_axis.set_xlabel("RSA Key Bits")
-    apply_value_grid(keygen_latency_axis)
-    keygen_latency_axis.legend(fontsize=10)
 
     _configure_parameter_axis(
         latency_axis,
         "Encrypt + Decrypt Latency",
         "Latency (µs) ± 95% CI",
         rsa_key_bits,
-        "RSA Key Bits",
+        "",
     )
-    _configure_parameter_axis(
-        size_axis, "Sizes", "Size (bytes)", rsa_key_bits, "RSA Key Bits"
-    )
+    _configure_parameter_axis(size_axis, "Sizes", "Size (bytes)", rsa_key_bits, "")
+    figure.supxlabel("RSA Key Bits", fontsize=10)
 
-    figure.subplots_adjust(top=0.92)
+    figure.tight_layout(rect=(0.0, 0.04, 1.0, 0.94))
     save_figure(figure, output_path)
 
 
-def plot_attribute_key_scaling_memory(
+def plot_cpabe_rsa_scaling_memory(
     parameter_values_by_algorithm: dict[str, list[int]],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
-    fixed_rsa_key_bits: int,
-    subscriber_decrypt_reference: float,
     baseline_memory_mean: float,
     output_path: str,
 ) -> None:
     attribute_counts = parameter_values_by_algorithm["CPABEAttributes"]
     subscriber_counts = parameter_values_by_algorithm["RSASubscribers"]
-    rsa_key_bits = parameter_values_by_algorithm["RSAKeyBits"]
     cpabe_encrypt_means, cpabe_encrypt_cis = results[("CPABEAttributes", "Encrypt")]
     cpabe_decrypt_means, cpabe_decrypt_cis = results[("CPABEAttributes", "Decrypt")]
     subscriber_encrypt_means, subscriber_encrypt_cis = results[
         ("RSASubscribers", "Encrypt")
     ]
-    rsa_encrypt_means, rsa_encrypt_cis = results[("RSAKeyBits", "Encrypt")]
-    rsa_decrypt_means, rsa_decrypt_cis = results[("RSAKeyBits", "Decrypt")]
-    figure, axes = plt.subplots(1, 3, figsize=(14, 4.6), sharey=True)
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE, sharey=True)
     figure.suptitle("Peak Process Memory of a Single Operation", fontsize=13)
 
     panels = [
@@ -1410,27 +1337,9 @@ def plot_attribute_key_scaling_memory(
             "Subscribers",
             [("Encrypt", subscriber_encrypt_means, subscriber_encrypt_cis, AMBER)],
         ),
-        (
-            axes[2],
-            rsa_key_bits,
-            "RSA Key Size",
-            "RSA Key Bits",
-            [
-                ("Encrypt", rsa_encrypt_means, rsa_encrypt_cis, AMBER),
-                ("Decrypt", rsa_decrypt_means, rsa_decrypt_cis, VIOLET),
-            ],
-        ),
     ]
     for axis, parameter_values, title, x_label, series in panels:
         _draw_summaries(axis, parameter_values, series, with_ci=True)
-        if axis is axes[1]:
-            draw_constant(
-                axis,
-                subscriber_decrypt_reference,
-                subscriber_counts,
-                f"Decrypt (RSA-{fixed_rsa_key_bits})",
-                VIOLET,
-            )
         axis.set_title(title, fontsize=11)
         axis.set_xlabel(x_label)
         axis.set_xticks(parameter_values)
@@ -1453,14 +1362,15 @@ def plot_attribute_key_scaling_memory(
     save_figure(figure, output_path)
 
 
-def plot_attribute_key_scaling_energy(
+def plot_cpabe_rsa_scaling_energy(
     parameter_values_by_algorithm: dict[str, list[int]],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    fixed_rsa_key_bits: int,
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 3, figsize=(14, 4.6))
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle(
-        "Energy per Operation by Attribute Count, Subscriber Count, and RSA Key Bits",
+        "Energy per Operation under Policy and Subscriber Scaling",
         fontsize=13,
     )
 
@@ -1482,17 +1392,6 @@ def plot_attribute_key_scaling_energy(
             "Subscribers",
             (("Encrypt", "RSASubscribers", "Encrypt", AMBER),),
         ),
-        (
-            axes[2],
-            parameter_values_by_algorithm["RSAKeyBits"],
-            "RSA Key Size",
-            "RSA Key Bits",
-            (
-                ("Encrypt", "RSAKeyBits", "Encrypt", AMBER),
-                ("Decrypt", "RSAKeyBits", "Decrypt", VIOLET),
-                ("Key Generation", "RSAKeyBits", "KeyGen", CRIMSON),
-            ),
-        ),
     )
 
     for axis, values, title, x_label, specifications in panels:
@@ -1506,6 +1405,16 @@ def plot_attribute_key_scaling_energy(
         axis.set_xticks(values)
         apply_value_grid(axis)
         axis.legend(fontsize=9)
+
+    rsa_decrypt_means, _ = results[("RSAKeyBits", "Decrypt")]
+    draw_constant(
+        axes[1],
+        rsa_decrypt_means[0],
+        parameter_values_by_algorithm["RSASubscribers"],
+        f"Decrypt (RSA-{fixed_rsa_key_bits}, Fixed Reference)",
+        VIOLET,
+    )
+    axes[1].legend(fontsize=9)
 
     axes[0].set_ylabel("Energy (µJ/op) ± 95% CI")
     figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
@@ -1656,33 +1565,23 @@ def plot_decrypt_latency_comparison(
 
     largest_value = calculate_axis_top(cpabe_means, cpabe_cis)
 
-    for index, (rsa_key_bits, rsa_mean, rsa_ci) in enumerate(
-        zip(
-            results["rsa_key_bits"],
-            results["rsa_means"],
-            results["rsa_cis"],
-            strict=True,
-        )
-    ):
-        if isnan(rsa_mean) or isnan(rsa_ci):
-            continue
-
-        rsa_color = RSA_KEY_BITS_COLORS[index % len(RSA_KEY_BITS_COLORS)]
-
+    rsa_mean = results["rsa_mean"]
+    rsa_ci = results["rsa_ci"]
+    if not isnan(rsa_mean) and not isnan(rsa_ci):
         axis.hlines(
             rsa_mean,
             attribute_counts[0],
             attribute_counts[-1],
-            color=rsa_color,
+            color=TOTAL_CIPHERTEXT_COLOR,
             linestyle="--",
             linewidth=1.6,
-            label=f"RSA-{rsa_key_bits}",
+            label=f'RSA-{results["fixed_rsa_key_bits"]}',
         )
         axis.errorbar(
             [attribute_counts[-1]],
             [rsa_mean],
             yerr=[rsa_ci],
-            color=rsa_color,
+            color=TOTAL_CIPHERTEXT_COLOR,
             fmt="none",
             capsize=4,
         )

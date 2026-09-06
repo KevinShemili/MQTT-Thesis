@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Attribute &amp; Key Scaling Microbenchmark</title>
+    <title>CP-ABE vs. RSA under Policy and Subscriber Scaling</title>
 
     <style>
         :root {
@@ -242,12 +242,6 @@
             font-size: 12px;
         }
 
-        .stat-chip-r2 {
-            margin-left: 5px;
-            opacity: 0.62;
-            font-size: 11px;
-            font-weight: 600;
-        }
 
         /* The floor every peak-memory reading below sits on top of, stated once. */
         .baseline-legend {
@@ -775,7 +769,7 @@
     <main class="page">
         <header class="hero">
             <div class="eyebrow">Microbenchmark Scenario 2</div>
-            <h1>Asymmetric Schemas under Attribute &amp; Key Scaling</h1>
+            <h1>CP-ABE vs. RSA under Policy and Subscriber Scaling</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -783,17 +777,14 @@
                 <div class="metric-label">Independent runs</div>
                 <div class="metric-value">{{RunCount}}</div>
             </div>
-
             <div class="metric">
                 <div class="metric-label">Confidence interval</div>
                 <div class="metric-value">{{ConfidenceLevel}}</div>
             </div>
-
             <div class="metric">
                 <div class="metric-label">Student t</div>
                 <div class="metric-value">{{TMultiplier}}</div>
             </div>
-
             <div class="metric">
                 <div class="metric-label">Crypto operations</div>
                 <div class="metric-value">{{TotalIterations}}</div>
@@ -802,164 +793,169 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Scaling Results</h2>
+                <h2>Timing</h2>
+                <p>Latency and size results for the two primary scaling dimensions, followed by
+                    cross-mechanism comparisons and a secondary RSA key-size sensitivity study.</p>
+            </div>
+
+            <div class="section-legend">
+                {{TimingThermalLegend}}
             </div>
 
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>CP-ABE vs. Policy Attributes</h3>
+                        <h3>CP-ABE Policy Scaling</h3>
                     </div>
                     <div class="plot-frame">
-                        <img src="{{CpabePlot}}">
+                        <img src="{{CpabePlot}}" alt="CP-ABE latency and size over policy attribute count">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>{{CpabeEncryptSlope}}</strong> ENCRYPT TIME / ATTRIBUTE <span
-                                class="stat-chip-r2">R²={{CpabeEncryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{CpabeDecryptSlope}}</strong> DECRYPT TIME / ATTRIBUTE <span
-                                class="stat-chip-r2">R²={{CpabeDecryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE <span
-                                class="stat-chip-r2">R²={{CpabeCiphertextRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> PRIVATE KEY / ATTRIBUTE <span
-                                class="stat-chip-r2">R²={{CpabeStoredKeyRSquared}}</span></span>
+                        <span class="stat-chip"><strong>{{CpabeEncryptSlope}}</strong> ENCRYPT TIME / ATTRIBUTE</span>
+                        <span class="stat-chip"><strong>{{CpabeDecryptSlope}}</strong> DECRYPT TIME / ATTRIBUTE</span>
+                        <span class="stat-chip"><strong>{{CpabeCiphertextSlope}}</strong> CIPHERTEXT / ATTRIBUTE</span>
+                        <span class="stat-chip"><strong>{{CpabeStoredKeySlope}}</strong> PRIVATE KEY / ATTRIBUTE</span>
                     </div>
                 </article>
 
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>RSA vs. Subscribers</h3>
+                        <h3>RSA Publisher Scaling with Subscribers</h3>
                     </div>
                     <div class="plot-frame">
-                        <img src="{{RsaSubscribersPlot}}">
+                        <img src="{{RsaSubscribersPlot}}" alt="RSA publisher latency and ciphertext size over subscriber count">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME /
-                            SUBSCRIBER <span class="stat-chip-r2">R²={{RsaSubscriberEncryptRSquared}}</span></span>
-                        <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong> CIPHERTEXT
-                            (Total) /
-                            SUBSCRIBER</span>
+                        <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME / SUBSCRIBER</span>
+                        <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong>
+                            TOTAL CIPHERTEXT / SUBSCRIBER</span>
                     </div>
                     <div class="fanout-card">
                         <div class="fanout-row">
                             <div class="fanout-item">
                                 <div class="fanout-blob fanout-blob-single" {{FanoutSingleStyle}}></div>
-                                <div class="fanout-label">Looking at RSA alone</div>
+                                <div class="fanout-label">One RSA wrapped key</div>
                                 <div class="fanout-value">{{FanoutSingleBytes}}</div>
-                                <div class="fanout-caption">1 Wrapped Session Key</div>
+                                <div class="fanout-caption">1 subscriber</div>
                             </div>
-
                             <div class="fanout-multiplier">{{FanoutMultiplier}}&times;<span>At
-                                    {{MaxSubscriberCount}} Subscribers</span></div>
-
+                                    {{MaxSubscriberCount}} subscribers</span></div>
                             <div class="fanout-item">
                                 <div class="fanout-blob fanout-blob-total" {{FanoutTotalStyle}}></div>
-                                <div class="fanout-label">What actually goes out</div>
+                                <div class="fanout-label">Publisher output</div>
                                 <div class="fanout-value">{{FanoutTotalBytes}}</div>
-                                <div class="fanout-caption">{{MaxSubscriberCount}} Wrapped Copies, 1 per
-                                    Subscriber</div>
+                                <div class="fanout-caption">{{MaxSubscriberCount}} individually wrapped copies</div>
                             </div>
                         </div>
                     </div>
                 </article>
-
-                <article class="plot-card">
-                    <div class="plot-copy">
-                        <h3>RSA vs. Key Size</h3>
-                    </div>
-                    <div class="plot-frame">
-                        <img src="{{RsaKeyBitsPlot}}">
-                    </div>
-                </article>
-            </div>
-        </section>
-
-        <section class="section">
-            <div class="section-heading">
-                <h2>Cross-Schema Comparison</h2>
             </div>
 
+            <h3 class="operation-heading">Cross-Schema Comparisons</h3>
             <div class="comparison-stack">
                 <div class="comparison-row">
                     <article class="plot-card">
-                        <div class="plot-copy">
-                            <h3>CP-ABE vs. RSA: Ciphertext Size</h3>
-                        </div>
-                        <div class="plot-frame">
-                            {{BandwidthCrossoverFrame}}
-                        </div>
+                        <div class="plot-copy"><h3>CP-ABE vs. RSA: Ciphertext Size</h3></div>
+                        <div class="plot-frame">{{BandwidthCrossoverFrame}}</div>
                     </article>
-
                     <aside class="comparison-explanation">
                         <div class="comparison-label">Measured Ciphertext Size</div>
                         <div class="comparison-value">≈{{BytesCrossoverLow}} - {{BytesCrossoverHigh}} Subscribers</div>
-                        <p><strong>AT {{MinAttributeLabel}}:</strong> RSA produces smaller key ciphertexts. Equality
-                            with CP-ABE is
-                            reached when RSA reaches ~{{BytesRsaThroughMin}} subscribers</p>
-                        <p><strong>AT {{MaxAttributeLabel}}:</strong> The equivalent RSA would need
-                            ~{{BytesRsaThroughMax}} subscribers</p>
+                        <p><strong>AT {{MinAttributeLabel}}:</strong> equality is reached at
+                            approximately {{BytesRsaThroughMin}} RSA subscribers.</p>
+                        <p><strong>AT {{MaxAttributeLabel}}:</strong> equality is reached at
+                            approximately {{BytesRsaThroughMax}} RSA subscribers.</p>
                     </aside>
                 </div>
 
                 <div class="comparison-row">
                     <article class="plot-card">
-                        <div class="plot-copy">
-                            <h3>CP-ABE vs. RSA: Publisher Encrypt Cost</h3>
-                        </div>
-                        <div class="plot-frame">
-                            {{EncryptCpuCrossoverFrame}}
-                        </div>
+                        <div class="plot-copy"><h3>CP-ABE vs. RSA: Publisher Encrypt Cost</h3></div>
+                        <div class="plot-frame">{{EncryptCpuCrossoverFrame}}</div>
                     </article>
-
                     <aside class="comparison-explanation">
                         <div class="comparison-label">Measured Encrypt Cost Comparison</div>
                         <div class="comparison-value">≈{{EncryptCpuCrossoverLow}} - {{EncryptCpuCrossoverHigh}}
                             Subscribers</div>
-                        <p><strong>AT {{MinAttributeLabel}}:</strong> RSA costs the publisher less CPU. Equality with
-                            CP-ABE is reached when RSA reaches ~{{CpuRsaThroughMin}} subscribers</p>
-                        <p><strong>AT {{MaxAttributeLabel}}:</strong> The equivalent RSA would need
-                            ~{{CpuRsaThroughMax}} subscribers</p>
+                        <p><strong>AT {{MinAttributeLabel}}:</strong> equality is reached at
+                            approximately {{CpuRsaThroughMin}} RSA subscribers.</p>
+                        <p><strong>AT {{MaxAttributeLabel}}:</strong> equality is reached at
+                            approximately {{CpuRsaThroughMax}} RSA subscribers.</p>
                     </aside>
                 </div>
 
                 <div class="comparison-row">
                     <article class="plot-card">
-                        <div class="plot-copy">
-                            <h3>CP-ABE vs. RSA: Decrypt Cost by Policy and Key Size</h3>
-                        </div>
-                        <div class="plot-frame">
-                            {{DecryptCpuComparisonFrame}}
-                        </div>
+                        <div class="plot-copy"><h3>CP-ABE vs. RSA-{{FixedRsaKeyBits}}: Decrypt Cost</h3></div>
+                        <div class="plot-frame">{{DecryptCpuComparisonFrame}}</div>
                     </article>
-
                     <aside class="comparison-explanation">
                         <div class="comparison-label">RSA-{{FixedRsaKeyBits}} Decrypt Ratio</div>
-                        <div class="comparison-value">
-                            {{DecryptPenaltyMin}}× - {{DecryptPenaltyMax}}× RSA
-                        </div>
+                        <div class="comparison-value">{{DecryptPenaltyMin}}× - {{DecryptPenaltyMax}}× RSA</div>
                         <p><strong>AT {{MinAttributeLabel}}:</strong> CP-ABE requires
-                            {{DecryptPenaltyMin}}× the measured RSA-{{FixedRsaKeyBits}} decrypt latency.</p>
+                            {{DecryptPenaltyMin}}× the RSA-{{FixedRsaKeyBits}} latency.</p>
                         <p><strong>AT {{MaxAttributeLabel}}:</strong> CP-ABE requires
-                            {{DecryptPenaltyMax}}× the measured RSA-{{FixedRsaKeyBits}} decrypt latency.</p>
+                            {{DecryptPenaltyMax}}× the RSA-{{FixedRsaKeyBits}} latency.</p>
                     </aside>
                 </div>
 
                 <article class="plot-card">
+                    <div class="plot-copy"><h3>Encrypt vs. Decrypt: Asymmetry</h3></div>
+                    <div class="plot-frame">{{AsymmetryFrame}}</div>
+                </article>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Encrypt</h3>
+                <div class="table-row table-row-two">
+                    <div class="table-block">
+                        <h3>CP-ABE: Policy Attribute Scaling</h3>
+                        <div class="table-wrapper">{{CpabeEncryptTable}}</div>
+                    </div>
+                    <div class="table-block">
+                        <h3>RSA: Subscriber Scaling</h3>
+                        <div class="table-wrapper">{{RsaSubscribersEncryptTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Decrypt</h3>
+                <div class="table-row table-row-one">
+                    <div class="table-block">
+                        <h3>CP-ABE: Policy Attribute Scaling</h3>
+                        <div class="table-wrapper">{{CpabeDecryptTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">Secondary RSA Key-Size Sensitivity</h3>
+                <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Encrypt vs. Decrypt: Asymmetry</h3>
+                        <h3>RSA-2048 / RSA-3072 / RSA-4096</h3>
+                        <p>One-subscriber Encrypt and Decrypt latency plus wrapped-key ciphertext size.
+                            RSA-{{FixedRsaKeyBits}} remains the fixed configuration used elsewhere.</p>
                     </div>
                     <div class="plot-frame">
-                        {{AsymmetryFrame}}
+                        <img src="{{RsaKeySizeSensitivityPlot}}" alt="RSA latency and ciphertext size over modulus size">
                     </div>
                 </article>
+                <div class="table-row table-row-one">
+                    <div class="table-block">
+                        <h3>Latency and Ciphertext Size</h3>
+                        <div class="table-wrapper">{{RsaKeySizeSensitivityTable}}</div>
+                    </div>
+                </div>
             </div>
         </section>
 
         <section class="section">
             <div class="section-heading">
-                <h2>Energy Results</h2>
+                <h2>Energy</h2>
                 <p>Energy per operation uses load power from the steady-state interval
                     [{{EnergyWindowStart}}, {{EnergyWindowEnd}}) seconds, idle-baseline subtraction,
-                    and the operation time reported by the same energy run.</p>
+                    and operation time from the same run.</p>
             </div>
 
             <div class="section-legend">
@@ -972,15 +968,16 @@
 
             <div class="plot-stack">
                 <article class="plot-card">
+                    <div class="plot-copy"><h3>Energy under Policy and Subscriber Scaling</h3></div>
                     <div class="plot-frame">
-                        <img src="{{EnergyPlot}}">
+                        <img src="{{EnergyPlot}}" alt="CP-ABE and RSA energy per operation">
                     </div>
                 </article>
             </div>
 
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row">
+                <div class="table-row table-row-two">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">{{CpabeEncryptEnergyTable}}</div>
@@ -988,10 +985,6 @@
                     <div class="table-block">
                         <h3>RSA: Subscriber Scaling</h3>
                         <div class="table-wrapper">{{RsaSubscribersEncryptEnergyTable}}</div>
-                    </div>
-                    <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <div class="table-wrapper">{{RsaKeyBitsEncryptEnergyTable}}</div>
                     </div>
                 </div>
             </div>
@@ -1004,18 +997,9 @@
                         <div class="table-wrapper">{{CpabeDecryptEnergyTable}}</div>
                     </div>
                     <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <div class="table-wrapper">{{RsaKeyBitsDecryptEnergyTable}}</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="operation-group">
-                <h3 class="operation-heading">Key Generation</h3>
-                <div class="table-row table-row-one">
-                    <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <div class="table-wrapper">{{RsaKeyBitsKeygenEnergyTable}}</div>
+                        <h3>RSA-{{FixedRsaKeyBits}}: Fixed Reference</h3>
+                        <p>One subscriber decrypts one wrapped session key, independently of audience size.</p>
+                        <div class="table-wrapper">{{RsaFixedDecryptEnergyTable}}</div>
                     </div>
                 </div>
             </div>
@@ -1023,35 +1007,40 @@
 
         <section class="section">
             <div class="section-heading">
-                <h2>Timing Results</h2>
+                <h2>Memory</h2>
+                <p>Each point is one independent process that restores its fixture, resets the
+                    peak-RSS watermark, performs one operation, and reads the resulting process peak.</p>
             </div>
 
             <div class="section-legend">
-                {{TimingThermalLegend}}
+                <div class="legend-item">
+                    <span class="legend-label">Runtime baseline</span>
+                    <strong>{{BaselineRss}}</strong>
+                </div>
+                <div class="memory-note">Memory uses the same power-meter-equipped physical test bed as Timing and
+                    Energy, a setup known to induce Raspberry Pi undervoltage and throttling.</div>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Peak Process Memory under Policy and Subscriber Scaling</h3>
+                    </div>
+                    <div class="plot-frame">{{PeakMemoryFrame}}</div>
+                    {{PeakMemoryDeltas}}
+                </article>
             </div>
 
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row">
+                <div class="table-row table-row-two">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">
-                            {{CpabeEncryptTable}}
-                        </div>
+                        <div class="table-wrapper">{{PeakMemoryCpabeEncryptTable}}</div>
                     </div>
-
                     <div class="table-block">
                         <h3>RSA: Subscriber Scaling</h3>
-                        <div class="table-wrapper">
-                            {{RsaSubscribersEncryptTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <div class="table-wrapper">
-                            {{RsaKeyBitsEncryptTable}}
-                        </div>
+                        <div class="table-wrapper">{{PeakMemoryRsaSubscribersEncryptTable}}</div>
                     </div>
                 </div>
             </div>
@@ -1061,89 +1050,13 @@
                 <div class="table-row table-row-two">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">
-                            {{CpabeDecryptTable}}
-                        </div>
+                        <div class="table-wrapper">{{PeakMemoryCpabeDecryptTable}}</div>
                     </div>
-
                     <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <p>Decrypt is not swept against subscriber count: a subscriber only ever
-                            unwraps its own session key, so nothing there moves with the size of the
-                            audience. The highlighted RSA-{{FixedRsaKeyBits}} row is the fixed key
-                            size, and is the decrypt figure every comparison in this report quotes.
-                        </p>
-                        <div class="table-wrapper">
-                            {{RsaKeyBitsDecryptTable}}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="operation-group">
-                <h3 class="operation-heading">Key Generation</h3>
-                <div class="table-row table-row-one">
-                    <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <div class="table-wrapper">
-                            {{RsaKeyBitsKeygenTable}}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="section">
-            <div class="section-heading">
-                <h2>Peak Process Memory</h2>
-                <p>Timing and memory are separate experiments. Each point below is one process that
-                    restored the data its role holds, handed its heap back to the kernel, reset the
-                    peak-RSS watermark, performed the operation exactly once, and read the watermark.
-                    The figures are whole-process resident sizes and so include a runtime floor of
-                    several megabytes; the vertical axis is shared but not anchored at zero.</p>
-            </div>
-
-            <div class="baseline-legend">
-                <span>Baseline</span><strong>{{BaselineRss}}</strong>
-            </div>
-
-            <p class="memory-note">Memory uses the same power-meter-equipped physical test bed as Timing and
-                Energy, a setup known to induce Raspberry Pi undervoltage and throttling.</p>
-
-            <div class="plot-stack">
-                <article class="plot-card">
-                    <div class="plot-frame">
-                        {{PeakMemoryFrame}}
-                    </div>
-                    {{PeakMemoryDeltas}}
-                </article>
-            </div>
-
-            <div class="operation-group">
-                <div class="table-row">
-                    <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">
-                            {{PeakMemoryCpabeTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>RSA: Subscriber Scaling</h3>
-                        <p>Only encrypt varies with subscriber count here. The decrypt column carries the
-                            RSA-{{FixedRsaKeyBits}} reading from the RSA key-bit results, the same
-                            operation on the same key, since a subscriber decrypts one wrapped key
-                            regardless of how many other subscribers there are.</p>
-                        <div class="table-wrapper">
-                            {{PeakMemoryRsaSubscribersTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>RSA: Key Size Scaling</h3>
-                        <div class="table-wrapper">
-                            {{PeakMemoryRsaKeyBitsTable}}
-                        </div>
+                        <h3>RSA-{{FixedRsaKeyBits}}: Standalone RSS Reference</h3>
+                        <p>This single value is not subscriber-scaled; an RSA subscriber decrypts only
+                            its own wrapped session key.</p>
+                        <div class="table-wrapper">{{PeakMemoryRsaFixedDecryptTable}}</div>
                     </div>
                 </div>
             </div>
@@ -1152,3 +1065,4 @@
 </body>
 
 </html>
+
