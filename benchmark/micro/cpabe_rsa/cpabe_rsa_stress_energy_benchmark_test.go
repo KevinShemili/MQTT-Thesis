@@ -1,8 +1,8 @@
-package cpabe_rsa_scaling
+package cpabe_rsa
 
 import (
 	"benchmark/cryptography/cpabe"
-	"benchmark/micro/cpabe_rsa_scaling/shared"
+	"benchmark/micro/cpabe_rsa/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
@@ -15,9 +15,9 @@ var (
 	tailDuration   = time.Duration(utility.ParseIntFromEnv("TAIL_DURATION")) * time.Second
 )
 
-func BenchmarkCPABERSAScalingEnergyEncrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAEnergyEncrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAScalingConfig()
+	config := shared.NewCPABERSAConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {
@@ -112,9 +112,9 @@ func BenchmarkCPABERSAScalingEnergyEncrypt(benchmark *testing.B) {
 
 }
 
-func BenchmarkCPABERSAScalingEnergyDecrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAEnergyDecrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAScalingConfig()
+	config := shared.NewCPABERSAConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {

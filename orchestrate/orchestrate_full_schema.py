@@ -23,10 +23,10 @@ REMOTE_PROJECT_DIRECTORY = "/home/thesis/MQTT-Thesis"
 REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
 REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
-REMOTE_PACKAGE = "./micro/payload_scaling"
+REMOTE_PACKAGE = "./micro/full_schema"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision"
-REMOTE_BINARY = "/tmp/payload-scaling-benchmark"
-REMOTE_PROVISION_BINARY = "/tmp/payload-scaling-provision"
+REMOTE_BINARY = "/tmp/full-schema-benchmark"
+REMOTE_PROVISION_BINARY = "/tmp/full-schema-provision"
 
 # UM24C Bluetooth serial port
 UM24C_PORT = "COM11"
@@ -52,11 +52,11 @@ def load_environment_variables():
         override=True,
     )
 
-    RUNS = int(os.environ["PAYLOAD_SCALING_RUNS"])
+    RUNS = int(os.environ["FULL_SCHEMA_RUNS"])
 
     PAYLOAD_SIZES = [
         int(payload_size)
-        for payload_size in os.environ["PAYLOAD_SCALING_PAYLOAD_SIZES"].split(",")
+        for payload_size in os.environ["FULL_SCHEMA_PAYLOAD_SIZES"].split(",")
     ]
 
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])
@@ -67,7 +67,7 @@ def load_environment_variables():
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
-    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["PAYLOAD_SCALING_RESULT_DIR"]
+    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["FULL_SCHEMA_RESULT_DIR"]
     MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
     TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
     ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
@@ -122,14 +122,14 @@ def build_binaries():
 
 def run_provision_case(payload_size):
 
-    print(f"Provision: PayloadScaling {payload_size}B")
+    print(f"Provision: FullSchema {payload_size}B")
     command = (
         f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
         f". {REMOTE_ENVIRONMENT_FILE} && "
         f"set +a && "
         f"{REMOTE_PROVISION_BINARY} "
-        f"PayloadScaling "
+        f"FullSchema "
         f"{payload_size}"
     )
 
@@ -141,13 +141,13 @@ def run_provision_case(payload_size):
 
     if result.returncode != 0:
         raise RuntimeError(
-            f"Provision Failed: PayloadScaling {payload_size}B\n{result.stderr}"
+            f"Provision Failed: FullSchema {payload_size}B\n{result.stderr}"
         )
 
 
 def orchestrate_provision():
 
-    print("Provisioning Payload Scaling Fixtures...")
+    print("Provisioning Full Schema Fixtures...")
 
     subprocess.run(
         ["ssh", SSH_TARGET, f"rm -rf {REMOTE_CACHE_DIRECTORY}"],
@@ -164,7 +164,7 @@ def run_memory_case(output, operation, algorithm, payload_size):
 
     print(f"Memory: {algorithm} {operation} {payload_size}B")
     benchmark_case = (
-        f"^BenchmarkPayloadScaling{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
+        f"^BenchmarkFullSchema{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
@@ -221,7 +221,7 @@ def run_energy_case(meter, output, algorithm, operation, payload_size):
     )
 
     benchmark_case = (
-        f"^BenchmarkPayloadScalingEnergy{operation}$/"
+        f"^BenchmarkFullSchemaEnergy{operation}$/"
         f"^{algorithm}$/"
         f"^{payload_size}B$"
     )
@@ -334,7 +334,7 @@ def run_timing_case(output, algorithm, operation, payload_size):
 
     print(f"Timing: {algorithm} {operation} {payload_size}B")
     benchmark_case = (
-        f"^BenchmarkPayloadScaling{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
+        f"^BenchmarkFullSchema{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
@@ -381,10 +381,10 @@ def orchestrate_timing():
 
 def generate_report():
 
-    print("Generating Payload Scaling HTML Report...")
+    print("Generating Full Schema HTML Report...")
 
     subprocess.run(
-        [sys.executable, "-m", "report.analysis.payload_scaling_report"],
+        [sys.executable, "-m", "report.analysis.full_schema_report"],
         cwd=PROJECT_ROOT,
         check=True,
     )

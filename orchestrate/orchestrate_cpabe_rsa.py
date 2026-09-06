@@ -24,11 +24,11 @@ REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
 REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
 
-REMOTE_PACKAGE = "./micro/cpabe_rsa_scaling"
+REMOTE_PACKAGE = "./micro/cpabe_rsa"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision"
 
-REMOTE_BINARY = "/tmp/cpabe-rsa-scaling-benchmark"
-REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-scaling-provision"
+REMOTE_BINARY = "/tmp/cpabe-rsa-benchmark"
+REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-provision"
 
 # UM24C Bluetooth serial port
 UM24C_PORT = "COM11"
@@ -57,27 +57,23 @@ def load_environment_variables():
         override=True,
     )
 
-    RUNS = int(os.environ["CPABE_RSA_SCALING_RUNS"])
+    RUNS = int(os.environ["CPABE_RSA_RUNS"])
 
     ATTRIBUTE_COUNTS = [
         int(attribute_count)
-        for attribute_count in os.environ["CPABE_RSA_SCALING_ATTRIBUTE_COUNT"].split(
-            ","
-        )
+        for attribute_count in os.environ["CPABE_RSA_ATTRIBUTE_COUNT"].split(",")
     ]
 
     SUBSCRIBER_COUNTS = [
         int(subscriber_count)
-        for subscriber_count in os.environ["CPABE_RSA_SCALING_SUBSCRIBER_COUNT"].split(
-            ","
-        )
+        for subscriber_count in os.environ["CPABE_RSA_SUBSCRIBER_COUNT"].split(",")
     ]
 
     RSA_KEY_BITS = [
         int(rsa_key_bits)
-        for rsa_key_bits in os.environ["CPABE_RSA_SCALING_RSA_KEY_SIZES"].split(",")
+        for rsa_key_bits in os.environ["CPABE_RSA_RSA_KEY_SIZES"].split(",")
     ]
-    FIXED_RSA_KEY_BITS = int(os.environ["CPABE_RSA_SCALING_FIXED_RSA_KEY_SIZE"])
+    FIXED_RSA_KEY_BITS = int(os.environ["CPABE_RSA_FIXED_RSA_KEY_SIZE"])
 
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])
 
@@ -88,7 +84,7 @@ def load_environment_variables():
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
-    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["CPABE_RSA_SCALING_RESULT_DIR"]
+    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["CPABE_RSA_RESULT_DIR"]
 
     MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
     ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
@@ -164,7 +160,7 @@ def run_provision_case(algorithm, parameter_value):
 
 def orchestrate_provision():
 
-    print("Provisioning CP-ABE vs. RSA Scaling Fixtures...")
+    print("Provisioning CP-ABE vs. RSA Fixtures...")
 
     # Start with an empty fixture cache
     subprocess.run(
@@ -189,9 +185,7 @@ def run_memory_case(output, operation, algorithm, parameter_value):
 
     print(f"Memory: {algorithm} {operation} {parameter_value}")
     benchmark_case = (
-        f"^BenchmarkCPABERSAScaling{operation}$/"
-        f"^{algorithm}$/"
-        f"^{parameter_value}$"
+        f"^BenchmarkCPABERSA{operation}$/" f"^{algorithm}$/" f"^{parameter_value}$"
     )
 
     command = (
@@ -259,7 +253,7 @@ def run_energy_case(meter, output, algorithm, operation, parameter_value):
     )
 
     benchmark_case = (
-        f"^BenchmarkCPABERSAScalingEnergy{operation}$/"
+        f"^BenchmarkCPABERSAEnergy{operation}$/"
         f"^{algorithm}$/"
         f"^{parameter_value}$"
     )
@@ -380,9 +374,7 @@ def run_timing_case(
 
     print(f"Timing: {algorithm} {operation} {parameter_value}")
     benchmark_case = (
-        f"^BenchmarkCPABERSAScaling{operation}$/"
-        f"^{algorithm}$/"
-        f"^{parameter_value}$"
+        f"^BenchmarkCPABERSA{operation}$/" f"^{algorithm}$/" f"^{parameter_value}$"
     )
 
     command = (
@@ -468,13 +460,13 @@ def orchestrate_timing():
 
 def generate_report():
 
-    print("Generating CP-ABE vs. RSA Scaling HTML Report...")
+    print("Generating CP-ABE vs. RSA HTML Report...")
 
     subprocess.run(
         [
             sys.executable,
             "-m",
-            "report.analysis.cpabe_rsa_scaling_report",
+            "report.analysis.cpabe_rsa_report",
         ],
         cwd=PROJECT_ROOT,
         check=True,

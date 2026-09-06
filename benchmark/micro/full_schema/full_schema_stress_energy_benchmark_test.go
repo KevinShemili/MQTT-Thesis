@@ -1,10 +1,10 @@
-package payload_scaling
+package full_schema
 
 import (
 	"benchmark/cryptography/aes"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
-	"benchmark/micro/payload_scaling/shared"
+	"benchmark/micro/full_schema/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
@@ -17,9 +17,9 @@ var (
 	tailDuration   = time.Duration(utility.ParseIntFromEnv("TAIL_DURATION")) * time.Second
 )
 
-func BenchmarkPayloadScalingEnergyEncrypt(benchmark *testing.B) {
+func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
-	config := shared.LoadPayloadScalingConfig()
+	config := shared.LoadFullSchemaConfig()
 
 	// Scenario 1: PSK Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
@@ -198,9 +198,9 @@ func BenchmarkPayloadScalingEnergyEncrypt(benchmark *testing.B) {
 	}
 }
 
-func BenchmarkPayloadScalingEnergyDecrypt(benchmark *testing.B) {
+func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 
-	config := shared.LoadPayloadScalingConfig()
+	config := shared.LoadFullSchemaConfig()
 
 	// Scenario 1: PSK Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {

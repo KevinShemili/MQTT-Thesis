@@ -392,7 +392,7 @@ def write_json_cbor_report(
     build_html_report(template_path, report_path, placeholders)
 
 
-def _build_payload_scaling_tables(
+def _build_full_schema_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
@@ -426,7 +426,7 @@ def _build_payload_scaling_tables(
     return tables
 
 
-def _build_payload_scaling_wire_size_table(
+def _build_full_schema_wire_size_table(
     payload_sizes: list[int],
     wire_sizes: dict[str, list[float]],
 ) -> str:
@@ -446,7 +446,7 @@ def _build_payload_scaling_wire_size_table(
     )
 
 
-def _build_payload_scaling_energy_tables(
+def _build_full_schema_energy_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
@@ -477,7 +477,7 @@ def _build_payload_scaling_energy_tables(
     return tables
 
 
-def _build_payload_scaling_memory_tables(
+def _build_full_schema_memory_tables(
     payload_sizes: list[int],
     memory: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
@@ -503,7 +503,7 @@ def _build_payload_scaling_memory_tables(
     return tables
 
 
-def write_payload_scaling_report(
+def write_full_schema_report(
     report_data: dict[str, Any],
     template_path: str,
     report_path: str,
@@ -521,16 +521,16 @@ def write_payload_scaling_report(
     placeholders = {
         "RunCount": str(report_data["runs"]),
         "ConfidenceLevel": CONFIDENCE_LEVEL,
-        **_build_payload_scaling_tables(
+        **_build_full_schema_tables(
             payload_sizes,
             cases,
         ),
-        "WireSizeTable": _build_payload_scaling_wire_size_table(
+        "WireSizeTable": _build_full_schema_wire_size_table(
             payload_sizes,
             report_data["wire_sizes"],
         ),
-        **_build_payload_scaling_energy_tables(payload_sizes, cases),
-        **_build_payload_scaling_memory_tables(
+        **_build_full_schema_energy_tables(payload_sizes, cases),
+        **_build_full_schema_memory_tables(
             payload_sizes,
             report_data["memory"],
         ),
@@ -776,7 +776,7 @@ def _build_cpabe_rsa_memory_report_tables(
     }
 
 
-def write_cpabe_rsa_scaling_report(
+def write_cpabe_rsa_report(
     report_data: dict[str, Any],
     template_path: str,
     report_path: str,

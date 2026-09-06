@@ -24,7 +24,7 @@ CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 TOTAL_CIPHERTEXT_COLOR = TEAL
 AES_ASCON_MAIN_TICK_MIN = 4 * KILOBYTE
 AES_ASCON_ZOOM_MAX = KILOBYTE
-PAYLOAD_SCALING_ZOOM_MAX = 256 * KILOBYTE
+FULL_SCHEMA_ZOOM_MAX = 256 * KILOBYTE
 PEAK_RSS_AXIS_PADDING = 0.08
 PEAK_RSS_FALLBACK_PADDING = 0.01
 
@@ -533,7 +533,7 @@ def plot_aes_ascon_memory(
     )
 
 
-def _plot_payload_scaling_results(
+def _plot_full_schema_results(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     title: str,
@@ -570,7 +570,7 @@ def _plot_payload_scaling_results(
         axis.set_ylabel(y_label)
         if baseline_memory_mean is None:
             axis.set_ylim(bottom=0)
-        _configure_payload_scaling_main_axis(axis, payload_sizes)
+        _configure_full_schema_main_axis(axis, payload_sizes)
         _configure_plain_y_axis(axis)
         rendered_panels.append((axis, payload_sizes, series))
 
@@ -579,7 +579,7 @@ def _plot_payload_scaling_results(
             detail_title = (
                 "PSK + RSA detail" if operation == "Encrypt" else "Small-payload detail"
             )
-            _draw_payload_scaling_small_payload_zoom(
+            _draw_full_schema_small_payload_zoom(
                 axis,
                 payload_sizes,
                 detail_series,
@@ -596,14 +596,14 @@ def _plot_payload_scaling_results(
     save_figure(figure, output_path)
 
 
-def _configure_payload_scaling_main_axis(
+def _configure_full_schema_main_axis(
     axis: Axes,
     payload_sizes: list[int],
 ) -> None:
     tick_values = [
         payload_size
         for payload_size in payload_sizes
-        if payload_size > PAYLOAD_SCALING_ZOOM_MAX
+        if payload_size > FULL_SCHEMA_ZOOM_MAX
     ]
 
     axis.set_xscale("linear")
@@ -619,7 +619,7 @@ def _configure_payload_scaling_main_axis(
     apply_value_grid(axis)
 
 
-def _draw_payload_scaling_small_payload_zoom(
+def _draw_full_schema_small_payload_zoom(
     axis: Axes,
     payload_sizes: list[int],
     series: list[tuple[str, list[float], list[float], str]],
@@ -628,7 +628,7 @@ def _draw_payload_scaling_small_payload_zoom(
     zoom_indexes = [
         index
         for index, payload_size in enumerate(payload_sizes)
-        if payload_size <= PAYLOAD_SCALING_ZOOM_MAX
+        if payload_size <= FULL_SCHEMA_ZOOM_MAX
     ]
     zoom_payload_sizes = [payload_sizes[index] for index in zoom_indexes]
     zoom_axis = axis.inset_axes([0.30, 0.55, 0.46, 0.38])  # type: ignore
@@ -692,12 +692,12 @@ def _format_plain_number(value: float, _position: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
-def plot_payload_scaling_latency(
+def plot_full_schema_latency(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_payload_scaling_results(
+    _plot_full_schema_results(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
@@ -707,7 +707,7 @@ def plot_payload_scaling_latency(
     )
 
 
-def plot_payload_scaling_latency_overhead_share(
+def plot_full_schema_latency_overhead_share(
     payload_sizes: list[int],
     values: dict[tuple[str, str], list[float]],
     output_path: str,
@@ -786,12 +786,12 @@ def plot_payload_scaling_latency_overhead_share(
     save_figure(figure, output_path)
 
 
-def plot_payload_scaling_throughput(
+def plot_full_schema_throughput(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_payload_scaling_results(
+    _plot_full_schema_results(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
@@ -800,7 +800,7 @@ def plot_payload_scaling_throughput(
     )
 
 
-def plot_payload_scaling_wire_expansion(
+def plot_full_schema_wire_expansion(
     wire_expansions: dict[str, float],
     output_path: str,
 ) -> None:
@@ -835,12 +835,12 @@ def plot_payload_scaling_wire_expansion(
     save_figure(figure, output_path)
 
 
-def plot_payload_scaling_energy(
+def plot_full_schema_energy(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_payload_scaling_results(
+    _plot_full_schema_results(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Energy per Operation vs. Payload Size",
@@ -850,7 +850,7 @@ def plot_payload_scaling_energy(
     )
 
 
-def plot_payload_scaling_additional_energy(
+def plot_full_schema_additional_energy(
     payload_sizes: list[int],
     values: dict[tuple[str, str], list[float]],
     output_path: str,
@@ -926,13 +926,13 @@ def plot_payload_scaling_additional_energy(
     save_figure(figure, output_path)
 
 
-def plot_payload_scaling_memory(
+def plot_full_schema_memory(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     baseline_memory_mean: float,
     output_path: str,
 ) -> None:
-    _plot_payload_scaling_results(
+    _plot_full_schema_results(
         payload_sizes,
         results,
         "PSK vs. RSA vs. CP-ABE: Peak Process Memory vs. Payload Size",
@@ -1292,7 +1292,7 @@ def plot_rsa_key_size_sensitivity(
     save_figure(figure, output_path)
 
 
-def plot_cpabe_rsa_scaling_memory(
+def plot_cpabe_rsa_memory(
     parameter_values_by_algorithm: dict[str, list[int]],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     baseline_memory_mean: float,
@@ -1351,7 +1351,7 @@ def plot_cpabe_rsa_scaling_memory(
     save_figure(figure, output_path)
 
 
-def plot_cpabe_rsa_scaling_energy(
+def plot_cpabe_rsa_energy(
     parameter_values_by_algorithm: dict[str, list[int]],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     fixed_rsa_key_bits: int,

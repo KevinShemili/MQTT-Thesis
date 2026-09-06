@@ -1,11 +1,11 @@
-package cpabe_rsa_scaling
+package cpabe_rsa
 
 import (
 	"benchmark/cache"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
 	"benchmark/memory"
-	"benchmark/micro/cpabe_rsa_scaling/shared"
+	"benchmark/micro/cpabe_rsa/shared"
 	"benchmark/thermal"
 	"fmt"
 	"runtime"
@@ -18,9 +18,9 @@ import (
 //
 // No benchmark fixture is generated, every requisite is restored from the cache that
 // cmd/provision built in an earlier process
-func BenchmarkCPABERSAScalingMemoryEncrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAScalingConfig()
+	config := shared.NewCPABERSAConfig()
 
 	// Scenario 1: Measure how memory changes as policy grows
 	for _, attributeCount := range config.AttributeCounts {
@@ -78,9 +78,9 @@ func BenchmarkCPABERSAScalingMemoryEncrypt(benchmark *testing.B) {
 
 }
 
-func BenchmarkCPABERSAScalingMemoryDecrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAScalingConfig()
+	config := shared.NewCPABERSAConfig()
 
 	// Scenario 1: Measure how memory changes as the policy grows
 	for _, attributeCount := range config.AttributeCounts {
@@ -136,7 +136,7 @@ func BenchmarkCPABERSAScalingMemoryDecrypt(benchmark *testing.B) {
 // so what the watermark holds is the floor every case above was measured on top of
 //
 // The benchmark name retains the standard algorithm/parameter-value shape expected by the loader
-func BenchmarkCPABERSAScalingMemoryBaseline(benchmark *testing.B) {
+func BenchmarkCPABERSAMemoryBaseline(benchmark *testing.B) {
 
 	benchmark.Run("Runtime/0", func(b *testing.B) {
 

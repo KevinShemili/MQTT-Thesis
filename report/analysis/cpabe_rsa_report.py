@@ -32,8 +32,8 @@ from report.model.timing.timing_case import (
 from report.render.chart import (
     plot_ciphertext_size_crossover,
     plot_cpabe_attributes,
-    plot_cpabe_rsa_scaling_energy,
-    plot_cpabe_rsa_scaling_memory,
+    plot_cpabe_rsa_energy,
+    plot_cpabe_rsa_memory,
     plot_decrypt_latency_comparison,
     plot_encrypt_decrypt_asymmetry,
     plot_encrypt_latency_crossover,
@@ -41,17 +41,17 @@ from report.render.chart import (
     plot_rsa_subscribers,
 )
 from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
-from report.render.html import write_cpabe_rsa_scaling_report
+from report.render.html import write_cpabe_rsa_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-BENCHMARK_PREFIX = "BenchmarkCPABERSAScaling"
+BENCHMARK_PREFIX = "BenchmarkCPABERSA"
 
 TIMING_RESULT_NAME = "timing.txt"
 MEMORY_RESULT_NAME = "memory.txt"
 ENERGY_RESULT_NAME = "energy.txt"
-REPORT_TEMPLATE_NAME = "cpabe_rsa_scaling_template.html"
+REPORT_TEMPLATE_NAME = "cpabe_rsa_template.html"
 
 CPABE_PLOT = "cpabe_attributes.png"
 RSA_SUBSCRIBERS_PLOT = "rsa_subscribers.png"
@@ -211,16 +211,16 @@ def slower_operation(
 def main() -> None:
     load_dotenv(ENVIRONMENT_FILE, override=True)
 
-    runs = parse_int_env("CPABE_RSA_SCALING_RUNS")
-    attribute_counts = parse_int_list_env("CPABE_RSA_SCALING_ATTRIBUTE_COUNT")
-    subscriber_counts = parse_int_list_env("CPABE_RSA_SCALING_SUBSCRIBER_COUNT")
-    rsa_key_bits = parse_int_list_env("CPABE_RSA_SCALING_RSA_KEY_SIZES")
-    fixed_rsa_key_bits = parse_int_env("CPABE_RSA_SCALING_FIXED_RSA_KEY_SIZE")
+    runs = parse_int_env("CPABE_RSA_RUNS")
+    attribute_counts = parse_int_list_env("CPABE_RSA_ATTRIBUTE_COUNT")
+    subscriber_counts = parse_int_list_env("CPABE_RSA_SUBSCRIBER_COUNT")
+    rsa_key_bits = parse_int_list_env("CPABE_RSA_RSA_KEY_SIZES")
+    fixed_rsa_key_bits = parse_int_env("CPABE_RSA_FIXED_RSA_KEY_SIZE")
     baseline_duration = parse_int_env("BASELINE_DURATION")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
-    result_directory = PROJECT_ROOT / os.environ["CPABE_RSA_SCALING_RESULT_DIR"]
+    result_directory = PROJECT_ROOT / os.environ["CPABE_RSA_RESULT_DIR"]
     template_path = Path(TEMPLATE_DIR) / REPORT_TEMPLATE_NAME
     report_path = result_directory / REPORT_NAME
 
@@ -514,7 +514,7 @@ def main() -> None:
         str(result_directory / RSA_KEY_SIZE_SENSITIVITY_PLOT),
     )
 
-    plot_cpabe_rsa_scaling_energy(
+    plot_cpabe_rsa_energy(
         {
             CPABE_ATTRIBUTES: attribute_counts,
             RSA_SUBSCRIBERS: subscriber_counts,
@@ -526,7 +526,7 @@ def main() -> None:
         fixed_rsa_key_bits,
         str(result_directory / ENERGY_PLOT),
     )
-    plot_cpabe_rsa_scaling_memory(
+    plot_cpabe_rsa_memory(
         {
             CPABE_ATTRIBUTES: attribute_counts,
             RSA_SUBSCRIBERS: subscriber_counts,
@@ -595,7 +595,7 @@ def main() -> None:
             "asymmetry": ASYMMETRY_PLOT,
         },
     }
-    write_cpabe_rsa_scaling_report(
+    write_cpabe_rsa_report(
         report_data,
         str(template_path),
         str(report_path),

@@ -17,7 +17,7 @@ const rsaSubscribersAlgorithm = "RSASubscribers"
 const rsaKeyBitsAlgorithm = "RSAKeyBits"
 const aesGCMAlgorithm = "AES-GCM"
 const asconAlgorithm = "ASCON"
-const payloadScalingAlgorithm = "PayloadScaling"
+const fullSchemaAlgorithm = "FullSchema"
 
 // The point of this program is to provide the fixture data for one benchmark case
 // It does so by populating the cache, allowing the benchmark processes to just load it
@@ -45,7 +45,7 @@ func main() {
 	switch algorithm {
 
 	case cpabeAttributesAlgorithm:
-		aesKeySize := utility.ParseIntFromEnv("CPABE_RSA_SCALING_AES_KEY_SIZE")
+		aesKeySize := utility.ParseIntFromEnv("CPABE_RSA_AES_KEY_SIZE")
 		aesKey := provisionAESKey(aesKeySize)
 		provisionCPABE(parameterValue, aesKeySize, aesKey)
 
@@ -53,7 +53,7 @@ func main() {
 		provisionRSASubscribers(parameterValue)
 
 	case rsaKeyBitsAlgorithm:
-		aesKeySize := utility.ParseIntFromEnv("CPABE_RSA_SCALING_AES_KEY_SIZE")
+		aesKeySize := utility.ParseIntFromEnv("CPABE_RSA_AES_KEY_SIZE")
 		aesKey := provisionAESKey(aesKeySize)
 		provisionRSAKeyBits(parameterValue, aesKey)
 
@@ -63,19 +63,19 @@ func main() {
 	case asconAlgorithm:
 		provisionASCON(parameterValue)
 
-	case payloadScalingAlgorithm:
-		provisionPayloadScaling(parameterValue)
+	case fullSchemaAlgorithm:
+		provisionFullSchema(parameterValue)
 
 	default:
 		panic(fmt.Sprintf("unknown algorithm %q", algorithm))
 	}
 }
 
-func provisionPayloadScaling(payloadSize int) {
+func provisionFullSchema(payloadSize int) {
 
-	aesKeySize := utility.ParseIntFromEnv("PAYLOAD_SCALING_AES_KEY_SIZE")
-	attributeCount := utility.ParseIntFromEnv("PAYLOAD_SCALING_ATTRIBUTE_COUNT")
-	rsaKeyBits := utility.ParseIntFromEnv("PAYLOAD_SCALING_RSA_KEY_BITS")
+	aesKeySize := utility.ParseIntFromEnv("FULL_SCHEMA_AES_KEY_SIZE")
+	attributeCount := utility.ParseIntFromEnv("FULL_SCHEMA_ATTRIBUTE_COUNT")
+	rsaKeyBits := utility.ParseIntFromEnv("FULL_SCHEMA_RSA_KEY_BITS")
 
 	aesKey := provisionAESKey(aesKeySize)
 	cipher := aes.NewAES(aesKey)
@@ -83,11 +83,11 @@ func provisionPayloadScaling(payloadSize int) {
 	nonce := provisionAESGCMNonce(cipher.NonceSize())
 
 	cache.StoreFile(
-		cache.CreatePayloadScalingPlaintextFileName(payloadSize),
+		cache.CreateFullSchemaPlaintextFileName(payloadSize),
 		plaintext,
 	)
 	cache.StoreFile(
-		cache.CreatePayloadScalingCiphertextFileName(payloadSize),
+		cache.CreateFullSchemaCiphertextFileName(payloadSize),
 		cipher.Seal(nil, nonce, plaintext, nil),
 	)
 
@@ -243,7 +243,7 @@ func provisionCPABEAuthority() cpabe.CPABEAuthority {
 
 func provisionRSASubscribers(subscriberCount int) {
 
-	rsaKeyBits := utility.ParseIntFromEnv("CPABE_RSA_SCALING_FIXED_RSA_KEY_SIZE")
+	rsaKeyBits := utility.ParseIntFromEnv("CPABE_RSA_FIXED_RSA_KEY_SIZE")
 
 	for index := range subscriberCount {
 		provisionRSAKey(rsaKeyBits, index)

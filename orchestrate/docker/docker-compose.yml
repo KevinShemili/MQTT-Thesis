@@ -23,27 +23,27 @@ services:
       - ../../results:/app/results
     command: ["python3", "orchestrate/raspberry/orchestrate_json_cbor.py"]
 
-  payload-scaling:
+  full-schema:
     build:
       context: ../..
       dockerfile: orchestrate/laptop/Dockerfile
-    container_name: payload-scaling-benchmark
+    container_name: full-schema-benchmark
     restart: "no"
     tty: true
     working_dir: /app
     volumes:
       - ../../results:/app/results
-    command: ["python3", "orchestrate/raspberry/orchestrate_payload_scaling.py"]
+    command: ["python3", "orchestrate/raspberry/orchestrate_full_schema.py"]
 
-  attribute-key-scaling:
+  cpabe-rsa:
     build:
       context: ../..
       dockerfile: orchestrate/laptop/Dockerfile
-    container_name: attribute-key-scaling-benchmark
+    container_name: cpabe-rsa-benchmark
     restart: "no"
     tty: true
     working_dir: /app
     volumes:
       - ../../results:/app/results
     command:
-      ["python3", "orchestrate/raspberry/orchestrate_attribute_key_scaling.py"]
+      ["python3", "orchestrate/raspberry/orchestrate_cpabe_rsa.py"]

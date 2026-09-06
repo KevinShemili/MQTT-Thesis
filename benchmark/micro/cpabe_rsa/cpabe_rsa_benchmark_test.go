@@ -1,17 +1,17 @@
-package cpabe_rsa_scaling
+package cpabe_rsa
 
 import (
 	"benchmark/cryptography/cpabe"
-	"benchmark/micro/cpabe_rsa_scaling/shared"
+	"benchmark/micro/cpabe_rsa/shared"
 	"benchmark/thermal"
 	"benchmark/utility"
 	"fmt"
 	"testing"
 )
 
-func BenchmarkCPABERSAScalingEncrypt(benchmark *testing.B) {
+func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAScalingConfig()
+	config := shared.NewCPABERSAConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {
@@ -123,9 +123,9 @@ func BenchmarkCPABERSAScalingEncrypt(benchmark *testing.B) {
 	}
 }
 
-func BenchmarkCPABERSAScalingDecrypt(benchmark *testing.B) {
+func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAScalingConfig()
+	config := shared.NewCPABERSAConfig()
 
 	// Scenario 1: CP-ABE scaling attribute count
 	for _, attributeCount := range config.AttributeCounts {

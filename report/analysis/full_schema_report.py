@@ -28,21 +28,21 @@ from report.model.timing.timing_case import (
     THROTTLED as TIMING_THROTTLED,
 )
 from report.render.chart import (
-    plot_payload_scaling_additional_energy,
-    plot_payload_scaling_energy,
-    plot_payload_scaling_latency,
-    plot_payload_scaling_latency_overhead_share,
-    plot_payload_scaling_memory,
-    plot_payload_scaling_throughput,
-    plot_payload_scaling_wire_expansion,
+    plot_full_schema_additional_energy,
+    plot_full_schema_energy,
+    plot_full_schema_latency,
+    plot_full_schema_latency_overhead_share,
+    plot_full_schema_memory,
+    plot_full_schema_throughput,
+    plot_full_schema_wire_expansion,
 )
 from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
-from report.render.html import write_payload_scaling_report
+from report.render.html import write_full_schema_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-BENCHMARK_PREFIX = "BenchmarkPayloadScaling"
+BENCHMARK_PREFIX = "BenchmarkFullSchema"
 PARAMETER = "payload_size"
 PARAMETER_BY_ALGORITHM = {
     "PSK": PARAMETER,
@@ -54,7 +54,7 @@ PARAMETER_SUFFIX = "B"
 TIMING_RESULT_NAME = "timing.txt"
 MEMORY_RESULT_NAME = "memory.txt"
 ENERGY_RESULT_NAME = "energy.txt"
-REPORT_TEMPLATE_NAME = "payload_scaling_template.html"
+REPORT_TEMPLATE_NAME = "full_schema_template.html"
 
 LATENCY_PLOT = "latency.png"
 LATENCY_OVERHEAD_SHARE_PLOT = "latency_overhead_share.png"
@@ -240,13 +240,13 @@ def main() -> None:
         override=True,
     )
 
-    runs = parse_int_env("PAYLOAD_SCALING_RUNS")
-    payload_sizes = parse_int_list_env("PAYLOAD_SCALING_PAYLOAD_SIZES")
+    runs = parse_int_env("FULL_SCHEMA_RUNS")
+    payload_sizes = parse_int_list_env("FULL_SCHEMA_PAYLOAD_SIZES")
     baseline_duration = parse_int_env("BASELINE_DURATION")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
-    result_directory = PROJECT_ROOT / os.environ["PAYLOAD_SCALING_RESULT_DIR"]
+    result_directory = PROJECT_ROOT / os.environ["FULL_SCHEMA_RESULT_DIR"]
     timing_result_file = result_directory / TIMING_RESULT_NAME
     memory_result_file = result_directory / MEMORY_RESULT_NAME
     energy_result_file = result_directory / ENERGY_RESULT_NAME
@@ -370,36 +370,36 @@ def main() -> None:
         for operation in ("Encrypt", "Decrypt")
     }
 
-    plot_payload_scaling_latency(
+    plot_full_schema_latency(
         payload_sizes,
         latency_results,
         str(result_directory / LATENCY_PLOT),
     )
 
-    plot_payload_scaling_latency_overhead_share(
+    plot_full_schema_latency_overhead_share(
         payload_sizes,
         latency_overhead_share,
         str(result_directory / LATENCY_OVERHEAD_SHARE_PLOT),
     )
 
-    plot_payload_scaling_throughput(
+    plot_full_schema_throughput(
         payload_sizes,
         throughput_results,
         str(result_directory / THROUGHPUT_PLOT),
     )
 
-    plot_payload_scaling_wire_expansion(
+    plot_full_schema_wire_expansion(
         wire_expansions,
         str(result_directory / WIRE_EXPANSION_PLOT),
     )
 
-    plot_payload_scaling_energy(
+    plot_full_schema_energy(
         payload_sizes,
         energy_results,
         str(result_directory / ENERGY_PLOT),
     )
 
-    plot_payload_scaling_additional_energy(
+    plot_full_schema_additional_energy(
         payload_sizes,
         additional_energy,
         str(result_directory / ADDITIONAL_ENERGY_PLOT),
@@ -410,7 +410,7 @@ def main() -> None:
         for case, values in memory_results.items()
     }
 
-    plot_payload_scaling_memory(
+    plot_full_schema_memory(
         payload_sizes,
         memory_plot_results,
         baseline_memory_mean / MEGABYTE,
@@ -447,7 +447,7 @@ def main() -> None:
         },
     }
 
-    write_payload_scaling_report(
+    write_full_schema_report(
         report_data,
         str(template_path),
         str(report_path),

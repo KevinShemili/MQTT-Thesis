@@ -10,8 +10,8 @@ Go implements the benchmark workloads. Python on the laptop builds and executes 
 | --- | --- | --- | --- |
 | AES vs. ASCON | Payload size | AES-GCM and ASCON Encrypt/Decrypt | Latency, throughput, wire overhead, energy/op, iterations, thermal state |
 | JSON vs. CBOR | Attribute count | JSON, CBOR, and CBOR with integer keys Serialize/Deserialize | Latency, encoded size, format overhead, energy/op, iterations, thermal state |
-| Payload scaling | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput chart, wire size, energy/op, peak RSS, and thermal state |
-| CP-ABE vs. RSA under Policy and Subscriber Scaling | CP-ABE policy attributes and RSA subscribers; RSA key size is a secondary timing sensitivity | CP-ABE and RSA Encrypt/Decrypt | Latency, wrapped-key sizes, energy/op, peak RSS, slopes, crossovers, asymmetry, and comparisons |
+| Full Schema | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput chart, wire size, energy/op, peak RSS, and thermal state |
+| CP-ABE vs. RSA | CP-ABE policy attributes and RSA subscribers; RSA key size is a secondary timing sensitivity | CP-ABE and RSA Encrypt/Decrypt | Latency, wrapped-key sizes, energy/op, peak RSS, slopes, crossovers, asymmetry, and comparisons |
 
 ## How the pipeline works
 
@@ -44,7 +44,7 @@ Energy per operation is calculated as:
 (mean load power - mean idle power) × operation time
 ```
 
-The CP-ABE/RSA scaling scenario also measures peak resident memory. Each memory repetition runs in its own process because Linux `VmHWM` is process-wide. A separate runtime baseline is recorded using the same independent-process method.
+The CP-ABE/RSA scenario also measures peak resident memory. Each memory repetition runs in its own process because Linux `VmHWM` is process-wide. A separate runtime baseline is recorded using the same independent-process method.
 
 ## Requirements
 
@@ -114,8 +114,8 @@ Run one orchestrator from the repository root:
 ```sh
 python orchestrate/orchestrate_aes_ascon.py
 python orchestrate/orchestrate_json_cbor.py
-python orchestrate/orchestrate_payload_scaling.py
-python orchestrate/orchestrate_cpabe_rsa_scaling.py
+python orchestrate/orchestrate_full_schema.py
+python orchestrate/orchestrate_cpabe_rsa.py
 ```
 
 Each orchestrator performs the complete scenario and replaces its result files. The common sequence is:
@@ -139,8 +139,8 @@ If the raw files already exist, regenerate a report without rerunning the hardwa
 ```sh
 python -m report.analysis.aes_ascon_report
 python -m report.analysis.json_cbor_report
-python -m report.analysis.payload_scaling_report
-python -m report.analysis.cpabe_rsa_scaling_report
+python -m report.analysis.full_schema_report
+python -m report.analysis.cpabe_rsa_report
 ```
 
 Each report module loads `environment/benchmark.env` and reads from its configured result directory.
@@ -153,8 +153,8 @@ Generated results live under `results/` and are intentionally ignored by Git.
 | --- | --- | --- |
 | `results/aes_ascon/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
 | `results/json_cbor/` | `timing.txt`, `energy.txt` | `latency.png`, `size.png`, `energy.png` |
-| `results/payload_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `latency_overhead_share.png`, `throughput.png`, `wire_expansion.png`, `energy.png`, `additional_energy.png`, `memory.png` |
-| `results/cpabe_rsa_scaling/` | `timing.txt`, `memory.txt`, `energy.txt` | `cpabe_attributes.png`, `rsa_subscribers.png`, `rsa_key_size_sensitivity.png`, `energy.png`, `peak_memory.png`, and four comparison charts |
+| `results/full_schema/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `latency_overhead_share.png`, `throughput.png`, `wire_expansion.png`, `energy.png`, `additional_energy.png`, `memory.png` |
+| `results/cpabe_rsa/` | `timing.txt`, `memory.txt`, `energy.txt` | `cpabe_attributes.png`, `rsa_subscribers.png`, `rsa_key_size_sensitivity.png`, `energy.png`, `peak_memory.png`, and four comparison charts |
 
 Every directory also receives `report.html`. Timing and energy thermal observations are reported separately.
 
@@ -202,7 +202,7 @@ Python and formatting checks can be run from the repository root:
 
 ```sh
 python -m compileall -q orchestrate report um24c
-python -c "import report.analysis.aes_ascon_report; import report.analysis.json_cbor_report; import report.analysis.payload_scaling_report; import report.analysis.cpabe_rsa_scaling_report"
+python -c "import report.analysis.aes_ascon_report; import report.analysis.json_cbor_report; import report.analysis.full_schema_report; import report.analysis.cpabe_rsa_report"
 python -m black --check orchestrate report um24c
 gofmt -d $(git ls-files '*.go')
 git diff --check
