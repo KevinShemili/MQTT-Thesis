@@ -90,16 +90,9 @@
             letter-spacing: -0.04em;
         }
 
-        .hero p {
-            max-width: 780px;
-            margin: 16px 0 0 0;
-            color: rgba(255, 255, 255, 0.82);
-            font-size: 16px;
-        }
-
         .metadata {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 16px;
         }
@@ -126,23 +119,6 @@
             font-size: 25px;
             font-weight: 800;
             letter-spacing: -0.03em;
-        }
-
-        .method-strip {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 9px;
-            margin-top: 16px;
-        }
-
-        .method-strip span {
-            padding: 7px 11px;
-            border: 1px solid #d8d0e7;
-            border-radius: 999px;
-            background: var(--accent-soft);
-            color: #493a65;
-            font-size: 12px;
-            font-weight: 700;
         }
 
         .section {
@@ -179,6 +155,10 @@
         .plot-stack {
             display: grid;
             gap: 18px;
+        }
+
+        .plot-stack+.operation-group {
+            margin-top: 22px;
         }
 
         .plot-card {
@@ -242,51 +222,6 @@
             font-size: 12px;
         }
 
-
-        /* The floor every peak-memory reading below sits on top of, stated once. */
-        .baseline-legend {
-            display: inline-flex;
-            gap: 10px;
-            align-items: baseline;
-            margin-bottom: 18px;
-            padding: 8px 16px;
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            background: var(--surface-soft);
-        }
-
-        .baseline-legend span {
-            color: var(--muted);
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.11em;
-            text-transform: uppercase;
-        }
-
-        .baseline-legend strong {
-            font-size: 18px;
-            font-weight: 850;
-            letter-spacing: -0.02em;
-        }
-
-        /* Sits under the figure as a footnote rather than beside it as a claim. */
-        .delta-strip {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px 18px;
-            padding: 4px 22px 18px 22px;
-        }
-
-        .delta-item {
-            color: var(--muted);
-            font-size: 11.5px;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .delta-item strong {
-            color: #4f4a54;
-            font-weight: 700;
-        }
 
         .fanout-card {
             margin: 2px 14px 16px 14px;
@@ -368,68 +303,6 @@
             text-align: center;
         }
 
-        .synthesis-cards {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-            margin-bottom: 18px;
-        }
-
-        .formula-card,
-        .synthesis-cards>.card {
-            min-width: 0;
-            padding: 19px;
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            background: linear-gradient(180deg, #ffffff 0%, #faf8fd 100%);
-        }
-
-        .formula-kicker,
-        .synthesis-cards .card-label {
-            color: var(--accent);
-            font-size: 11px;
-            font-weight: 850;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-        }
-
-        .formula-result,
-        .synthesis-cards .card-value {
-            margin-top: 7px;
-            font-size: 23px;
-            font-weight: 850;
-            letter-spacing: -0.025em;
-        }
-
-        .formula-equation {
-            overflow-x: auto;
-            margin-top: 13px;
-            padding: 10px 11px;
-            border: 1px solid #ddd4eb;
-            border-radius: 11px;
-            background: var(--accent-soft);
-            color: #493a65;
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-            font-size: 12.5px;
-            white-space: nowrap;
-        }
-
-        .formula-substitution {
-            margin-top: 8px;
-            color: #4f4a54;
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-            font-size: 11.5px;
-            line-height: 1.45;
-        }
-
-        .formula-note,
-        .synthesis-cards .card-caption {
-            margin-top: 10px;
-            color: var(--muted);
-            font-size: 11.5px;
-            line-height: 1.45;
-        }
-
         .comparison-stack {
             display: grid;
             gap: 18px;
@@ -483,55 +356,14 @@
             letter-spacing: -0.015em;
         }
 
-        .table-row.table-row-two {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
         .table-row.table-row-one {
             grid-template-columns: minmax(0, 1fr);
         }
 
-        details.result-group {
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            background: var(--surface-soft);
-        }
-
-        details.result-group+details.result-group {
-            margin-top: 14px;
-        }
-
-        details.result-group summary {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 16px 18px;
-            cursor: pointer;
-            list-style: none;
-            font-weight: 800;
-        }
-
-        details.result-group summary::-webkit-details-marker {
-            display: none;
-        }
-
-        details.result-group summary::after {
-            content: "+";
-            color: var(--accent);
-            font-size: 22px;
-            line-height: 1;
-        }
-
-        details.result-group[open] summary::after {
-            content: "−";
-        }
-
         .table-row {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
-            padding: 0 14px 14px 14px;
         }
 
         .table-block {
@@ -638,7 +470,8 @@
         }
 
         .legend-copy,
-        .thermal-status {
+        .thermal-status,
+        .memory-note {
             color: var(--muted);
             font-size: 12px;
         }
@@ -651,16 +484,6 @@
         .thermal-symbol {
             font-size: 16px;
             font-weight: 900;
-        }
-
-        .memory-note {
-            margin: 0 0 18px;
-            padding: 14px 16px;
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            background: var(--surface-soft);
-            color: var(--muted);
-            font-size: 12px;
         }
 
         tbody tr:nth-child(even) {
@@ -685,32 +508,12 @@
             border-left: 3px solid var(--accent);
         }
 
-        .footer {
-            padding: 22px 0 4px 0;
-            color: var(--muted);
-            font-size: 12px;
-            text-align: center;
-        }
-
-        code {
-            padding: 2px 5px;
-            border: 1px solid #ded8e7;
-            border-radius: 5px;
-            background: #f1eef5;
-            font-family: "SFMono-Regular", Consolas, monospace;
-        }
-
         @media (max-width: 1050px) {
             .metadata {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
-            .synthesis-cards,
             .comparison-row,
-            .table-row.table-row-two {
-                grid-template-columns: 1fr;
-            }
-
             .table-row {
                 grid-template-columns: 1fr;
             }
@@ -757,10 +560,6 @@
             .section {
                 box-shadow: none;
             }
-
-            details.result-group:not([open])>*:not(summary) {
-                display: block;
-            }
         }
     </style>
 </head>
@@ -781,21 +580,11 @@
                 <div class="metric-label">Confidence interval</div>
                 <div class="metric-value">{{ConfidenceLevel}}</div>
             </div>
-            <div class="metric">
-                <div class="metric-label">Student t</div>
-                <div class="metric-value">{{TMultiplier}}</div>
-            </div>
-            <div class="metric">
-                <div class="metric-label">Crypto operations</div>
-                <div class="metric-value">{{TotalIterations}}</div>
-            </div>
         </section>
 
         <section class="section">
             <div class="section-heading">
                 <h2>Timing</h2>
-                <p>Latency and size results for the two primary scaling dimensions, followed by
-                    cross-mechanism comparisons and a secondary RSA key-size sensitivity study.</p>
             </div>
 
             <div class="section-legend">
@@ -823,10 +612,12 @@
                         <h3>RSA Publisher Scaling with Subscribers</h3>
                     </div>
                     <div class="plot-frame">
-                        <img src="{{RsaSubscribersPlot}}" alt="RSA publisher latency and ciphertext size over subscriber count">
+                        <img src="{{RsaSubscribersPlot}}"
+                            alt="RSA publisher latency and ciphertext size over subscriber count">
                     </div>
                     <div class="stat-strip">
-                        <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME / SUBSCRIBER</span>
+                        <span class="stat-chip"><strong>{{RsaSubscriberEncryptSlope}}</strong> ENCRYPT TIME /
+                            SUBSCRIBER</span>
                         <span class="stat-chip"><strong>{{RsaSubscriberTotalCiphertextSlope}}</strong>
                             TOTAL CIPHERTEXT / SUBSCRIBER</span>
                     </div>
@@ -855,7 +646,9 @@
             <div class="comparison-stack">
                 <div class="comparison-row">
                     <article class="plot-card">
-                        <div class="plot-copy"><h3>CP-ABE vs. RSA: Ciphertext Size</h3></div>
+                        <div class="plot-copy">
+                            <h3>CP-ABE vs. RSA: Ciphertext Size</h3>
+                        </div>
                         <div class="plot-frame">{{BandwidthCrossoverFrame}}</div>
                     </article>
                     <aside class="comparison-explanation">
@@ -870,7 +663,9 @@
 
                 <div class="comparison-row">
                     <article class="plot-card">
-                        <div class="plot-copy"><h3>CP-ABE vs. RSA: Publisher Encrypt Cost</h3></div>
+                        <div class="plot-copy">
+                            <h3>CP-ABE vs. RSA: Publisher Encrypt Cost</h3>
+                        </div>
                         <div class="plot-frame">{{EncryptCpuCrossoverFrame}}</div>
                     </article>
                     <aside class="comparison-explanation">
@@ -886,7 +681,9 @@
 
                 <div class="comparison-row">
                     <article class="plot-card">
-                        <div class="plot-copy"><h3>CP-ABE vs. RSA-{{FixedRsaKeyBits}}: Decrypt Cost</h3></div>
+                        <div class="plot-copy">
+                            <h3>CP-ABE vs. RSA-{{FixedRsaKeyBits}}: Decrypt Cost</h3>
+                        </div>
                         <div class="plot-frame">{{DecryptCpuComparisonFrame}}</div>
                     </article>
                     <aside class="comparison-explanation">
@@ -900,14 +697,16 @@
                 </div>
 
                 <article class="plot-card">
-                    <div class="plot-copy"><h3>Encrypt vs. Decrypt: Asymmetry</h3></div>
+                    <div class="plot-copy">
+                        <h3>Encrypt vs. Decrypt: Asymmetry</h3>
+                    </div>
                     <div class="plot-frame">{{AsymmetryFrame}}</div>
                 </article>
             </div>
 
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row table-row-two">
+                <div class="table-row">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">{{CpabeEncryptTable}}</div>
@@ -934,11 +733,13 @@
                 <article class="plot-card">
                     <div class="plot-copy">
                         <h3>RSA-2048 / RSA-3072 / RSA-4096</h3>
-                        <p>One-subscriber Encrypt and Decrypt latency plus wrapped-key ciphertext size.
-                            RSA-{{FixedRsaKeyBits}} remains the fixed configuration used elsewhere.</p>
+                        <p>One-subscriber Encrypt and Decrypt latency sensitivity.
+                            RSA-{{FixedRsaKeyBits}} remains the fixed configuration used elsewhere, while
+                            wrapped-key ciphertext size remains available in the table below.</p>
                     </div>
                     <div class="plot-frame">
-                        <img src="{{RsaKeySizeSensitivityPlot}}" alt="RSA latency and ciphertext size over modulus size">
+                        <img src="{{RsaKeySizeSensitivityPlot}}"
+                            alt="RSA encryption and decryption latency over modulus size">
                     </div>
                 </article>
                 <div class="table-row table-row-one">
@@ -953,9 +754,6 @@
         <section class="section">
             <div class="section-heading">
                 <h2>Energy</h2>
-                <p>Energy per operation uses load power from the steady-state interval
-                    [{{EnergyWindowStart}}, {{EnergyWindowEnd}}) seconds, idle-baseline subtraction,
-                    and operation time from the same run.</p>
             </div>
 
             <div class="section-legend">
@@ -968,7 +766,9 @@
 
             <div class="plot-stack">
                 <article class="plot-card">
-                    <div class="plot-copy"><h3>Energy under Policy and Subscriber Scaling</h3></div>
+                    <div class="plot-copy">
+                        <h3>Energy under Policy and Subscriber Scaling</h3>
+                    </div>
                     <div class="plot-frame">
                         <img src="{{EnergyPlot}}" alt="CP-ABE and RSA energy per operation">
                     </div>
@@ -977,7 +777,7 @@
 
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row table-row-two">
+                <div class="table-row">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">{{CpabeEncryptEnergyTable}}</div>
@@ -991,7 +791,7 @@
 
             <div class="operation-group">
                 <h3 class="operation-heading">Decrypt</h3>
-                <div class="table-row table-row-two">
+                <div class="table-row">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">{{CpabeDecryptEnergyTable}}</div>
@@ -1008,8 +808,6 @@
         <section class="section">
             <div class="section-heading">
                 <h2>Memory</h2>
-                <p>Each point is one independent process that restores its fixture, resets the
-                    peak-RSS watermark, performs one operation, and reads the resulting process peak.</p>
             </div>
 
             <div class="section-legend">
@@ -1027,13 +825,12 @@
                         <h3>Peak Process Memory under Policy and Subscriber Scaling</h3>
                     </div>
                     <div class="plot-frame">{{PeakMemoryFrame}}</div>
-                    {{PeakMemoryDeltas}}
                 </article>
             </div>
 
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row table-row-two">
+                <div class="table-row">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">{{PeakMemoryCpabeEncryptTable}}</div>
@@ -1047,7 +844,7 @@
 
             <div class="operation-group">
                 <h3 class="operation-heading">Decrypt</h3>
-                <div class="table-row table-row-two">
+                <div class="table-row">
                     <div class="table-block">
                         <h3>CP-ABE: Policy Attribute Scaling</h3>
                         <div class="table-wrapper">{{PeakMemoryCpabeDecryptTable}}</div>
@@ -1065,4 +862,3 @@
 </body>
 
 </html>
-

@@ -1190,7 +1190,7 @@ def _plot_latency_and_size(
         draw_constant(latency_axis, value, parameter_values, label, color)
     _draw_summaries(size_axis, parameter_values, size_series)
     _configure_parameter_axis(
-        latency_axis, "Latency", "Latency (µs) ± 95% CI", parameter_values, x_label
+        latency_axis, "Latency", "Latency (µs)", parameter_values, x_label
     )
     _configure_parameter_axis(
         size_axis,
@@ -1268,12 +1268,10 @@ def plot_rsa_key_size_sensitivity(
 ) -> None:
     encrypt_latency_means, encrypt_latency_cis = results["encrypt_latency"]
     decrypt_latency_means, decrypt_latency_cis = results["decrypt_latency"]
-    ciphertext_means, ciphertext_cis = results["ciphertext"]
-    figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("RSA Key-Size Sensitivity (1 Subscriber)", fontsize=13)
+    figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
 
     _draw_summaries(
-        latency_axis,
+        axis,
         rsa_key_bits,
         [
             ("Encrypt", encrypt_latency_means, encrypt_latency_cis, AMBER),
@@ -1281,25 +1279,16 @@ def plot_rsa_key_size_sensitivity(
         ],
         with_ci=True,
     )
-    _draw_summaries(
-        size_axis,
-        rsa_key_bits,
-        [
-            ("Ciphertext", ciphertext_means, ciphertext_cis, AMBER),
-        ],
-    )
 
     _configure_parameter_axis(
-        latency_axis,
-        "Encrypt + Decrypt Latency",
-        "Latency (µs) ± 95% CI",
+        axis,
+        "RSA Key-Size Sensitivity (1 Subscriber)",
+        "Latency (µs)",
         rsa_key_bits,
-        "",
+        "RSA Key Bits",
     )
-    _configure_parameter_axis(size_axis, "Sizes", "Size (bytes)", rsa_key_bits, "")
-    figure.supxlabel("RSA Key Bits", fontsize=10)
 
-    figure.tight_layout(rect=(0.0, 0.04, 1.0, 0.94))
+    figure.tight_layout()
     save_figure(figure, output_path)
 
 
@@ -1416,7 +1405,7 @@ def plot_cpabe_rsa_scaling_energy(
     )
     axes[1].legend(fontsize=9)
 
-    axes[0].set_ylabel("Energy (µJ/op) ± 95% CI")
+    axes[0].set_ylabel("Energy (µJ/op)")
     figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
     save_figure(figure, output_path)
 
@@ -1562,36 +1551,27 @@ def plot_decrypt_latency_comparison(
         with_ci=True,
         linewidth=2.0,
     )
+    draw_summary(
+        axis,
+        results["rsa_attribute_counts"],
+        results["rsa_means"],
+        results["rsa_cis"],
+        f'RSA-{results["fixed_rsa_key_bits"]}',
+        TOTAL_CIPHERTEXT_COLOR,
+        with_ci=True,
+        linewidth=2.0,
+    )
 
-    largest_value = calculate_axis_top(cpabe_means, cpabe_cis)
-
-    rsa_mean = results["rsa_mean"]
-    rsa_ci = results["rsa_ci"]
-    if not isnan(rsa_mean) and not isnan(rsa_ci):
-        axis.hlines(
-            rsa_mean,
-            attribute_counts[0],
-            attribute_counts[-1],
-            color=TOTAL_CIPHERTEXT_COLOR,
-            linestyle="--",
-            linewidth=1.6,
-            label=f'RSA-{results["fixed_rsa_key_bits"]}',
-        )
-        axis.errorbar(
-            [attribute_counts[-1]],
-            [rsa_mean],
-            yerr=[rsa_ci],
-            color=TOTAL_CIPHERTEXT_COLOR,
-            fmt="none",
-            capsize=4,
-        )
-        largest_value = max(largest_value, rsa_mean + rsa_ci)
+    largest_value = max(
+        calculate_axis_top(cpabe_means, cpabe_cis),
+        calculate_axis_top(results["rsa_means"], results["rsa_cis"]),
+    )
 
     axis.set_xticks(attribute_counts)
     axis.set_xlim(0.0, float(attribute_counts[-1]) * AXIS_HEADROOM)
     axis.set_ylim(0.0, largest_value * 1.15)
     axis.set_xlabel("Policy Attributes")
-    axis.set_ylabel("Decrypt Latency (µs) ± 95% CI")
+    axis.set_ylabel("Decrypt Latency (µs)")
     apply_value_grid(axis)
     axis.legend(fontsize=9, loc="upper left")
 

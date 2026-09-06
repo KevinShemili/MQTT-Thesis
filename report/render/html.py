@@ -63,20 +63,6 @@ def build_thermal_legend(throttled: Sequence[bool]) -> str:
     return f'<div class="thermal-status">{THERMAL_CLEAN_NOTE}</div>'
 
 
-def build_html_generic_data(
-    runs: int,
-    t_multiplier: float,
-    iteration_total: int,
-) -> dict[str, str]:
-
-    return {
-        "RunCount": str(runs),
-        "ConfidenceLevel": CONFIDENCE_LEVEL,
-        "TMultiplier": str(t_multiplier),
-        "TotalIterations": f"{iteration_total:,}",
-    }
-
-
 def build_html_report(
     template_path: str,
     output_path: str,
@@ -570,18 +556,6 @@ def _format_byte_size(value: float) -> str:
     return format_byte_size(round(value))
 
 
-def format_peak_memory_change(
-    first: float,
-    last: float,
-    absolute_change: float,
-    percent_change: float,
-) -> str:
-    return (
-        f"{first:,.2f} &rarr; {last:,.2f} MB &middot; "
-        f"{absolute_change:+,.2f} MB ({percent_change:+,.1f}%)"
-    )
-
-
 def build_rsa_circle_visualization(
     single_bytes: float,
     total_bytes: float,
@@ -624,7 +598,6 @@ def _build_cpabe_rsa_timing_table(
     index_header: str,
     index_values: list[int],
     values: dict,
-    runs: int,
     extra_columns: list[tuple[str, str]],
     highlighted: list[bool] | None = None,
 ) -> str:
@@ -636,8 +609,6 @@ def _build_cpabe_rsa_timing_table(
     for header, name in extra_columns:
         headers.append(header)
         columns.append([_format_byte_size(value) for value in values[name]])
-    headers.append(f"ITERS (Σ{runs} RUNS)")
-    columns.append([f"{value:,}" for value in values["iterations"]])
     return build_html_table(
         headers,
         _rows_from_columns(columns),
@@ -653,28 +624,24 @@ def _build_cpabe_rsa_timing_report_tables(
     attributes = report_data["attribute_counts"]
     subscribers = report_data["subscriber_counts"]
     rsa_key_bits = report_data["rsa_key_bits"]
-    runs = report_data["runs"]
 
     return {
         "CpabeEncryptTable": _build_cpabe_rsa_timing_table(
             "ATTRIBUTES",
             attributes,
             timing[("CPABEAttributes", "Encrypt")],
-            runs,
             [("CIPHERTEXT", "ciphertext_means")],
         ),
         "CpabeDecryptTable": _build_cpabe_rsa_timing_table(
             "ATTRIBUTES",
             attributes,
             timing[("CPABEAttributes", "Decrypt")],
-            runs,
             [("STORED KEY", "stored_key_means")],
         ),
         "RsaSubscribersEncryptTable": _build_cpabe_rsa_timing_table(
             "SUBSCRIBERS",
             subscribers,
             timing[("RSASubscribers", "Encrypt")],
-            runs,
             [
                 ("CIPHERTEXT", "ciphertext_means"),
                 ("CIPHERTEXT (TOTAL)", "total_ciphertext_means"),
@@ -774,12 +741,11 @@ def _build_cpabe_rsa_memory_report_tables(
 
     def table(index_header, index_values, values):
         return build_html_table(
-            [index_header, "PEAK RSS (MB)", "n"],
+            [index_header, "PEAK RSS (MB)"],
             _rows_from_columns(
                 [
                     [str(value) for value in index_values],
                     _mean_ci_column(values["means"], values["cis"]),
-                    [str(value) for value in values["sample_counts"]],
                 ]
             ),
         )
@@ -803,43 +769,6 @@ def _build_cpabe_rsa_memory_report_tables(
             "KEY BITS", [report_data["fixed_rsa_key_bits"]], rsa_decrypt
         ),
     }
-
-
-def _build_memory_delta_strip(report_data: dict[str, Any]) -> str:
-    labels = (
-        (
-            "CP-ABE Encrypt",
-            report_data["attribute_counts"],
-            "attributes",
-            "cpabe_encrypt",
-        ),
-        (
-            "CP-ABE Decrypt",
-            report_data["attribute_counts"],
-            "attributes",
-            "cpabe_decrypt",
-        ),
-        (
-            "RSA Subscribers Encrypt",
-            report_data["subscriber_counts"],
-            "subscribers",
-            "subscriber_encrypt",
-        ),
-    )
-    items = []
-    for label, values, unit, name in labels:
-        change = report_data["memory_changes"][name]
-        text = format_peak_memory_change(
-            change["first"],
-            change["last"],
-            change["absolute_change"],
-            change["percent_change"],
-        )
-        items.append(
-            f'<span class="delta-item"><strong>{label}</strong> '
-            f"{values[0]} &rarr; {values[-1]} {unit} &middot; {text}</span>"
-        )
-    return f'<div class="delta-strip">{"".join(items)}</div>'
 
 
 def write_cpabe_rsa_scaling_report(
@@ -871,11 +800,8 @@ def write_cpabe_rsa_scaling_report(
         subscribers[-1],
     )
     placeholders = {
-        **build_html_generic_data(
-            report_data["runs"],
-            report_data["t_multiplier"],
-            report_data["total_iterations"],
-        ),
+        "RunCount": str(report_data["runs"]),
+        "ConfidenceLevel": CONFIDENCE_LEVEL,
         **fanout,
         **_build_cpabe_rsa_timing_report_tables(report_data),
         **_build_cpabe_rsa_energy_tables(report_data),
@@ -884,7 +810,6 @@ def write_cpabe_rsa_scaling_report(
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "EnergyBaseline": f'{format_mean_with_ci(report_data["energy_baseline_mean"], report_data["energy_baseline_ci"])} J',
         "EnergyBaselineDuration": f'{report_data["energy_baseline_duration"]:g}',
-        "PeakMemoryDeltas": _build_memory_delta_strip(report_data),
         "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
         "MinAttributeLabel": format_attribute_label(attributes[0]),
         "MaxAttributeLabel": format_attribute_label(attributes[-1]),

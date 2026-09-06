@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
-    confidence_interval_multiplier,
     energy_baseline_statistics,
     energy_statistics,
     linear_regression_statistics,
@@ -128,13 +127,6 @@ def collect_energy_aggregations(
     return [matching[parameter_value] for parameter_value in parameter_values]
 
 
-def collect_iterations(aggregations: list[TimingAggregation]) -> list[int]:
-    return [
-        sum(case.iterations for case in aggregation.cases)
-        for aggregation in aggregations
-    ]
-
-
 def collect_timing_throttle_flags(
     aggregations: list[TimingAggregation],
 ) -> list[bool]:
@@ -181,7 +173,6 @@ def analyze_timing_case(aggregations: list[TimingAggregation]) -> dict:
     return {
         "latency_means": to_microseconds(latency_means),
         "latency_cis": to_microseconds(latency_cis),
-        "iterations": collect_iterations(aggregations),
         "timing_throttled": collect_timing_throttle_flags(aggregations),
     }
 
@@ -206,18 +197,6 @@ def analyze_memory_case(aggregations: list[MemoryAggregation]) -> dict:
     return {
         "means": to_megabytes(means),
         "cis": to_megabytes(confidence_intervals),
-        "sample_counts": [len(aggregation.cases) for aggregation in aggregations],
-    }
-
-
-def memory_change(values: list[float]) -> dict:
-    first = values[0]
-    last = values[-1]
-    return {
-        "first": first,
-        "last": last,
-        "absolute_change": last - first,
-        "percent_change": (last / first - 1.0) * 100.0,
     }
 
 
@@ -356,6 +335,13 @@ def main() -> None:
     fixed_rsa_decrypt_latency_ci = timing_results[(RSA_KEY_BITS, "Decrypt")][
         "latency_cis"
     ][fixed_rsa_index]
+    fixed_rsa_decrypt_attribute_counts = list(attribute_counts)
+    fixed_rsa_decrypt_latency_means = [
+        fixed_rsa_decrypt_latency for _ in attribute_counts
+    ]
+    fixed_rsa_decrypt_latency_cis = [
+        fixed_rsa_decrypt_latency_ci for _ in attribute_counts
+    ]
     fixed_rsa_decrypt_memory = memory_results[(RSA_KEY_BITS, "Decrypt")]["means"][0]
     fixed_rsa_decrypt_memory_ci = memory_results[(RSA_KEY_BITS, "Decrypt")]["cis"][0]
 
@@ -414,18 +400,6 @@ def main() -> None:
         cpabe_decrypt["latency_means"][0],
     )
 
-    memory_changes = {
-        "cpabe_encrypt": memory_change(
-            memory_results[(CPABE_ATTRIBUTES, "Encrypt")]["means"]
-        ),
-        "cpabe_decrypt": memory_change(
-            memory_results[(CPABE_ATTRIBUTES, "Decrypt")]["means"]
-        ),
-        "subscriber_encrypt": memory_change(
-            memory_results[(RSA_SUBSCRIBERS, "Encrypt")]["means"]
-        ),
-    }
-
     projection_end_subscribers = latency_crossover_high * 1.15
     comparisons = {
         "bytes_per_subscriber": bytes_per_subscriber,
@@ -465,8 +439,9 @@ def main() -> None:
             "cpabe_means": cpabe_decrypt["latency_means"],
             "cpabe_cis": cpabe_decrypt["latency_cis"],
             "fixed_rsa_key_bits": fixed_rsa_key_bits,
-            "rsa_mean": fixed_rsa_decrypt_latency,
-            "rsa_ci": fixed_rsa_decrypt_latency_ci,
+            "rsa_attribute_counts": fixed_rsa_decrypt_attribute_counts,
+            "rsa_means": fixed_rsa_decrypt_latency_means,
+            "rsa_cis": fixed_rsa_decrypt_latency_cis,
         },
         "asymmetry": {
             "fixed_rsa_key_bits": fixed_rsa_key_bits,
@@ -535,10 +510,6 @@ def main() -> None:
                 rsa_decrypt["latency_means"],
                 rsa_decrypt["latency_cis"],
             ),
-            "ciphertext": (
-                rsa_encrypt["ciphertext_means"],
-                rsa_encrypt["ciphertext_cis"],
-            ),
         },
         str(result_directory / RSA_KEY_SIZE_SENSITIVITY_PLOT),
     )
@@ -588,17 +559,12 @@ def main() -> None:
         str(result_directory / ASYMMETRY_PLOT),
     )
 
-    total_iterations = sum(
-        sum(result["iterations"]) for result in timing_results.values()
-    )
     energy_baseline_mean, energy_baseline_ci = energy_baseline_statistics(
         summary.energy_baseline_cases,
         baseline_duration,
     )
     report_data = {
         "runs": runs,
-        "t_multiplier": confidence_interval_multiplier(runs),
-        "total_iterations": total_iterations,
         "energy_baseline_mean": energy_baseline_mean,
         "energy_baseline_ci": energy_baseline_ci,
         "energy_baseline_duration": baseline_duration,
@@ -615,7 +581,6 @@ def main() -> None:
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "fixed_rsa_decrypt_memory": fixed_rsa_decrypt_memory,
         "fixed_rsa_decrypt_memory_ci": fixed_rsa_decrypt_memory_ci,
-        "memory_changes": memory_changes,
         "regressions": regressions,
         "comparisons": comparisons,
         "plots": {
