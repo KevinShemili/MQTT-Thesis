@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
-    energy_baseline_statistics,
     energy_statistics,
     memory_case_statistics,
     memory_statistics,
@@ -242,7 +241,6 @@ def main() -> None:
 
     runs = parse_int_env("FULL_SCHEMA_RUNS")
     payload_sizes = parse_int_list_env("FULL_SCHEMA_PAYLOAD_SIZES")
-    baseline_duration = parse_int_env("BASELINE_DURATION")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
@@ -417,16 +415,8 @@ def main() -> None:
         str(result_directory / MEMORY_PLOT),
     )
 
-    energy_baseline_mean, energy_baseline_ci = energy_baseline_statistics(
-        summary.energy_baseline_cases,
-        baseline_duration,
-    )
-
     report_data = {
         "runs": runs,
-        "energy_baseline_mean": energy_baseline_mean,
-        "energy_baseline_ci": energy_baseline_ci,
-        "energy_baseline_duration": baseline_duration,
         "payload_sizes": payload_sizes,
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,

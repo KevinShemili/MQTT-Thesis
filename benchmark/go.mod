@@ -1,10 +1,11 @@
 module benchmark
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/cloudflare/circl v1.6.5
 	github.com/fxamacker/cbor/v2 v2.9.3
+	repani.com v0.4.0
 )
 
 require (

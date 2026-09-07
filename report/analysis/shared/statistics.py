@@ -56,20 +56,6 @@ def energy_statistics(
     return means, confidence_intervals
 
 
-# Calculate idle-baseline energy statistics across independent sampling windows
-def energy_baseline_statistics(
-    cases: list[EnergyCase],
-    baseline_duration: float,
-) -> tuple[float, float]:
-
-    values = [
-        fmean(sample.power_w for sample in case.samples) * baseline_duration
-        for case in cases
-    ]
-
-    return _mean_and_confidence_interval(values)
-
-
 # Calculate mean and confidence interval for independent memory cases
 def memory_case_statistics(
     cases: list[MemoryCase],

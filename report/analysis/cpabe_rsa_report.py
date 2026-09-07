@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_summary
 from report.analysis.shared.statistics import (
-    energy_baseline_statistics,
     energy_statistics,
     linear_regression_statistics,
     memory_case_statistics,
@@ -216,7 +215,6 @@ def main() -> None:
     subscriber_counts = parse_int_list_env("CPABE_RSA_SUBSCRIBER_COUNT")
     rsa_key_bits = parse_int_list_env("CPABE_RSA_RSA_KEY_SIZES")
     fixed_rsa_key_bits = parse_int_env("CPABE_RSA_FIXED_RSA_KEY_SIZE")
-    baseline_duration = parse_int_env("BASELINE_DURATION")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
@@ -559,15 +557,8 @@ def main() -> None:
         str(result_directory / ASYMMETRY_PLOT),
     )
 
-    energy_baseline_mean, energy_baseline_ci = energy_baseline_statistics(
-        summary.energy_baseline_cases,
-        baseline_duration,
-    )
     report_data = {
         "runs": runs,
-        "energy_baseline_mean": energy_baseline_mean,
-        "energy_baseline_ci": energy_baseline_ci,
-        "energy_baseline_duration": baseline_duration,
         "attribute_counts": attribute_counts,
         "subscriber_counts": subscriber_counts,
         "rsa_key_bits": rsa_key_bits,

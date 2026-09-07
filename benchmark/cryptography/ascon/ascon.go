@@ -3,7 +3,7 @@ package ascon
 import (
 	"crypto/cipher"
 
-	"github.com/cloudflare/circl/cipher/ascon"
+	"repani.com/ascon"
 )
 
 type ASCON struct {
@@ -14,7 +14,8 @@ type ASCON struct {
 func NewASCON(key []byte) ASCON {
 
 	// ASCON exposes itself directly as AEAD
-	aeadCipher, err := ascon.New(key, ascon.Ascon128)
+
+	aeadCipher, err := ascon.NewAEAD(key)
 	if err != nil {
 		panic(err)
 	}
