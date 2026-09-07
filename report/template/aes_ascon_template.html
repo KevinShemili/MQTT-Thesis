@@ -466,12 +466,13 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{LatencySpeedupPlot}}" alt="ASCON encryption and decryption latency speedup relative to AES-GCM over payload size">
+                            <img src="{{LatencySpeedupPlot}}" alt="Point estimates of ASCON encryption and decryption latency speedup relative to AES-GCM, with equal performance marked at one times">
                         </div>
                     </article>
 
                     <aside class="comparison-explanation">
                         <div class="comparison-label">ASCON Latency Speedup over AES-GCM</div>
+                        <p>Points compare reported mean latencies. The 1× reference represents equal performance.</p>
                         <p><strong>Encrypt</strong></p>
                         <div class="comparison-value">{{LatencySpeedupEncryptMin}}× –
                             {{LatencySpeedupEncryptMax}}×</div>
@@ -564,12 +565,13 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{EnergyReductionPlot}}" alt="ASCON encryption and decryption energy reduction relative to AES-GCM over payload size">
+                            <img src="{{EnergyReductionPlot}}" alt="Point estimates of ASCON encryption and decryption energy reduction relative to AES-GCM, with no reduction marked at zero percent">
                         </div>
                     </article>
 
                     <aside class="comparison-explanation">
                         <div class="comparison-label">ASCON Energy Reduction relative to AES-GCM</div>
+                        <p>Points compare reported mean energy per operation. The 0% reference represents no reduction.</p>
                         <p><strong>Encrypt</strong></p>
                         <div class="comparison-value">{{EnergyReductionEncryptMin}}% –
                             {{EnergyReductionEncryptMax}}%</div>

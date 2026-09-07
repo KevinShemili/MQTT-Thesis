@@ -280,6 +280,7 @@ def _plot_aes_ascon_results(
     y_label: str,
     output_path: str,
     with_small_payload_zoom: bool = False,
+    with_log2_payload_axis: bool = False,
     baseline_memory_mean: float | None = None,
 ) -> None:
     panels = []
@@ -304,7 +305,11 @@ def _plot_aes_ascon_results(
         axis.set_ylabel(y_label)
         if baseline_memory_mean is None:
             axis.set_ylim(bottom=0)
-        _configure_aes_ascon_main_axis(axis, payload_sizes)
+
+        if with_log2_payload_axis:
+            _configure_aes_ascon_log2_axis(axis, payload_sizes)
+        else:
+            _configure_aes_ascon_main_axis(axis, payload_sizes)
         rendered_panels.append((axis, payload_sizes, series))
 
         if with_small_payload_zoom:
@@ -340,6 +345,30 @@ def _configure_aes_ascon_main_axis(
         ]
     )
     axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
+    apply_value_grid(axis)
+
+
+def _configure_aes_ascon_log2_axis(
+    axis: Axes,
+    payload_sizes: list[int],
+) -> None:
+    axis.set_xscale("log", base=2)
+    axis.set_yscale("linear")
+    axis.set_xticks(payload_sizes)
+    axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in payload_sizes
+        ]
+    )
+    axis.set_xlim(payload_sizes[0] / 2, payload_sizes[-1] * 2)
+    axis.grid(
+        True,
+        axis="x",
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.25,
+    )
     apply_value_grid(axis)
 
 
@@ -421,35 +450,76 @@ def plot_aes_ascon_latency_speedup(
     speedups: dict[str, list[float]],
     output_path: str,
 ) -> None:
+    _plot_aes_ascon_effect_points(
+        payload_sizes,
+        speedups,
+        "ASCON Relative Speedup vs. AES-GCM",
+        "ASCON Speedup over AES-GCM (×)",
+        1.0,
+        "Equal performance (1×)",
+        None,
+        output_path,
+    )
+
+
+def _plot_aes_ascon_effect_points(
+    payload_sizes: list[int],
+    effects: dict[str, list[float]],
+    title: str,
+    x_label: str,
+    reference_value: float,
+    reference_label: str,
+    point_label: str | None,
+    output_path: str,
+) -> None:
     positions = list(range(len(payload_sizes)))
     payload_labels = [
         formatting.format_byte_size(payload_size, compact=True)
         for payload_size in payload_sizes
     ]
-    measured_values = speedups["Encrypt"] + speedups["Decrypt"]
-    measured_minimum = min(measured_values)
-    measured_maximum = max(measured_values)
-    margin = (measured_maximum - measured_minimum) * 0.08
+    measured_values = effects["Encrypt"] + effects["Decrypt"]
+    lower_bound = min(measured_values + [reference_value])
+    upper_bound = max(measured_values + [reference_value])
+    value_range = upper_bound - lower_bound
+    margin = value_range * 0.08
+
+    if margin == 0:
+        margin = max(abs(reference_value), 1.0) * 0.08
+
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("ASCON Relative Speedup vs. AES-GCM", fontsize=13)
+    figure.suptitle(title, fontsize=13)
 
     for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
-        axis.plot(
+        axis.scatter(
+            effects[operation],
             positions,
-            speedups[operation],
             color=VIOLET,
-            marker="o",
+            s=38,
+            label=point_label,
+            zorder=3,
+        )
+        axis.axvline(
+            reference_value,
+            color=TEAL,
+            linestyle="--",
             linewidth=1.8,
-            markersize=5,
+            label=reference_label,
         )
         axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_ylabel("Speedup vs AES-GCM (×)")
-        axis.set_xticks(positions)
-        axis.set_xticklabels(payload_labels)
-        axis.set_xlim(-0.5, len(positions) - 0.5)
-        axis.set_ylim(measured_minimum - margin, measured_maximum + margin)
-        apply_value_grid(axis)
+        axis.set_xlabel(x_label)
+        axis.set_ylabel("Payload Size")
+        axis.set_yticks(positions)
+        axis.set_yticklabels(payload_labels)
+        axis.set_ylim(len(positions) - 0.5, -0.5)
+        axis.set_xlim(lower_bound - margin, upper_bound + margin)
+        axis.grid(
+            True,
+            axis="x",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.18,
+        )
+        axis.legend(fontsize=9, loc="best")
 
     figure.tight_layout()
     save_figure(figure, output_path)
@@ -466,6 +536,7 @@ def plot_aes_ascon_throughput(
         "AES-GCM vs. ASCON: Throughput vs. Payload Size",
         "Throughput (MB/s)",
         output_path,
+        with_log2_payload_axis=True,
     )
 
 
@@ -489,32 +560,16 @@ def plot_aes_ascon_energy_reduction(
     reductions: dict[str, list[float]],
     output_path: str,
 ) -> None:
-    positions = list(range(len(payload_sizes)))
-    payload_labels = [
-        formatting.format_byte_size(payload_size, compact=True)
-        for payload_size in payload_sizes
-    ]
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle("ASCON Energy Reduction vs. AES-GCM", fontsize=13)
-
-    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
-        axis.bar(
-            positions,
-            reductions[operation],
-            width=0.65,
-            color=VIOLET,
-        )
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_ylabel("Energy Reduction vs AES-GCM (%)")
-        axis.set_xticks(positions)
-        axis.set_xticklabels(payload_labels)
-        axis.set_xlim(-0.5, len(positions) - 0.5)
-        axis.set_ylim(0, 100)
-        apply_value_grid(axis)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
+    _plot_aes_ascon_effect_points(
+        payload_sizes,
+        reductions,
+        "ASCON Energy Reduction vs. AES-GCM",
+        "ASCON Energy Reduction vs. AES-GCM (%)",
+        0.0,
+        "No reduction (0%)",
+        "Estimate from means",
+        output_path,
+    )
 
 
 def plot_aes_ascon_memory(
@@ -529,6 +584,7 @@ def plot_aes_ascon_memory(
         "AES-GCM vs. ASCON: Peak Process Memory vs. Payload Size",
         "Peak RSS (MB)",
         output_path,
+        with_log2_payload_axis=True,
         baseline_memory_mean=baseline_memory_mean,
     )
 
