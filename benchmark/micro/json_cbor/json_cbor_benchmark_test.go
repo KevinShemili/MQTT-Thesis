@@ -15,10 +15,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
 
-	// Scenario 1: JSON Scaling Attribute Count
-	for _, attributeCount := range config.AttributeCounts {
+	// Scenario 1: JSON Scaling Payload Size
+	for _, payloadSize := range config.PayloadSizes {
 
-		benchmark.Run(fmt.Sprintf("JSON/%dAttrs", attributeCount), func(b *testing.B) {
+		benchmark.Run(fmt.Sprintf("JSON/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate CP-ABE authority
 			authority := cpabe.NewCPABEAuthority()
@@ -28,7 +28,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			aes := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
 			nonce := utility.GenerateRandomBytes(aes.NonceSize())
@@ -36,8 +36,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			// Encrypt payload
 			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
 
-			// Build policy for given attribute count
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+			// Build the fixed CP-ABE policy used by every payload-size case
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
 
 			// Encrypt symmetric key under policy
 			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -48,6 +48,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				Nonce:         nonce,
 				AESCiphertext: aesCiphertext,
 			}
+
+			// Size of the three binary fields before serialization overhead is added
+			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
 
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
@@ -64,6 +67,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes")
+			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -73,10 +77,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 2: CBOR Scaling Attribute Count
-	for _, attributeCount := range config.AttributeCounts {
+	// Scenario 2: CBOR Scaling Payload Size
+	for _, payloadSize := range config.PayloadSizes {
 
-		benchmark.Run(fmt.Sprintf("CBOR/%dAttrs", attributeCount), func(b *testing.B) {
+		benchmark.Run(fmt.Sprintf("CBOR/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate CP-ABE authority
 			authority := cpabe.NewCPABEAuthority()
@@ -86,7 +90,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
 			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
@@ -94,8 +98,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-			// Build policy for given attribute count
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+			// Build the fixed CP-ABE policy used by every payload-size case
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
 
 			// Encrypt symmetric key under policy
 			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -106,6 +110,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				Nonce:         nonce,
 				AESCiphertext: aesCiphertext,
 			}
+
+			// Size of the three binary fields before serialization overhead is added
+			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
 
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
@@ -122,6 +129,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
+			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -131,10 +139,10 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: CBOR With Integer Keys Scaling Attribute Count
-	for _, attributeCount := range config.AttributeCounts {
+	// Scenario 3: CBOR With Integer Keys Scaling Payload Size
+	for _, payloadSize := range config.PayloadSizes {
 
-		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dAttrs", attributeCount), func(b *testing.B) {
+		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate CP-ABE authority
 			authority := cpabe.NewCPABEAuthority()
@@ -144,7 +152,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
 			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
@@ -152,8 +160,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-			// Build policy for given attribute count
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+			// Build the fixed CP-ABE policy used by every payload-size case
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
 
 			// Encrypt symmetric key under policy
 			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -164,6 +172,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 				Nonce:         nonce,
 				AESCiphertext: aesCiphertext,
 			}
+
+			// Size of the three binary fields before serialization overhead is added
+			rawSize := len(abeCiphertext) + len(nonce) + len(aesCiphertext)
 
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
@@ -180,6 +191,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			}
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
+			b.ReportMetric(float64(rawSize), "raw_bytes")
 
 			if throttle.IsThrottled() {
 				b.ReportMetric(1, "throttled")
@@ -194,10 +206,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
 
-	// Scenario 1: JSON Scaling Attribute Count
-	for _, attributeCount := range config.AttributeCounts {
+	// Scenario 1: JSON Scaling Payload Size
+	for _, payloadSize := range config.PayloadSizes {
 
-		benchmark.Run(fmt.Sprintf("JSON/%dAttrs", attributeCount), func(b *testing.B) {
+		benchmark.Run(fmt.Sprintf("JSON/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate CP-ABE authority
 			authority := cpabe.NewCPABEAuthority()
@@ -207,7 +219,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
 			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
@@ -215,8 +227,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-			// Build policy for given attribute count
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+			// Build the fixed CP-ABE policy used by every payload-size case
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
 
 			// Encrypt symmetric key under policy
 			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -249,10 +261,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 2: CBOR Scaling Attribute Count
-	for _, attributeCount := range config.AttributeCounts {
+	// Scenario 2: CBOR Scaling Payload Size
+	for _, payloadSize := range config.PayloadSizes {
 
-		benchmark.Run(fmt.Sprintf("CBOR/%dAttrs", attributeCount), func(b *testing.B) {
+		benchmark.Run(fmt.Sprintf("CBOR/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate CP-ABE authority
 			authority := cpabe.NewCPABEAuthority()
@@ -262,7 +274,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
 			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
@@ -270,8 +282,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-			// Build policy for given attribute count
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+			// Build the fixed CP-ABE policy used by every payload-size case
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
 
 			// Encrypt symmetric key under policy
 			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -304,10 +316,10 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: CBOR With Integer Keys Scaling Attribute Count
-	for _, attributeCount := range config.AttributeCounts {
+	// Scenario 3: CBOR With Integer Keys Scaling Payload Size
+	for _, payloadSize := range config.PayloadSizes {
 
-		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dAttrs", attributeCount), func(b *testing.B) {
+		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate CP-ABE authority
 			authority := cpabe.NewCPABEAuthority()
@@ -317,7 +329,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			aesGcm := aes.NewAES(symmetricKey)
 
 			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(config.PayloadSize)
+			plaintext := utility.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
 			nonce := utility.GenerateRandomBytes(aesGcm.NonceSize())
@@ -325,8 +337,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			// Encrypt payload
 			aesCiphertext := aesGcm.Seal(nil, nonce, plaintext, nil)
 
-			// Build policy for given attribute count
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+			// Build the fixed CP-ABE policy used by every payload-size case
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
 
 			// Encrypt symmetric key under policy
 			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)

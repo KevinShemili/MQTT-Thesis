@@ -244,6 +244,10 @@
             gap: 14px;
         }
 
+        .table-row.single-table {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         .table-block {
             display: flex;
             flex-direction: column;
@@ -414,7 +418,7 @@
     <main class="page">
         <header class="hero">
             <div class="eyebrow">Microbenchmark Scenario 3</div>
-            <h1>Envelope Serialization under Attribute Count Scaling</h1>
+            <h1>Envelope Serialization under Payload Size Scaling</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -441,22 +445,22 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Serialization and Deserialization Latency vs. Attribute Count</h3>
+                        <h3>Serialization and Deserialization Latency vs. Payload Size</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{LatencyPlot}}" alt="JSON and CBOR serialization and deserialization latency over attribute count">
+                        <img src="{{LatencyPlot}}" alt="JSON and CBOR serialization and deserialization latency over payload size">
                     </div>
                 </article>
 
                 <div class="comparison-row">
                     <article class="plot-card">
                         <div class="plot-copy">
-                            <h3>Relative Latency Speedup vs. Attribute Count</h3>
+                            <h3>Relative Latency Speedup vs. Payload Size</h3>
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{LatencySpeedupPlot}}" alt="CBOR serialization and deserialization latency speedup relative to JSON over attribute count">
+                            <img src="{{LatencySpeedupPlot}}" alt="CBOR serialization and deserialization latency speedup relative to JSON over payload size">
                         </div>
                     </article>
 
@@ -478,28 +482,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Serialize</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>JSON: Attribute Count Scaling</h3>
+                        <h3>Latency (µs/op)</h3>
 
                         <div class="table-wrapper">
-                            {{SerializeJsonTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR: Attribute Count Scaling</h3>
-
-                        <div class="table-wrapper">
-                            {{SerializeCborTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR (Int Keys): Attribute Count Scaling</h3>
-
-                        <div class="table-wrapper">
-                            {{SerializeCborKeyAsIntTable}}
+                            {{SerializeTimingTable}}
                         </div>
                     </div>
                 </div>
@@ -508,28 +496,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Deserialize</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>JSON: Attribute Count Scaling</h3>
+                        <h3>Latency (µs/op)</h3>
 
                         <div class="table-wrapper">
-                            {{DeserializeJsonTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR: Attribute Count Scaling</h3>
-
-                        <div class="table-wrapper">
-                            {{DeserializeCborTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR (Int Keys): Attribute Count Scaling</h3>
-
-                        <div class="table-wrapper">
-                            {{DeserializeCborKeyAsIntTable}}
+                            {{DeserializeTimingTable}}
                         </div>
                     </div>
                 </div>
@@ -544,62 +516,47 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Envelope Size vs. Attribute Count</h3>
+                        <h3>Envelope Size vs. Payload Size</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{SizePlot}}" alt="JSON and CBOR envelope size over attribute count">
+                        <img src="{{SizePlot}}" alt="JSON and CBOR envelope size over payload size">
                     </div>
                 </article>
 
                 <div class="comparison-row">
                     <article class="plot-card">
                         <div class="plot-copy">
-                            <h3>Envelope Size Reduction vs. JSON</h3>
+                            <h3>Wire Overhead above Raw Binary Data</h3>
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{SizeReductionPlot}}" alt="CBOR envelope size reduction relative to JSON over attribute count">
+                            <img src="{{WireOverheadPlot}}" alt="JSON and CBOR wire overhead above the raw binary envelope data over payload size">
                         </div>
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Envelope Size Reduction relative to JSON</div>
+                        <div class="comparison-label">Overhead above the three raw binary fields</div>
+                        <p><strong>JSON</strong><br>
+                            Grows from {{JsonWireOverheadFirst}} B to {{JsonWireOverheadLast}} B because the
+                            binary values are Base64-encoded.</p>
                         <p><strong>CBOR</strong><br>
-                            {{SizeReductionCborMin}}% – {{SizeReductionCborMax}}%</p>
+                            {{CborWireOverheadMin}} B – {{CborWireOverheadMax}} B</p>
                         <p><strong>CBOR (Int Keys)</strong><br>
-                            {{SizeReductionCborIntMin}}% – {{SizeReductionCborIntMax}}%</p>
-                        <p>Using integer CBOR keys reduced envelope size by a fixed additional
-                            {{IntegerKeySizeSavingBytes}} B at every tested attribute count. Consequently, the
-                            relative benefit decreased from {{IntegerKeySizeReductionFirst}}% at one attribute to
-                            {{IntegerKeySizeReductionLast}}% at fifty attributes.</p>
+                            {{CborIntWireOverheadMin}} B – {{CborIntWireOverheadMax}} B</p>
+                        <p>The small CBOR steps occur when byte-string lengths cross CBOR length-prefix
+                            boundaries.</p>
                     </aside>
                 </div>
             </div>
 
             <div class="operation-group">
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>JSON: Envelope Size</h3>
+                        <h3>Envelope Size Comparison</h3>
 
                         <div class="table-wrapper">
-                            {{JsonSizeTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR: Envelope Size</h3>
-
-                        <div class="table-wrapper">
-                            {{CborSizeTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR (Int Keys): Envelope Size</h3>
-
-                        <div class="table-wrapper">
-                            {{CborKeyAsIntSizeTable}}
+                            {{SizeComparisonTable}}
                         </div>
                     </div>
                 </div>
@@ -618,11 +575,11 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Energy per Operation vs. Attribute Count</h3>
+                        <h3>Energy per Operation vs. Payload Size</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{EnergyPlot}}" alt="JSON and CBOR energy per operation over attribute count">
+                        <img src="{{EnergyPlot}}" alt="JSON and CBOR energy per operation over payload size">
                     </div>
                 </article>
 
@@ -633,7 +590,7 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{EnergyReductionPlot}}" alt="CBOR serialization and deserialization energy reduction relative to JSON over attribute count">
+                            <img src="{{EnergyReductionPlot}}" alt="CBOR serialization and deserialization energy reduction relative to JSON over payload size">
                         </div>
                     </article>
 
@@ -655,28 +612,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Serialize</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>JSON: Energy per Operation</h3>
+                        <h3>Energy (µJ/op)</h3>
 
                         <div class="table-wrapper">
-                            {{SerializeJsonEnergyTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR: Energy per Operation</h3>
-
-                        <div class="table-wrapper">
-                            {{SerializeCborEnergyTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR (Int Keys): Energy per Operation</h3>
-
-                        <div class="table-wrapper">
-                            {{SerializeCborKeyAsIntEnergyTable}}
+                            {{SerializeEnergyTable}}
                         </div>
                     </div>
                 </div>
@@ -685,28 +626,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Deserialize</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>JSON: Energy per Operation</h3>
+                        <h3>Energy (µJ/op)</h3>
 
                         <div class="table-wrapper">
-                            {{DeserializeJsonEnergyTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR: Energy per Operation</h3>
-
-                        <div class="table-wrapper">
-                            {{DeserializeCborEnergyTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>CBOR (Int Keys): Energy per Operation</h3>
-
-                        <div class="table-wrapper">
-                            {{DeserializeCborKeyAsIntEnergyTable}}
+                            {{DeserializeEnergyTable}}
                         </div>
                     </div>
                 </div>

@@ -227,7 +227,7 @@ def main():
     )
 
     runs = parse_int_env("AES_ASCON_RUNS")
-    payload_sizes = parse_int_list_env("AES_ASCON_PAYLOAD_SIZES")
+    payload_sizes = parse_int_list_env("PAYLOAD_SIZES")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 

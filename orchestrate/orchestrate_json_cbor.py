@@ -31,7 +31,7 @@ UM24C_PORT = "COM11"
 def load_environment_variables():
 
     global RUNS
-    global ATTRIBUTE_COUNTS
+    global PAYLOAD_SIZES
     global TIMING_DURATION
     global BASELINE_DURATION
     global WARMUP_DURATION
@@ -49,9 +49,8 @@ def load_environment_variables():
 
     RUNS = int(os.environ["JSON_CBOR_RUNS"])
 
-    ATTRIBUTE_COUNTS = [
-        int(attribute_count)
-        for attribute_count in os.environ["JSON_CBOR_ATTRIBUTE_COUNTS"].split(",")
+    PAYLOAD_SIZES = [
+        int(payload_size) for payload_size in os.environ["PAYLOAD_SIZES"].split(",")
     ]
 
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])
@@ -111,17 +110,15 @@ def build_benchmark_binary():
     )
 
 
-def run_energy_case(meter, output, algorithm, operation, attribute_count):
+def run_energy_case(meter, output, algorithm, operation, payload_size):
 
-    print(f"Energy: {algorithm} {operation} {attribute_count}Attrs")
+    print(f"Energy: {algorithm} {operation} {payload_size}B")
     output.write(
-        f"\n[case algorithm={algorithm} operation={operation} parameter_value={attribute_count}]\n"
+        f"\n[case algorithm={algorithm} operation={operation} parameter_value={payload_size}]\n"
     )
 
     benchmark_case = (
-        f"^BenchmarkEnvelopeEnergy{operation}$/"
-        f"^{algorithm}$/"
-        f"^{attribute_count}Attrs$"
+        f"^BenchmarkEnvelopeEnergy{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
@@ -193,10 +190,7 @@ def run_energy_case(meter, output, algorithm, operation, attribute_count):
 
     if process.wait() != 0:
         raise RuntimeError(
-            f"Benchmark Failed: "
-            f"{algorithm} "
-            f"{operation} "
-            f"{attribute_count}Attrs"
+            f"Benchmark Failed: " f"{algorithm} " f"{operation} " f"{payload_size}B"
         )
 
 
@@ -217,27 +211,27 @@ def orchestrate_energy():
                 output.write("[baseline]\n")
                 write_to_file(output, read_um24c(um24c, BASELINE_DURATION))
 
-            for attribute_count in ATTRIBUTE_COUNTS:
+            for payload_size in PAYLOAD_SIZES:
 
-                run_energy_case(um24c, output, "JSON", "Serialize", attribute_count)
-                run_energy_case(um24c, output, "JSON", "Deserialize", attribute_count)
-                run_energy_case(um24c, output, "CBOR", "Serialize", attribute_count)
-                run_energy_case(um24c, output, "CBOR", "Deserialize", attribute_count)
+                run_energy_case(um24c, output, "JSON", "Serialize", payload_size)
+                run_energy_case(um24c, output, "JSON", "Deserialize", payload_size)
+                run_energy_case(um24c, output, "CBOR", "Serialize", payload_size)
+                run_energy_case(um24c, output, "CBOR", "Deserialize", payload_size)
                 run_energy_case(
-                    um24c, output, "CBORKeyAsInt", "Serialize", attribute_count
+                    um24c, output, "CBORKeyAsInt", "Serialize", payload_size
                 )
                 run_energy_case(
-                    um24c, output, "CBORKeyAsInt", "Deserialize", attribute_count
+                    um24c, output, "CBORKeyAsInt", "Deserialize", payload_size
                 )
 
     print(f"Finished: {ENERGY_RESULT_FILE}")
 
 
-def run_timing_case(output, algorithm, operation, attribute_count):
+def run_timing_case(output, algorithm, operation, payload_size):
 
-    print(f"Timing: {algorithm} {operation} {attribute_count}Attrs")
+    print(f"Timing: {algorithm} {operation} {payload_size}B")
     benchmark_case = (
-        f"^BenchmarkEnvelope{operation}$/" f"^{algorithm}$/" f"^{attribute_count}Attrs$"
+        f"^BenchmarkEnvelope{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
@@ -264,7 +258,7 @@ def run_timing_case(output, algorithm, operation, attribute_count):
             f"Benchmark Failed: "
             f"{algorithm} "
             f"{operation} "
-            f"{attribute_count}Attrs\n"
+            f"{payload_size}B\n"
             f"{result.stderr}"
         )
 
@@ -273,17 +267,15 @@ def orchestrate_timing():
 
     with TIMING_RESULT_FILE.open("w", encoding="utf-8") as destination_file:
 
-        for attribute_count in ATTRIBUTE_COUNTS:
+        for payload_size in PAYLOAD_SIZES:
 
-            run_timing_case(destination_file, "JSON", "Serialize", attribute_count)
-            run_timing_case(destination_file, "JSON", "Deserialize", attribute_count)
-            run_timing_case(destination_file, "CBOR", "Serialize", attribute_count)
-            run_timing_case(destination_file, "CBOR", "Deserialize", attribute_count)
+            run_timing_case(destination_file, "JSON", "Serialize", payload_size)
+            run_timing_case(destination_file, "JSON", "Deserialize", payload_size)
+            run_timing_case(destination_file, "CBOR", "Serialize", payload_size)
+            run_timing_case(destination_file, "CBOR", "Deserialize", payload_size)
+            run_timing_case(destination_file, "CBORKeyAsInt", "Serialize", payload_size)
             run_timing_case(
-                destination_file, "CBORKeyAsInt", "Serialize", attribute_count
-            )
-            run_timing_case(
-                destination_file, "CBORKeyAsInt", "Deserialize", attribute_count
+                destination_file, "CBORKeyAsInt", "Deserialize", payload_size
             )
 
     print(f"Finished: {TIMING_RESULT_FILE}")

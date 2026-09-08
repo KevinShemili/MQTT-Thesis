@@ -18,6 +18,13 @@ THERMAL_FLAGGED_NOTE = (
 THERMAL_CLEAN_NOTE = "No throttling occurred while these cases were measured."
 
 
+def _append_thermal_mark(cell: str) -> str:
+    return (
+        f'{cell}<span class="thermal-mark" '
+        f'title="Thermally throttled">{THERMAL_MARK}</span>'
+    )
+
+
 def build_html_table(
     headers: Sequence[str],
     rows: Sequence[Sequence[str]],
@@ -38,10 +45,7 @@ def build_html_table(
 
         for column_index, cell in enumerate(row):
             if column_index == 0 and throttled is not None and throttled[index]:
-                cell = (
-                    f'{cell}<span class="thermal-mark" '
-                    f'title="Thermally throttled">{THERMAL_MARK}</span>'
-                )
+                cell = _append_thermal_mark(cell)
             lines.append(f"<td>{cell}</td>")
 
         lines.append("</tr>")
@@ -94,6 +98,17 @@ def _mean_ci_column(
         format_mean_with_ci(mean, confidence_interval, decimals=decimals)
         for mean, confidence_interval in zip(means, confidence_intervals, strict=True)
     ]
+
+
+def _mark_throttled_cells(cells: list[str], throttled: list[bool]) -> list[str]:
+    return [
+        _append_thermal_mark(cell) if is_throttled else cell
+        for cell, is_throttled in zip(cells, throttled, strict=True)
+    ]
+
+
+def _byte_column(values: Sequence[int]) -> list[str]:
+    return [f"{value:,} B" for value in values]
 
 
 def _build_data_table(
@@ -238,90 +253,82 @@ def write_aes_ascon_report(
 
 
 def _build_json_cbor_timing_tables(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
-    headers = [
-        "Attribute Count",
-        "Latency (µs/op)",
-    ]
-    specifications = [
-        ("SerializeJsonTable", ("JSON", "Serialize")),
-        ("SerializeCborTable", ("CBOR", "Serialize")),
-        ("SerializeCborKeyAsIntTable", ("CBORKeyAsInt", "Serialize")),
-        ("DeserializeJsonTable", ("JSON", "Deserialize")),
-        ("DeserializeCborTable", ("CBOR", "Deserialize")),
-        ("DeserializeCborKeyAsIntTable", ("CBORKeyAsInt", "Deserialize")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = cases[case]
-        tables[placeholder] = _build_data_table(
-            headers,
-            [
-                [str(value) for value in attribute_counts],
+    return {
+        f"{operation}TimingTable": _build_json_cbor_measurement_table(
+            payload_sizes,
+            cases,
+            operation,
+            "latency_means",
+            "latency_cis",
+            "timing_throttled",
+        )
+        for operation in ("Serialize", "Deserialize")
+    }
+
+
+def _build_json_cbor_measurement_table(
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+    operation: str,
+    mean_key: str,
+    confidence_interval_key: str,
+    throttled_key: str,
+) -> str:
+    columns = [_byte_column(payload_sizes)]
+
+    for format_name in ("JSON", "CBOR", "CBORKeyAsInt"):
+        values = cases[(format_name, operation)]
+        columns.append(
+            _mark_throttled_cells(
                 _mean_ci_column(
-                    values["latency_means"],
-                    values["latency_cis"],
+                    values[mean_key],
+                    values[confidence_interval_key],
                 ),
-            ],
-            values["timing_throttled"],
+                values[throttled_key],
+            )
         )
 
-    return tables
+    return _build_data_table(
+        ["Payload", "JSON", "CBOR", "CBOR integer"],
+        columns,
+    )
 
 
-def _build_json_cbor_size_tables(
-    attribute_counts: list[int],
+def _build_json_cbor_size_table(
+    payload_sizes: list[int],
+    raw_sizes: list[int],
     sizes: dict[str, list[int]],
-) -> dict[str, str]:
-    specifications = [
-        ("JsonSizeTable", "JSON"),
-        ("CborSizeTable", "CBOR"),
-        ("CborKeyAsIntSizeTable", "CBORKeyAsInt"),
-    ]
-    tables = {}
-    for placeholder, format_name in specifications:
-        tables[placeholder] = _build_data_table(
-            ["Attribute Count", "Envelope Size (B)"],
-            [
-                [str(value) for value in attribute_counts],
-                [f"{value:,}" for value in sizes[format_name]],
-            ],
-        )
-
-    return tables
+) -> str:
+    return _build_data_table(
+        ["Payload", "Raw binary", "JSON", "CBOR", "CBOR integer"],
+        [
+            _byte_column(payload_sizes),
+            _byte_column(raw_sizes),
+            _byte_column(sizes["JSON"]),
+            _byte_column(sizes["CBOR"]),
+            _byte_column(sizes["CBORKeyAsInt"]),
+        ],
+    )
 
 
 def _build_json_cbor_energy_tables(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
-    headers = ["Attribute Count", "Energy (µJ/op)"]
-    specifications = [
-        ("SerializeJsonEnergyTable", ("JSON", "Serialize")),
-        ("SerializeCborEnergyTable", ("CBOR", "Serialize")),
-        ("SerializeCborKeyAsIntEnergyTable", ("CBORKeyAsInt", "Serialize")),
-        ("DeserializeJsonEnergyTable", ("JSON", "Deserialize")),
-        ("DeserializeCborEnergyTable", ("CBOR", "Deserialize")),
-        ("DeserializeCborKeyAsIntEnergyTable", ("CBORKeyAsInt", "Deserialize")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = cases[case]
-        tables[placeholder] = _build_data_table(
-            headers,
-            [
-                [str(value) for value in attribute_counts],
-                _mean_ci_column(
-                    values["energy_means"],
-                    values["energy_cis"],
-                ),
-            ],
-            values["energy_throttled"],
+    return {
+        f"{operation}EnergyTable": _build_json_cbor_measurement_table(
+            payload_sizes,
+            cases,
+            operation,
+            "energy_means",
+            "energy_cis",
+            "energy_throttled",
         )
-
-    return tables
+        for operation in ("Serialize", "Deserialize")
+    }
 
 
 def write_json_cbor_report(
@@ -329,13 +336,12 @@ def write_json_cbor_report(
     template_path: str,
     report_path: str,
 ) -> None:
-    attribute_counts = report_data["attribute_counts"]
+    payload_sizes = report_data["payload_sizes"]
     cases = report_data["cases"]
     plots = report_data["plots"]
     interpretations = report_data["interpretations"]
     latency_speedup = interpretations["latency_speedup"]
-    size_reduction = interpretations["size_reduction"]
-    integer_key_size_reduction = interpretations["integer_key_size_reduction"]
+    wire_overhead = interpretations["wire_overhead"]
     energy_reduction = interpretations["energy_reduction"]
     timing_throttled = [
         flag for values in cases.values() for flag in values["timing_throttled"]
@@ -347,9 +353,13 @@ def write_json_cbor_report(
     placeholders = {
         "RunCount": str(report_data["runs"]),
         "ConfidenceLevel": CONFIDENCE_LEVEL,
-        **_build_json_cbor_timing_tables(attribute_counts, cases),
-        **_build_json_cbor_size_tables(attribute_counts, report_data["sizes"]),
-        **_build_json_cbor_energy_tables(attribute_counts, cases),
+        **_build_json_cbor_timing_tables(payload_sizes, cases),
+        "SizeComparisonTable": _build_json_cbor_size_table(
+            payload_sizes,
+            report_data["raw_sizes"],
+            report_data["sizes"],
+        ),
+        **_build_json_cbor_energy_tables(payload_sizes, cases),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
@@ -365,14 +375,13 @@ def write_json_cbor_report(
         "LatencySpeedupDeserializeCborIntMin": f'{latency_speedup["deserialize_cbor_int_min"]:.1f}',
         "LatencySpeedupDeserializeCborIntMax": f'{latency_speedup["deserialize_cbor_int_max"]:.1f}',
         "SizePlot": plots["size"],
-        "SizeReductionPlot": plots["size_reduction"],
-        "SizeReductionCborMin": f'{size_reduction["cbor_min"]:.1f}',
-        "SizeReductionCborMax": f'{size_reduction["cbor_max"]:.1f}',
-        "SizeReductionCborIntMin": f'{size_reduction["cbor_int_min"]:.1f}',
-        "SizeReductionCborIntMax": f'{size_reduction["cbor_int_max"]:.1f}',
-        "IntegerKeySizeSavingBytes": f'{integer_key_size_reduction["additional_bytes"]:,}',
-        "IntegerKeySizeReductionFirst": f'{integer_key_size_reduction["first"]:.2f}',
-        "IntegerKeySizeReductionLast": f'{integer_key_size_reduction["last"]:.2f}',
+        "WireOverheadPlot": plots["wire_overhead"],
+        "JsonWireOverheadFirst": f'{wire_overhead["json_first"]:,}',
+        "JsonWireOverheadLast": f'{wire_overhead["json_last"]:,}',
+        "CborWireOverheadMin": f'{wire_overhead["cbor_min"]:,}',
+        "CborWireOverheadMax": f'{wire_overhead["cbor_max"]:,}',
+        "CborIntWireOverheadMin": f'{wire_overhead["cbor_int_min"]:,}',
+        "CborIntWireOverheadMax": f'{wire_overhead["cbor_int_max"]:,}',
         "EnergyPlot": plots["energy"],
         "EnergyReductionPlot": plots["energy_reduction"],
         "EnergyReductionSerializeCborMin": f'{energy_reduction["serialize_cbor_min"]:.1f}',

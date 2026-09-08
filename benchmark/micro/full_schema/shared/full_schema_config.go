@@ -13,7 +13,7 @@ func LoadFullSchemaConfig() FullSchemaConfig {
 
 	return FullSchemaConfig{
 		PayloadSizes: utility.ParseIntListFromEnv(
-			"FULL_SCHEMA_PAYLOAD_SIZES",
+			"PAYLOAD_SIZES",
 		),
 		AESKeySize: utility.ParseIntFromEnv(
 			"FULL_SCHEMA_AES_KEY_SIZE",

@@ -9,7 +9,7 @@ Go implements the benchmark workloads. Python on the laptop builds and executes 
 | Scenario | Varied parameter | Compared cases | Reported results |
 | --- | --- | --- | --- |
 | AES vs. ASCON | Payload size | AES-GCM and ASCON Encrypt/Decrypt | Latency, throughput, wire overhead, energy/op, iterations, thermal state |
-| JSON vs. CBOR | Attribute count | JSON, CBOR, and CBOR with integer keys Serialize/Deserialize | Latency, encoded size, format overhead, energy/op, iterations, thermal state |
+| JSON vs. CBOR | Payload size | JSON, CBOR, and CBOR with integer keys Serialize/Deserialize | Latency, encoded size, format overhead, energy/op, iterations, thermal state |
 | Full Schema | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput chart, wire size, energy/op, peak RSS, and thermal state |
 | CP-ABE vs. RSA | CP-ABE policy attributes and RSA subscribers; RSA key size is a secondary timing sensitivity | CP-ABE and RSA Encrypt/Decrypt | Latency, wrapped-key sizes, energy/op, peak RSS, slopes, crossovers, asymmetry, and comparisons |
 
@@ -101,7 +101,7 @@ Experiment settings live in [`environment/benchmark.env`](environment/benchmark.
 - timing duration;
 - idle-baseline, warmup, measurement, and tail durations;
 - repetition counts;
-- payload sizes and attribute counts;
+- the shared payload-size sweep and scenario-specific attribute counts;
 - subscriber counts, fixed RSA configuration, and RSA timing-sensitivity key sizes;
 - fixed comparison values and result directories.
 

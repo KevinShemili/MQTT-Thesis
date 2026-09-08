@@ -11,7 +11,7 @@ type AESASCONConfig struct {
 func NewAESASCONConfig() AESASCONConfig {
 
 	return AESASCONConfig{
-		PayloadSizes: utility.ParseIntListFromEnv("AES_ASCON_PAYLOAD_SIZES"),
+		PayloadSizes: utility.ParseIntListFromEnv("PAYLOAD_SIZES"),
 		AESKeySize:   utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 		ASCONKeySize: utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
 	}

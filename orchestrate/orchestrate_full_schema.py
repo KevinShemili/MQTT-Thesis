@@ -55,8 +55,7 @@ def load_environment_variables():
     RUNS = int(os.environ["FULL_SCHEMA_RUNS"])
 
     PAYLOAD_SIZES = [
-        int(payload_size)
-        for payload_size in os.environ["FULL_SCHEMA_PAYLOAD_SIZES"].split(",")
+        int(payload_size) for payload_size in os.environ["PAYLOAD_SIZES"].split(",")
     ]
 
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])

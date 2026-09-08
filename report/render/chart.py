@@ -8,9 +8,9 @@ from report.render import formatting
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 from math import isnan
-from typing import Any
+from typing import Any, Callable
 
 from .color import *
 from .formatting import KILOBYTE, MEGABYTE
@@ -205,6 +205,8 @@ def _plot_operation_comparison(
     y_label: str,
     output_path: str,
     byte_tick_step: int | None = None,
+    with_log2_payload_axis: bool = False,
+    with_logarithmic_y_axis: bool = False,
     legend_location: str | None = None,
     baseline_memory_mean: float | None = None,
 ) -> None:
@@ -217,13 +219,19 @@ def _plot_operation_comparison(
         axis.set_title(operation, fontsize=11)
         axis.set_xlabel(x_label)
         axis.set_ylabel(y_label)
-        axis.set_ylim(bottom=0)
+        if not with_logarithmic_y_axis:
+            axis.set_ylim(bottom=0)
         rendered_panels.append((axis, parameter_values, series))
 
-        if byte_tick_step is None:
+        if with_log2_payload_axis:
+            _configure_log2_payload_axis(axis, parameter_values)
+        elif byte_tick_step is None:
             configure_attribute_axis(parameter_values, axis)
         else:
             configure_byte_axis(axis, parameter_values[-1], byte_tick_step)
+
+        if with_logarithmic_y_axis:
+            _configure_compact_logarithmic_y_axis(axis)
 
         legend_options = {"fontsize": 10}
         if legend_location is not None:
@@ -307,7 +315,7 @@ def _plot_aes_ascon_results(
             axis.set_ylim(bottom=0)
 
         if with_log2_payload_axis:
-            _configure_aes_ascon_log2_axis(axis, payload_sizes)
+            _configure_log2_payload_axis(axis, payload_sizes)
         else:
             _configure_aes_ascon_main_axis(axis, payload_sizes)
         rendered_panels.append((axis, payload_sizes, series))
@@ -348,7 +356,7 @@ def _configure_aes_ascon_main_axis(
     apply_value_grid(axis)
 
 
-def _configure_aes_ascon_log2_axis(
+def _configure_log2_payload_axis(
     axis: Axes,
     payload_sizes: list[int],
 ) -> None:
@@ -450,26 +458,32 @@ def plot_aes_ascon_latency_speedup(
     speedups: dict[str, list[float]],
     output_path: str,
 ) -> None:
-    _plot_aes_ascon_effect_points(
+    _plot_payload_effect_points(
         payload_sizes,
-        speedups,
+        [
+            (operation, [(None, speedups[operation], VIOLET)])
+            for operation in ("Encrypt", "Decrypt")
+        ],
         "ASCON Relative Speedup vs. AES-GCM",
         "ASCON Speedup over AES-GCM (×)",
         1.0,
         "Equal performance (1×)",
-        None,
         output_path,
     )
 
 
-def _plot_aes_ascon_effect_points(
+def _plot_payload_effect_points(
     payload_sizes: list[int],
-    effects: dict[str, list[float]],
+    panels: list[
+        tuple[
+            str,
+            list[tuple[str | None, list[float], str]],
+        ]
+    ],
     title: str,
     x_label: str,
     reference_value: float,
     reference_label: str,
-    point_label: str | None,
     output_path: str,
 ) -> None:
     positions = list(range(len(payload_sizes)))
@@ -477,7 +491,9 @@ def _plot_aes_ascon_effect_points(
         formatting.format_byte_size(payload_size, compact=True)
         for payload_size in payload_sizes
     ]
-    measured_values = effects["Encrypt"] + effects["Decrypt"]
+    measured_values = [
+        value for _, series in panels for _, values, _ in series for value in values
+    ]
     lower_bound = min(measured_values + [reference_value])
     upper_bound = max(measured_values + [reference_value])
     value_range = upper_bound - lower_bound
@@ -489,15 +505,20 @@ def _plot_aes_ascon_effect_points(
     figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle(title, fontsize=13)
 
-    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
-        axis.scatter(
-            effects[operation],
-            positions,
-            color=VIOLET,
-            s=38,
-            label=point_label,
-            zorder=3,
-        )
+    for axis, (operation, series) in zip(axes, panels, strict=True):
+        offsets = [
+            (index - (len(series) - 1) / 2) * 0.22 for index in range(len(series))
+        ]
+
+        for offset, (label, values, color) in zip(offsets, series, strict=True):
+            axis.scatter(
+                values,
+                [position + offset for position in positions],
+                color=color,
+                s=38,
+                label=label,
+                zorder=3,
+            )
         axis.axvline(
             reference_value,
             color=TEAL,
@@ -560,14 +581,16 @@ def plot_aes_ascon_energy_reduction(
     reductions: dict[str, list[float]],
     output_path: str,
 ) -> None:
-    _plot_aes_ascon_effect_points(
+    _plot_payload_effect_points(
         payload_sizes,
-        reductions,
+        [
+            (operation, [("Estimate from means", reductions[operation], VIOLET)])
+            for operation in ("Encrypt", "Decrypt")
+        ],
         "ASCON Energy Reduction vs. AES-GCM",
         "ASCON Energy Reduction vs. AES-GCM (%)",
         0.0,
         "No reduction (0%)",
-        "Estimate from means",
         output_path,
     )
 
@@ -746,6 +769,45 @@ def _configure_plain_y_axis(axis: Axes) -> None:
 
 def _format_plain_number(value: float, _position: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def _configure_compact_logarithmic_y_axis(axis: Axes) -> None:
+    _configure_logarithmic_y_axis(axis, _format_compact_logarithmic_tick)
+
+
+def _configure_byte_logarithmic_y_axis(axis: Axes) -> None:
+    _configure_logarithmic_y_axis(axis, _format_byte_logarithmic_tick)
+
+
+def _configure_logarithmic_y_axis(
+    axis: Axes,
+    formatter: Callable[[float, float], str],
+) -> None:
+    axis.set_yscale("log", base=10)
+    axis.yaxis.set_major_locator(LogLocator(base=10, subs=(1.0,)))
+    axis.yaxis.set_major_formatter(FuncFormatter(formatter))
+    axis.yaxis.set_minor_formatter(NullFormatter())
+    apply_value_grid(axis)
+
+
+def _format_compact_logarithmic_tick(value: float, _position: float) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:g}M"
+
+    if value >= 1_000:
+        return f"{value / 1_000:g}k"
+
+    return f"{value:g}"
+
+
+def _format_byte_logarithmic_tick(value: float, _position: float) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:g} MB"
+
+    if value >= 1_000:
+        return f"{value / 1_000:g} KB"
+
+    return f"{value:g} B"
 
 
 def plot_full_schema_latency(
@@ -1020,11 +1082,12 @@ def _configure_parameter_axis(
 
 
 def _plot_json_cbor_results(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     title: str,
     y_label: str,
     output_path: str,
+    with_logarithmic_y_axis: bool = False,
 ) -> None:
     panels = []
 
@@ -1044,86 +1107,63 @@ def _plot_json_cbor_results(
         panels.append((operation, series))
 
     _plot_operation_comparison(
-        attribute_counts,
+        payload_sizes,
         panels,
         title,
-        "Attribute Count",
+        "Payload Size (bytes)",
         y_label,
         output_path,
+        with_log2_payload_axis=True,
+        with_logarithmic_y_axis=with_logarithmic_y_axis,
     )
 
 
-def _plot_json_cbor_relative_results(
-    attribute_counts: list[int],
-    results: dict[tuple[str, str], list[float]],
-    title: str,
-    y_label: str,
-    y_limits: dict[str, tuple[float, float]],
-    output_path: str,
-) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
-    figure.suptitle(title, fontsize=13)
-
-    for axis, operation in zip(axes, ("Serialize", "Deserialize"), strict=True):
-        for format_name, label, color in (
-            ("CBOR", "CBOR", VIOLET),
-            ("CBORKeyAsInt", "CBOR (Int Keys)", TEAL),
-        ):
-            axis.plot(
-                attribute_counts,
-                results[(format_name, operation)],
-                label=label,
-                color=color,
-                marker="o",
-                linewidth=1.8,
-                markersize=5,
-            )
-
-        axis.set_title(operation, fontsize=11)
-        axis.set_xlabel("Attribute Count")
-        axis.set_ylabel(y_label)
-        axis.set_ylim(*y_limits[operation])
-        configure_attribute_axis(attribute_counts, axis)
-        axis.legend(fontsize=10)
-
-    figure.tight_layout()
-    save_figure(figure, output_path)
-
-
 def plot_json_cbor_latency(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
     _plot_json_cbor_results(
-        attribute_counts,
+        payload_sizes,
         results,
-        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Attribute Count",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Latency vs. Payload Size",
         "Latency (µs/op)",
         output_path,
+        with_logarithmic_y_axis=True,
     )
 
 
 def plot_json_cbor_latency_speedup(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     speedups: dict[tuple[str, str], list[float]],
     output_path: str,
 ) -> None:
-    _plot_json_cbor_relative_results(
-        attribute_counts,
-        speedups,
-        "Relative Latency Speedup vs. Attribute Count",
+    _plot_payload_effect_points(
+        payload_sizes,
+        [
+            (
+                operation,
+                [
+                    ("CBOR", speedups[("CBOR", operation)], VIOLET),
+                    (
+                        "CBOR (Int Keys)",
+                        speedups[("CBORKeyAsInt", operation)],
+                        TEAL,
+                    ),
+                ],
+            )
+            for operation in ("Serialize", "Deserialize")
+        ],
+        "CBOR Relative Latency Speedup vs. JSON",
         "Speedup vs JSON (×)",
-        {
-            "Serialize": (4.0, 6.5),
-            "Deserialize": (18.0, 60.0),
-        },
+        1.0,
+        "Equal performance (1×)",
         output_path,
     )
 
 
 def plot_json_cbor_size(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     envelope_sizes: dict[str, list[int]],
     output_path: str,
 ) -> None:
@@ -1135,7 +1175,7 @@ def plot_json_cbor_size(
         ("CBORKeyAsInt", "CBOR (Int Keys)", TEAL),
     ):
         axis.plot(
-            attribute_counts,
+            payload_sizes,
             envelope_sizes[format_name],
             label=label,
             color=color,
@@ -1145,52 +1185,65 @@ def plot_json_cbor_size(
         )
 
     axis.set_title(
-        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Attribute Count",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Payload Size",
         fontsize=13,
     )
-    axis.set_xlabel("Attribute Count")
+    axis.set_xlabel("Payload Size (bytes)")
     axis.set_ylabel("Envelope size (bytes)")
-    axis.set_ylim(bottom=0)
-    configure_attribute_axis(attribute_counts, axis)
+    _configure_log2_payload_axis(axis, payload_sizes)
+    _configure_byte_logarithmic_y_axis(axis)
     axis.legend(fontsize=10)
 
     figure.tight_layout()
     save_figure(figure, output_path)
 
 
-def plot_json_cbor_size_reduction(
-    attribute_counts: list[int],
-    reductions: dict[str, list[float]],
+def plot_json_cbor_wire_overhead(
+    payload_sizes: list[int],
+    wire_overheads: dict[str, list[int]],
     output_path: str,
 ) -> None:
-    positions = list(range(len(attribute_counts)))
-    bar_width = 0.38
+    positions = list(range(len(payload_sizes)))
+    bar_width = 0.25
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
 
-    axis.bar(
-        [position - bar_width / 2 for position in positions],
-        reductions["CBOR"],
-        width=bar_width,
-        label="CBOR",
-        color=VIOLET,
-    )
-    axis.bar(
-        [position + bar_width / 2 for position in positions],
-        reductions["CBORKeyAsInt"],
-        width=bar_width,
-        label="CBOR (Int Keys)",
-        color=TEAL,
-    )
+    for series_index, (format_name, label, color) in enumerate(
+        (
+            ("JSON", "JSON", AMBER),
+            ("CBOR", "CBOR", VIOLET),
+            ("CBORKeyAsInt", "CBOR (Int Keys)", TEAL),
+        )
+    ):
+        offset = (series_index - 1) * bar_width
+        axis.bar(
+            [position + offset for position in positions],
+            wire_overheads[format_name],
+            width=bar_width,
+            label=label,
+            color=color,
+        )
 
-    axis.set_title("Envelope Size Reduction vs. JSON", fontsize=13)
-    axis.set_xlabel("Attribute Count")
-    axis.set_ylabel("Size Reduction vs JSON (%)")
-    axis.set_yscale("linear")
-    axis.set_ylim(0.0, 30.0)
+    axis.set_title("Wire Overhead above Raw Binary Data", fontsize=13)
+    axis.set_xlabel("Payload Size")
+    axis.set_ylabel("Wire overhead (bytes, log scale)")
+    _configure_byte_logarithmic_y_axis(axis)
+    axis.set_ylim(bottom=1)
     axis.set_xticks(positions)
-    axis.set_xticklabels([str(attribute_count) for attribute_count in attribute_counts])
+    axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in payload_sizes
+        ]
+    )
     axis.set_xlim(-0.6, len(positions) - 0.4)
-    apply_mesh_grid(axis)
+    axis.grid(
+        True,
+        axis="y",
+        which="both",
+        linestyle="-",
+        linewidth=0.5,
+        alpha=0.18,
+    )
     axis.legend(fontsize=10)
 
     figure.tight_layout()
@@ -1198,33 +1251,45 @@ def plot_json_cbor_size_reduction(
 
 
 def plot_json_cbor_energy(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
     _plot_json_cbor_results(
-        attribute_counts,
+        payload_sizes,
         results,
-        "JSON vs. CBOR vs. CBOR (Int Keys): Energy per Operation vs. Attribute Count",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Energy per Operation vs. Payload Size",
         "Energy (µJ/op)",
         output_path,
+        with_logarithmic_y_axis=True,
     )
 
 
 def plot_json_cbor_energy_reduction(
-    attribute_counts: list[int],
+    payload_sizes: list[int],
     reductions: dict[tuple[str, str], list[float]],
     output_path: str,
 ) -> None:
-    _plot_json_cbor_relative_results(
-        attribute_counts,
-        reductions,
-        "Energy Reduction vs. JSON",
+    _plot_payload_effect_points(
+        payload_sizes,
+        [
+            (
+                operation,
+                [
+                    ("CBOR", reductions[("CBOR", operation)], VIOLET),
+                    (
+                        "CBOR (Int Keys)",
+                        reductions[("CBORKeyAsInt", operation)],
+                        TEAL,
+                    ),
+                ],
+            )
+            for operation in ("Serialize", "Deserialize")
+        ],
+        "CBOR Energy Reduction vs. JSON",
         "Energy Reduction vs JSON (%)",
-        {
-            "Serialize": (58.0, 70.0),
-            "Deserialize": (89.0, 97.0),
-        },
+        0.0,
+        "No reduction (0%)",
         output_path,
     )
 

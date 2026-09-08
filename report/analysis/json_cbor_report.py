@@ -19,6 +19,7 @@ from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
     ENVELOPE_BYTES,
     NS_PER_OP,
+    RAW_BYTES,
     THROTTLED as TIMING_THROTTLED,
 )
 from report.render.chart import (
@@ -27,7 +28,7 @@ from report.render.chart import (
     plot_json_cbor_latency,
     plot_json_cbor_latency_speedup,
     plot_json_cbor_size,
-    plot_json_cbor_size_reduction,
+    plot_json_cbor_wire_overhead,
 )
 from report.render.formatting import NS_PER_MICROSECOND
 from report.render.html import write_json_cbor_report
@@ -36,13 +37,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
 BENCHMARK_PREFIX = "BenchmarkEnvelope"
-PARAMETER = "attribute_count"
+PARAMETER = "payload_size"
 PARAMETER_BY_ALGORITHM = {
     "JSON": PARAMETER,
     "CBOR": PARAMETER,
     "CBORKeyAsInt": PARAMETER,
 }
-PARAMETER_SUFFIX = "Attrs"
+PARAMETER_SUFFIX = "B"
 
 TIMING_RESULT_NAME = "timing.txt"
 ENERGY_RESULT_NAME = "energy.txt"
@@ -51,7 +52,7 @@ REPORT_TEMPLATE_NAME = "json_cbor_template.html"
 LATENCY_PLOT = "latency.png"
 LATENCY_SPEEDUP_PLOT = "latency_speedup.png"
 SIZE_PLOT = "size.png"
-SIZE_REDUCTION_PLOT = "size_reduction.png"
+WIRE_OVERHEAD_PLOT = "wire_overhead.png"
 ENERGY_PLOT = "energy.png"
 ENERGY_REDUCTION_PLOT = "energy_reduction.png"
 
@@ -62,7 +63,7 @@ def collect_timing_aggregations(
     summary: BenchmarkSummary,
     format_name: str,
     operation: str,
-    attribute_counts: list[int],
+    payload_sizes: list[int],
 ) -> list[TimingAggregation]:
 
     matching_aggregations = {
@@ -73,16 +74,14 @@ def collect_timing_aggregations(
         and aggregation.parameter == PARAMETER
     }
 
-    return [
-        matching_aggregations[attribute_count] for attribute_count in attribute_counts
-    ]
+    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
 def collect_energy_aggregations(
     summary: BenchmarkSummary,
     format_name: str,
     operation: str,
-    attribute_counts: list[int],
+    payload_sizes: list[int],
 ) -> list[EnergyAggregation]:
 
     matching_aggregations = {
@@ -93,9 +92,7 @@ def collect_energy_aggregations(
         and aggregation.parameter == PARAMETER
     }
 
-    return [
-        matching_aggregations[attribute_count] for attribute_count in attribute_counts
-    ]
+    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
 def collect_timing_throttle_flags(
@@ -160,7 +157,7 @@ def main() -> None:
     )
 
     runs = parse_int_env("JSON_CBOR_RUNS")
-    attribute_counts = parse_int_list_env("JSON_CBOR_ATTRIBUTE_COUNTS")
+    payload_sizes = parse_int_list_env("PAYLOAD_SIZES")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
@@ -189,14 +186,14 @@ def main() -> None:
                 summary,
                 format_name,
                 operation,
-                attribute_counts,
+                payload_sizes,
             )
 
             energy_aggregations = collect_energy_aggregations(
                 summary,
                 format_name,
                 operation,
-                attribute_counts,
+                payload_sizes,
             )
 
             case_results[(format_name, operation)] = analyze_case(
@@ -213,18 +210,40 @@ def main() -> None:
         for case, values in case_results.items()
     }
 
-    size_results = {}
-    for format_name in ("JSON", "CBOR", "CBORKeyAsInt"):
-        serialization_aggregations = collect_timing_aggregations(
+    serialization_aggregations = {
+        format_name: collect_timing_aggregations(
             summary,
             format_name,
             "Serialize",
-            attribute_counts,
+            payload_sizes,
         )
-        size_results[format_name] = [
+        for format_name in ("JSON", "CBOR", "CBORKeyAsInt")
+    }
+
+    size_results = {
+        format_name: [
             int(aggregation.cases[0].measurements[ENVELOPE_BYTES])
-            for aggregation in serialization_aggregations
+            for aggregation in aggregations
         ]
+        for format_name, aggregations in serialization_aggregations.items()
+    }
+
+    raw_sizes = [
+        int(aggregation.cases[0].measurements[RAW_BYTES])
+        for aggregation in serialization_aggregations["JSON"]
+    ]
+
+    wire_overheads = {
+        format_name: [
+            envelope_size - raw_size
+            for envelope_size, raw_size in zip(
+                envelope_sizes,
+                raw_sizes,
+                strict=True,
+            )
+        ]
+        for format_name, envelope_sizes in size_results.items()
+    }
 
     energy_results = {
         case: (
@@ -246,27 +265,6 @@ def main() -> None:
         for format_name in ("CBOR", "CBORKeyAsInt")
         for operation in ("Serialize", "Deserialize")
     }
-
-    size_reductions = {
-        format_name: [
-            (json_size - alternative_size) / json_size * 100.0
-            for json_size, alternative_size in zip(
-                size_results["JSON"],
-                size_results[format_name],
-                strict=True,
-            )
-        ]
-        for format_name in ("CBOR", "CBORKeyAsInt")
-    }
-
-    integer_key_size_reductions = [
-        (cbor_size - integer_key_size) / cbor_size * 100.0
-        for cbor_size, integer_key_size in zip(
-            size_results["CBOR"],
-            size_results["CBORKeyAsInt"],
-            strict=True,
-        )
-    ]
 
     energy_reductions = {
         (format_name, operation): [
@@ -300,17 +298,13 @@ def main() -> None:
                 latency_speedups[("CBORKeyAsInt", "Deserialize")]
             ),
         },
-        "size_reduction": {
-            "cbor_min": min(size_reductions["CBOR"]),
-            "cbor_max": max(size_reductions["CBOR"]),
-            "cbor_int_min": min(size_reductions["CBORKeyAsInt"]),
-            "cbor_int_max": max(size_reductions["CBORKeyAsInt"]),
-        },
-        "integer_key_size_reduction": {
-            "additional_bytes": size_results["CBOR"][0]
-            - size_results["CBORKeyAsInt"][0],
-            "first": integer_key_size_reductions[0],
-            "last": integer_key_size_reductions[-1],
+        "wire_overhead": {
+            "json_first": wire_overheads["JSON"][0],
+            "json_last": wire_overheads["JSON"][-1],
+            "cbor_min": min(wire_overheads["CBOR"]),
+            "cbor_max": max(wire_overheads["CBOR"]),
+            "cbor_int_min": min(wire_overheads["CBORKeyAsInt"]),
+            "cbor_int_max": max(wire_overheads["CBORKeyAsInt"]),
         },
         "energy_reduction": {
             "serialize_cbor_min": min(energy_reductions[("CBOR", "Serialize")]),
@@ -333,45 +327,47 @@ def main() -> None:
     }
 
     plot_json_cbor_latency(
-        attribute_counts,
+        payload_sizes,
         latency_results,
         str(result_directory / LATENCY_PLOT),
     )
 
     plot_json_cbor_latency_speedup(
-        attribute_counts,
+        payload_sizes,
         latency_speedups,
         str(result_directory / LATENCY_SPEEDUP_PLOT),
     )
 
     plot_json_cbor_size(
-        attribute_counts,
+        payload_sizes,
         size_results,
         str(result_directory / SIZE_PLOT),
     )
 
-    plot_json_cbor_size_reduction(
-        attribute_counts,
-        size_reductions,
-        str(result_directory / SIZE_REDUCTION_PLOT),
+    plot_json_cbor_wire_overhead(
+        payload_sizes,
+        wire_overheads,
+        str(result_directory / WIRE_OVERHEAD_PLOT),
     )
 
     plot_json_cbor_energy(
-        attribute_counts,
+        payload_sizes,
         energy_results,
         str(result_directory / ENERGY_PLOT),
     )
 
     plot_json_cbor_energy_reduction(
-        attribute_counts,
+        payload_sizes,
         energy_reductions,
         str(result_directory / ENERGY_REDUCTION_PLOT),
     )
 
     report_data = {
         "runs": runs,
-        "attribute_counts": attribute_counts,
+        "payload_sizes": payload_sizes,
+        "raw_sizes": raw_sizes,
         "sizes": size_results,
+        "wire_overheads": wire_overheads,
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
@@ -380,7 +376,7 @@ def main() -> None:
             "latency": LATENCY_PLOT,
             "latency_speedup": LATENCY_SPEEDUP_PLOT,
             "size": SIZE_PLOT,
-            "size_reduction": SIZE_REDUCTION_PLOT,
+            "wire_overhead": WIRE_OVERHEAD_PLOT,
             "energy": ENERGY_PLOT,
             "energy_reduction": ENERGY_REDUCTION_PLOT,
         },

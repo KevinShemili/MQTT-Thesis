@@ -55,8 +55,7 @@ def load_environment_variables():
     RUNS = int(os.environ["AES_ASCON_RUNS"])
 
     PAYLOAD_SIZES = [
-        int(payload_size)
-        for payload_size in os.environ["AES_ASCON_PAYLOAD_SIZES"].split(",")
+        int(payload_size) for payload_size in os.environ["PAYLOAD_SIZES"].split(",")
     ]
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])
     BASELINE_DURATION = int(os.environ["BASELINE_DURATION"])
