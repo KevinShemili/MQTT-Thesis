@@ -244,6 +244,10 @@
             gap: 14px;
         }
 
+        .table-row.single-table {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
         .table-block {
             display: flex;
             flex-direction: column;
@@ -496,20 +500,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>AES-GCM: Payload Size Scaling</h3>
+                        <h3>Latency (µs/op)</h3>
 
                         <div class="table-wrapper">
-                            {{EncryptAesTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>ASCON: Payload Size Scaling</h3>
-
-                        <div class="table-wrapper">
-                            {{EncryptAsconTable}}
+                            {{EncryptTimingTable}}
                         </div>
                     </div>
                 </div>
@@ -518,20 +514,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Decrypt</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>AES-GCM: Payload Size Scaling</h3>
+                        <h3>Latency (µs/op)</h3>
 
                         <div class="table-wrapper">
-                            {{DecryptAesTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>ASCON: Payload Size Scaling</h3>
-
-                        <div class="table-wrapper">
-                            {{DecryptAsconTable}}
+                            {{DecryptTimingTable}}
                         </div>
                     </div>
                 </div>
@@ -585,20 +573,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>AES-GCM: Energy per Operation</h3>
+                        <h3>Energy (µJ/op)</h3>
 
                         <div class="table-wrapper">
-                            {{EncryptAesEnergyTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>ASCON: Energy per Operation</h3>
-
-                        <div class="table-wrapper">
-                            {{EncryptAsconEnergyTable}}
+                            {{EncryptEnergyTable}}
                         </div>
                     </div>
                 </div>
@@ -607,20 +587,12 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Decrypt</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>AES-GCM: Energy per Operation</h3>
+                        <h3>Energy (µJ/op)</h3>
 
                         <div class="table-wrapper">
-                            {{DecryptAesEnergyTable}}
-                        </div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>ASCON: Energy per Operation</h3>
-
-                        <div class="table-wrapper">
-                            {{DecryptAsconEnergyTable}}
+                            {{DecryptEnergyTable}}
                         </div>
                     </div>
                 </div>
@@ -656,15 +628,10 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Encrypt</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>AES-GCM: Peak Process Memory</h3>
-                        <div class="table-wrapper">{{EncryptAesMemoryTable}}</div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>ASCON: Peak Process Memory</h3>
-                        <div class="table-wrapper">{{EncryptAsconMemoryTable}}</div>
+                        <h3>Peak RSS (MB)</h3>
+                        <div class="table-wrapper">{{EncryptMemoryTable}}</div>
                     </div>
                 </div>
             </div>
@@ -672,15 +639,10 @@
             <div class="operation-group">
                 <h3 class="operation-heading">Decrypt</h3>
 
-                <div class="table-row">
+                <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>AES-GCM: Peak Process Memory</h3>
-                        <div class="table-wrapper">{{DecryptAesMemoryTable}}</div>
-                    </div>
-
-                    <div class="table-block">
-                        <h3>ASCON: Peak Process Memory</h3>
-                        <div class="table-wrapper">{{DecryptAsconMemoryTable}}</div>
+                        <h3>Peak RSS (MB)</h3>
+                        <div class="table-wrapper">{{DecryptMemoryTable}}</div>
                     </div>
                 </div>
             </div>

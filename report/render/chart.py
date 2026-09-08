@@ -22,8 +22,6 @@ PANEL_FIGURE_SIZE = (13, 5)
 AXIS_HEADROOM = 1.03
 CROSSOVER_FIGURE_SIZE = (8.5, 5.2)
 TOTAL_CIPHERTEXT_COLOR = TEAL
-AES_ASCON_MAIN_TICK_MIN = 4 * KILOBYTE
-AES_ASCON_ZOOM_MAX = KILOBYTE
 FULL_SCHEMA_ZOOM_MAX = 256 * KILOBYTE
 PEAK_RSS_AXIS_PADDING = 0.08
 PEAK_RSS_FALLBACK_PADDING = 0.01
@@ -287,8 +285,7 @@ def _plot_aes_ascon_results(
     title: str,
     y_label: str,
     output_path: str,
-    with_small_payload_zoom: bool = False,
-    with_log2_payload_axis: bool = False,
+    with_logarithmic_y_axis: bool = False,
     baseline_memory_mean: float | None = None,
 ) -> None:
     panels = []
@@ -311,17 +308,15 @@ def _plot_aes_ascon_results(
         axis.set_title(operation, fontsize=11)
         axis.set_xlabel("Payload Size")
         axis.set_ylabel(y_label)
-        if baseline_memory_mean is None:
+        if baseline_memory_mean is None and not with_logarithmic_y_axis:
             axis.set_ylim(bottom=0)
 
-        if with_log2_payload_axis:
-            _configure_log2_payload_axis(axis, payload_sizes)
-        else:
-            _configure_aes_ascon_main_axis(axis, payload_sizes)
-        rendered_panels.append((axis, payload_sizes, series))
+        _configure_log2_payload_axis(axis, payload_sizes)
 
-        if with_small_payload_zoom:
-            _draw_aes_ascon_small_payload_zoom(axis, payload_sizes, series)
+        if with_logarithmic_y_axis:
+            _configure_compact_logarithmic_y_axis(axis)
+
+        rendered_panels.append((axis, payload_sizes, series))
 
     if baseline_memory_mean is not None:
         _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
@@ -331,29 +326,6 @@ def _plot_aes_ascon_results(
 
     figure.tight_layout()
     save_figure(figure, output_path)
-
-
-def _configure_aes_ascon_main_axis(
-    axis: Axes,
-    payload_sizes: list[int],
-) -> None:
-    tick_values = [
-        payload_size
-        for payload_size in payload_sizes
-        if payload_size >= AES_ASCON_MAIN_TICK_MIN
-    ]
-
-    axis.set_xscale("linear")
-    axis.set_yscale("linear")
-    axis.set_xticks(tick_values)
-    axis.set_xticklabels(
-        [
-            formatting.format_byte_size(payload_size, compact=True)
-            for payload_size in tick_values
-        ]
-    )
-    axis.set_xlim(0, payload_sizes[-1] * AXIS_HEADROOM)
-    apply_value_grid(axis)
 
 
 def _configure_log2_payload_axis(
@@ -380,64 +352,6 @@ def _configure_log2_payload_axis(
     apply_value_grid(axis)
 
 
-def _draw_aes_ascon_small_payload_zoom(
-    axis: Axes,
-    payload_sizes: list[int],
-    series: list[tuple[str, list[float], list[float], str]],
-) -> None:
-    zoom_indexes = [
-        index
-        for index, payload_size in enumerate(payload_sizes)
-        if payload_size <= AES_ASCON_ZOOM_MAX
-    ]
-    zoom_payload_sizes = [payload_sizes[index] for index in zoom_indexes]
-    zoom_axis = axis.inset_axes([0.30, 0.55, 0.46, 0.38])  # type: ignore
-    zoom_series = []
-
-    for label, means, confidence_intervals, color in series:
-        zoom_means = [means[index] for index in zoom_indexes]
-        zoom_confidence_intervals = [
-            confidence_intervals[index] for index in zoom_indexes
-        ]
-        zoom_series.append((label, zoom_means, zoom_confidence_intervals, color))
-        draw_summary(
-            zoom_axis,
-            zoom_payload_sizes,
-            zoom_means,
-            zoom_confidence_intervals,
-            label,
-            color,
-            with_ci=True,
-            linewidth=1.3,
-            markersize=3.5,
-            capsize=2.5,
-        )
-
-    zoom_axis.set_xscale("linear")
-    zoom_axis.set_yscale("linear")
-    zoom_axis.set_xlim(0, zoom_payload_sizes[-1] * AXIS_HEADROOM)
-    zoom_axis.set_ylim(
-        0,
-        max(
-            calculate_axis_top(means, confidence_intervals)
-            for _, means, confidence_intervals, _ in zoom_series
-        )
-        * 1.10,
-    )
-    zoom_axis.set_xticks(zoom_payload_sizes)
-    zoom_axis.set_xticklabels(
-        [
-            formatting.format_byte_size(payload_size, compact=True)
-            for payload_size in zoom_payload_sizes
-        ],
-        rotation=90,
-        ha="center",
-    )
-    zoom_axis.set_title("Small payloads", fontsize=8)
-    zoom_axis.tick_params(axis="both", labelsize=7)
-    apply_value_grid(zoom_axis, linewidth=0.4)
-
-
 def plot_aes_ascon_latency(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
@@ -449,7 +363,7 @@ def plot_aes_ascon_latency(
         "AES-GCM vs. ASCON: Latency vs. Payload Size",
         "Latency (µs/op)",
         output_path,
-        with_small_payload_zoom=True,
+        with_logarithmic_y_axis=True,
     )
 
 
@@ -557,7 +471,6 @@ def plot_aes_ascon_throughput(
         "AES-GCM vs. ASCON: Throughput vs. Payload Size",
         "Throughput (MB/s)",
         output_path,
-        with_log2_payload_axis=True,
     )
 
 
@@ -572,7 +485,7 @@ def plot_aes_ascon_energy(
         "AES-GCM vs. ASCON: Energy per Operation vs. Payload Size",
         "Energy (µJ/op)",
         output_path,
-        with_small_payload_zoom=True,
+        with_logarithmic_y_axis=True,
     )
 
 
@@ -607,7 +520,6 @@ def plot_aes_ascon_memory(
         "AES-GCM vs. ASCON: Peak Process Memory vs. Payload Size",
         "Peak RSS (MB)",
         output_path,
-        with_log2_payload_axis=True,
         baseline_memory_mean=baseline_memory_mean,
     )
 

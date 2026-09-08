@@ -119,89 +119,82 @@ def _build_data_table(
     return build_html_table(headers, _rows_from_columns(columns), throttled)
 
 
-def _build_aes_ascon_tables(
+def _build_aes_ascon_timing_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
-    headers = [
-        "Payload Size (B)",
-        "Latency (µs/op)",
-    ]
-    specifications = [
-        ("EncryptAesTable", ("AES-GCM", "Encrypt")),
-        ("EncryptAsconTable", ("ASCON", "Encrypt")),
-        ("DecryptAesTable", ("AES-GCM", "Decrypt")),
-        ("DecryptAsconTable", ("ASCON", "Decrypt")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = cases[case]
-        tables[placeholder] = _build_data_table(
-            headers,
-            [
-                [f"{value:,}" for value in payload_sizes],
-                _mean_ci_column(
-                    values["latency_means"],
-                    values["latency_cis"],
-                ),
-            ],
-            values["timing_throttled"],
+    return {
+        f"{operation}TimingTable": _build_aes_ascon_measurement_table(
+            payload_sizes,
+            cases,
+            operation,
+            "latency_means",
+            "latency_cis",
+            "timing_throttled",
+        )
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+
+def _build_aes_ascon_measurement_table(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], dict[str, Any]],
+    operation: str,
+    mean_key: str,
+    confidence_interval_key: str,
+    throttled_key: str | None = None,
+) -> str:
+    columns = [_byte_column(payload_sizes)]
+
+    for algorithm in ("AES-GCM", "ASCON"):
+        values = results[(algorithm, operation)]
+        cells = _mean_ci_column(
+            values[mean_key],
+            values[confidence_interval_key],
         )
 
-    return tables
+        if throttled_key is not None:
+            cells = _mark_throttled_cells(cells, values[throttled_key])
+
+        columns.append(cells)
+
+    return _build_data_table(
+        ["Payload", "AES-GCM", "ASCON"],
+        columns,
+    )
 
 
 def _build_aes_ascon_memory_tables(
     payload_sizes: list[int],
     memory: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
-    specifications = [
-        ("EncryptAesMemoryTable", ("AES-GCM", "Encrypt")),
-        ("EncryptAsconMemoryTable", ("ASCON", "Encrypt")),
-        ("DecryptAesMemoryTable", ("AES-GCM", "Decrypt")),
-        ("DecryptAsconMemoryTable", ("ASCON", "Decrypt")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = memory[case]
-        tables[placeholder] = _build_data_table(
-            ["Payload Size (B)", "Peak RSS (MB)"],
-            [
-                [f"{value:,}" for value in payload_sizes],
-                _mean_ci_column(values["means"], values["cis"]),
-            ],
+    return {
+        f"{operation}MemoryTable": _build_aes_ascon_measurement_table(
+            payload_sizes,
+            memory,
+            operation,
+            "means",
+            "cis",
         )
-
-    return tables
+        for operation in ("Encrypt", "Decrypt")
+    }
 
 
 def _build_aes_ascon_energy_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
-    headers = ["Payload Size (B)", "Energy (µJ/op)"]
-    specifications = [
-        ("EncryptAesEnergyTable", ("AES-GCM", "Encrypt")),
-        ("EncryptAsconEnergyTable", ("ASCON", "Encrypt")),
-        ("DecryptAesEnergyTable", ("AES-GCM", "Decrypt")),
-        ("DecryptAsconEnergyTable", ("ASCON", "Decrypt")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = cases[case]
-        tables[placeholder] = _build_data_table(
-            headers,
-            [
-                [f"{value:,}" for value in payload_sizes],
-                _mean_ci_column(
-                    values["energy_means"],
-                    values["energy_cis"],
-                ),
-            ],
-            values["energy_throttled"],
+    return {
+        f"{operation}EnergyTable": _build_aes_ascon_measurement_table(
+            payload_sizes,
+            cases,
+            operation,
+            "energy_means",
+            "energy_cis",
+            "energy_throttled",
         )
-
-    return tables
+        for operation in ("Encrypt", "Decrypt")
+    }
 
 
 def write_aes_ascon_report(
@@ -225,7 +218,7 @@ def write_aes_ascon_report(
     placeholders = {
         "RunCount": str(report_data["runs"]),
         "ConfidenceLevel": CONFIDENCE_LEVEL,
-        **_build_aes_ascon_tables(payload_sizes, cases),
+        **_build_aes_ascon_timing_tables(payload_sizes, cases),
         **_build_aes_ascon_energy_tables(payload_sizes, cases),
         **_build_aes_ascon_memory_tables(payload_sizes, report_data["memory"]),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
