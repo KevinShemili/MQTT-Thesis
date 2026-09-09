@@ -333,6 +333,18 @@ def main() -> None:
     fixed_rsa_decrypt_latency_ci = timing_results[(RSA_KEY_BITS, "Decrypt")][
         "latency_cis"
     ][fixed_rsa_index]
+    fixed_rsa_decrypt_timing_throttled = timing_results[(RSA_KEY_BITS, "Decrypt")][
+        "timing_throttled"
+    ][fixed_rsa_index]
+    fixed_rsa_decrypt_energy = energy_results[(RSA_KEY_BITS, "Decrypt")][
+        "energy_means"
+    ][0]
+    fixed_rsa_decrypt_energy_ci = energy_results[(RSA_KEY_BITS, "Decrypt")][
+        "energy_cis"
+    ][0]
+    fixed_rsa_decrypt_energy_throttled = energy_results[(RSA_KEY_BITS, "Decrypt")][
+        "energy_throttled"
+    ][0]
     fixed_rsa_decrypt_attribute_counts = list(attribute_counts)
     fixed_rsa_decrypt_latency_means = [
         fixed_rsa_decrypt_latency for _ in attribute_counts
@@ -570,6 +582,12 @@ def main() -> None:
         "memory": memory_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
+        "fixed_rsa_decrypt_latency": fixed_rsa_decrypt_latency,
+        "fixed_rsa_decrypt_latency_ci": fixed_rsa_decrypt_latency_ci,
+        "fixed_rsa_decrypt_timing_throttled": fixed_rsa_decrypt_timing_throttled,
+        "fixed_rsa_decrypt_energy": fixed_rsa_decrypt_energy,
+        "fixed_rsa_decrypt_energy_ci": fixed_rsa_decrypt_energy_ci,
+        "fixed_rsa_decrypt_energy_throttled": fixed_rsa_decrypt_energy_throttled,
         "fixed_rsa_decrypt_memory": fixed_rsa_decrypt_memory,
         "fixed_rsa_decrypt_memory_ci": fixed_rsa_decrypt_memory_ci,
         "regressions": regressions,

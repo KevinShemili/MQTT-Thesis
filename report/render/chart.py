@@ -332,16 +332,36 @@ def _configure_log2_payload_axis(
     axis: Axes,
     payload_sizes: list[int],
 ) -> None:
-    axis.set_xscale("log", base=2)
-    axis.set_yscale("linear")
-    axis.set_xticks(payload_sizes)
-    axis.set_xticklabels(
+    _configure_log2_parameter_axis(
+        axis,
+        payload_sizes,
         [
             formatting.format_byte_size(payload_size, compact=True)
             for payload_size in payload_sizes
-        ]
+        ],
     )
-    axis.set_xlim(payload_sizes[0] / 2, payload_sizes[-1] * 2)
+
+
+def _configure_log2_count_axis(
+    axis: Axes,
+    parameter_values: list[int],
+) -> None:
+    _configure_log2_parameter_axis(
+        axis,
+        parameter_values,
+        [str(parameter_value) for parameter_value in parameter_values],
+    )
+
+
+def _configure_log2_parameter_axis(
+    axis: Axes,
+    parameter_values: list[int],
+    tick_labels: list[str],
+) -> None:
+    axis.set_xscale("log", base=2)
+    axis.set_xticks(parameter_values)
+    axis.set_xticklabels(tick_labels)
+    axis.set_xlim(parameter_values[0] / 2, parameter_values[-1] * 2)
     axis.grid(
         True,
         axis="x",
@@ -683,8 +703,12 @@ def _format_plain_number(value: float, _position: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
+def _configure_compact_linear_y_axis(axis: Axes) -> None:
+    axis.yaxis.set_major_formatter(FuncFormatter(_format_compact_number))
+
+
 def _configure_compact_logarithmic_y_axis(axis: Axes) -> None:
-    _configure_logarithmic_y_axis(axis, _format_compact_logarithmic_tick)
+    _configure_logarithmic_y_axis(axis, _format_compact_number)
 
 
 def _configure_byte_logarithmic_y_axis(axis: Axes) -> None:
@@ -702,7 +726,7 @@ def _configure_logarithmic_y_axis(
     apply_value_grid(axis)
 
 
-def _format_compact_logarithmic_tick(value: float, _position: float) -> str:
+def _format_compact_number(value: float, _position: float) -> str:
     if value >= 1_000_000:
         return f"{value / 1_000_000:g}M"
 
@@ -983,10 +1007,14 @@ def _configure_parameter_axis(
     y_label: str,
     parameter_values: list[int],
     x_label: str,
+    with_logarithmic_y_axis: bool = False,
 ) -> None:
     axis.set_title(title, fontsize=11)
     axis.set_ylabel(y_label)
-    axis.set_ylim(bottom=0)
+    if with_logarithmic_y_axis:
+        _configure_compact_logarithmic_y_axis(axis)
+    else:
+        axis.set_ylim(bottom=0)
     axis.set_xticks(parameter_values)
     axis.set_xlabel(x_label)
     apply_value_grid(axis)
@@ -1214,6 +1242,9 @@ def _plot_latency_and_size(
     size_series: list[tuple[str, list[float], list[float], str]],
     output_path: str,
     constant: tuple[float, str, str] | None = None,
+    with_logarithmic_size_axis: bool = False,
+    with_log2_count_axis: bool = True,
+    latency_y_ticks: list[int] | None = None,
 ) -> None:
     figure, (latency_axis, size_axis) = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
     figure.suptitle(title, fontsize=13)
@@ -1222,16 +1253,30 @@ def _plot_latency_and_size(
         value, label, color = constant
         draw_constant(latency_axis, value, parameter_values, label, color)
     _draw_summaries(size_axis, parameter_values, size_series)
-    _configure_parameter_axis(
-        latency_axis, "Latency", "Latency (µs/op)", parameter_values, x_label
-    )
-    _configure_parameter_axis(
-        size_axis,
-        "Sizes",
-        "Size (bytes)",
-        parameter_values,
-        x_label,
-    )
+    latency_axis.set_title("Latency", fontsize=11)
+    latency_axis.set_xlabel(x_label)
+    latency_axis.set_ylabel("Latency (µs/op)")
+    if with_log2_count_axis:
+        _configure_log2_count_axis(latency_axis, parameter_values)
+    else:
+        configure_attribute_axis(parameter_values, latency_axis)
+    _configure_compact_logarithmic_y_axis(latency_axis)
+    if latency_y_ticks is not None:
+        latency_axis.set_yticks(latency_y_ticks)
+    latency_axis.legend(fontsize=10)
+
+    size_axis.set_title("Sizes", fontsize=11)
+    size_axis.set_xlabel(x_label)
+    size_axis.set_ylabel("Size (bytes)")
+    if with_log2_count_axis:
+        _configure_log2_count_axis(size_axis, parameter_values)
+    else:
+        configure_attribute_axis(parameter_values, size_axis)
+    if with_logarithmic_size_axis:
+        _configure_byte_logarithmic_y_axis(size_axis)
+    else:
+        size_axis.set_ylim(bottom=0)
+    size_axis.legend(fontsize=10)
     figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
     save_figure(figure, output_path)
 
@@ -1258,6 +1303,8 @@ def plot_cpabe_attributes(
             ("Private Key", stored_key_means, stored_key_cis, CRIMSON),
         ],
         output_path,
+        with_log2_count_axis=False,
+        latency_y_ticks=[200_000, 500_000, 1_000_000, 2_000_000, 5_000_000],
     )
 
 
@@ -1291,6 +1338,7 @@ def plot_rsa_subscribers(
         ],
         output_path,
         constant,
+        with_logarithmic_size_axis=True,
     )
 
 
@@ -1319,6 +1367,7 @@ def plot_rsa_key_size_sensitivity(
         "Latency (µs/op)",
         rsa_key_bits,
         "RSA Key Bits",
+        with_logarithmic_y_axis=True,
     )
 
     figure.tight_layout()
@@ -1364,8 +1413,7 @@ def plot_cpabe_rsa_memory(
         _draw_summaries(axis, parameter_values, series, with_ci=True)
         axis.set_title(title, fontsize=11)
         axis.set_xlabel(x_label)
-        axis.set_xticks(parameter_values)
-        apply_value_grid(axis)
+        _configure_log2_count_axis(axis, parameter_values)
 
     _configure_peak_rss_axes(
         [
@@ -1390,7 +1438,7 @@ def plot_cpabe_rsa_energy(
     fixed_rsa_key_bits: int,
     output_path: str,
 ) -> None:
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE, sharey=True)
     figure.suptitle(
         "Energy per Operation under Policy and Subscriber Scaling",
         fontsize=13,
@@ -1424,8 +1472,8 @@ def plot_cpabe_rsa_energy(
         _draw_summaries(axis, values, series, with_ci=True)
         axis.set_title(title, fontsize=11)
         axis.set_xlabel(x_label)
-        axis.set_xticks(values)
-        apply_value_grid(axis)
+        _configure_log2_count_axis(axis, values)
+        _configure_compact_logarithmic_y_axis(axis)
         axis.legend(fontsize=9)
 
     rsa_decrypt_means, _ = results[("RSAKeyBits", "Decrypt")]
@@ -1559,6 +1607,7 @@ def plot_encrypt_latency_crossover(
     axis.set_ylim(0.0, largest_value * 1.12)
     axis.set_xlabel("Subscribers")
     axis.set_ylabel("Publisher Encrypt Latency (µs/op)")
+    _configure_compact_linear_y_axis(axis)
     apply_value_grid(axis)
     axis.legend(fontsize=9, loc="upper left")
 
@@ -1600,12 +1649,11 @@ def plot_decrypt_latency_comparison(
         calculate_axis_top(results["rsa_means"], results["rsa_cis"]),
     )
 
-    axis.set_xticks(attribute_counts)
-    axis.set_xlim(0.0, float(attribute_counts[-1]) * AXIS_HEADROOM)
+    _configure_log2_count_axis(axis, attribute_counts)
     axis.set_ylim(0.0, largest_value * 1.15)
     axis.set_xlabel("Policy Attributes")
     axis.set_ylabel("Decrypt Latency (µs/op)")
-    apply_value_grid(axis)
+    _configure_compact_linear_y_axis(axis)
     axis.legend(fontsize=9, loc="upper left")
 
     figure.tight_layout()
@@ -1678,6 +1726,7 @@ def plot_encrypt_decrypt_asymmetry(
     axis.set_xticklabels(scheme_labels)
     axis.set_ylabel("Latency (µs/op)")
     axis.set_title("Encrypt vs Decrypt Asymmetry", fontsize=12)
+    _configure_compact_linear_y_axis(axis)
     axis.grid(False)
     axis.spines["top"].set_visible(False)
     axis.spines["right"].set_visible(False)

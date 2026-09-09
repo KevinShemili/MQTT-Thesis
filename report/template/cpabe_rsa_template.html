@@ -391,6 +391,18 @@
             line-height: 1.55;
         }
 
+        .compact-reference-table {
+            align-self: start;
+        }
+
+        .compact-reference-table .table-wrapper {
+            flex: 0 0 auto;
+        }
+
+        .compact-reference-table table {
+            height: auto;
+        }
+
         .table-wrapper {
             flex: 1;
             width: 100%;
@@ -705,37 +717,32 @@
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row">
-                    <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">{{CpabeEncryptTable}}</div>
-                    </div>
-                    <div class="table-block">
-                        <h3>RSA: Subscriber Scaling</h3>
-                        <div class="table-wrapper">{{RsaSubscribersEncryptTable}}</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="operation-group">
-                <h3 class="operation-heading">Decrypt</h3>
                 <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">{{CpabeDecryptTable}}</div>
+                        <h3>CP-ABE Policy Scaling</h3>
+                        <div class="table-wrapper">{{CpabePolicyScalingTable}}</div>
                     </div>
                 </div>
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Secondary RSA Key-Size Sensitivity</h3>
+                <div class="comparison-row">
+                    <div class="table-block">
+                        <h3>RSA Subscriber Scaling</h3>
+                        <div class="table-wrapper">{{RsaSubscriberScalingTable}}</div>
+                    </div>
+                    <div class="table-block compact-reference-table">
+                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt Reference</h3>
+                        <div class="table-wrapper">{{FixedRsaDecryptLatencyTable}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="operation-group">
+                <h3 class="operation-heading">RSA Key-Size Sensitivity</h3>
                 <article class="plot-card">
                     <div class="plot-copy">
                         <h3>RSA-2048 / RSA-3072 / RSA-4096</h3>
-                        <p>One-subscriber Encrypt and Decrypt latency sensitivity.
-                            RSA-{{FixedRsaKeyBits}} remains the fixed configuration used elsewhere, while
-                            wrapped-key ciphertext size remains available in the table below.</p>
                     </div>
                     <div class="plot-frame">
                         <img src="{{RsaKeySizeSensitivityPlot}}"
@@ -772,30 +779,23 @@
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row">
+                <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">{{CpabeEncryptEnergyTable}}</div>
-                    </div>
-                    <div class="table-block">
-                        <h3>RSA: Subscriber Scaling</h3>
-                        <div class="table-wrapper">{{RsaSubscribersEncryptEnergyTable}}</div>
+                        <h3>CP-ABE Energy</h3>
+                        <div class="table-wrapper">{{CpabeEnergyTable}}</div>
                     </div>
                 </div>
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Decrypt</h3>
-                <div class="table-row">
+                <div class="comparison-row">
                     <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">{{CpabeDecryptEnergyTable}}</div>
+                        <h3>RSA Subscriber Energy</h3>
+                        <div class="table-wrapper">{{RsaSubscriberEnergyTable}}</div>
                     </div>
-                    <div class="table-block">
-                        <h3>RSA-{{FixedRsaKeyBits}}: Fixed Reference</h3>
-                        <p>One subscriber decrypts one wrapped session key, independently of audience size.</p>
-                        <div class="table-wrapper">{{RsaFixedDecryptEnergyTable}}</div>
+                    <div class="table-block compact-reference-table">
+                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt Reference</h3>
+                        <div class="table-wrapper">{{FixedRsaDecryptEnergyTable}}</div>
                     </div>
                 </div>
             </div>
@@ -825,31 +825,23 @@
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Encrypt</h3>
-                <div class="table-row">
+                <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">{{PeakMemoryCpabeEncryptTable}}</div>
-                    </div>
-                    <div class="table-block">
-                        <h3>RSA: Subscriber Scaling</h3>
-                        <div class="table-wrapper">{{PeakMemoryRsaSubscribersEncryptTable}}</div>
+                        <h3>CP-ABE Peak Memory</h3>
+                        <div class="table-wrapper">{{CpabePeakMemoryTable}}</div>
                     </div>
                 </div>
             </div>
 
             <div class="operation-group">
-                <h3 class="operation-heading">Decrypt</h3>
-                <div class="table-row">
+                <div class="comparison-row">
                     <div class="table-block">
-                        <h3>CP-ABE: Policy Attribute Scaling</h3>
-                        <div class="table-wrapper">{{PeakMemoryCpabeDecryptTable}}</div>
+                        <h3>RSA Subscriber Peak Memory</h3>
+                        <div class="table-wrapper">{{RsaSubscriberPeakMemoryTable}}</div>
                     </div>
-                    <div class="table-block">
-                        <h3>RSA-{{FixedRsaKeyBits}}: Standalone RSS Reference</h3>
-                        <p>This single value is not subscriber-scaled; an RSA subscriber decrypts only
-                            its own wrapped session key.</p>
-                        <div class="table-wrapper">{{PeakMemoryRsaFixedDecryptTable}}</div>
+                    <div class="table-block compact-reference-table">
+                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt RSS Reference</h3>
+                        <div class="table-wrapper">{{FixedRsaDecryptMemoryTable}}</div>
                     </div>
                 </div>
             </div>

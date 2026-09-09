@@ -595,29 +595,6 @@ def format_slope(
     )
 
 
-def _build_cpabe_rsa_timing_table(
-    index_header: str,
-    index_values: list[int],
-    values: dict,
-    extra_columns: list[tuple[str, str]],
-    highlighted: list[bool] | None = None,
-) -> str:
-    headers = [index_header, "Latency (µs/op)"]
-    columns = [
-        [str(value) for value in index_values],
-        _mean_ci_column(values["latency_means"], values["latency_cis"]),
-    ]
-    for header, name in extra_columns:
-        headers.append(header)
-        columns.append([_format_byte_size(value) for value in values[name]])
-    return build_html_table(
-        headers,
-        _rows_from_columns(columns),
-        values["timing_throttled"],
-        highlighted=highlighted,
-    )
-
-
 def _build_cpabe_rsa_timing_report_tables(
     report_data: dict[str, Any],
 ) -> dict[str, str]:
@@ -625,27 +602,69 @@ def _build_cpabe_rsa_timing_report_tables(
     attributes = report_data["attribute_counts"]
     subscribers = report_data["subscriber_counts"]
     rsa_key_bits = report_data["rsa_key_bits"]
+    cpabe_encrypt = timing[("CPABEAttributes", "Encrypt")]
+    cpabe_decrypt = timing[("CPABEAttributes", "Decrypt")]
+    subscriber_encrypt = timing[("RSASubscribers", "Encrypt")]
+    rsa_encrypt = timing[("RSAKeyBits", "Encrypt")]
+    rsa_decrypt = timing[("RSAKeyBits", "Decrypt")]
 
     return {
-        "CpabeEncryptTable": _build_cpabe_rsa_timing_table(
-            "Policy Attributes",
-            attributes,
-            timing[("CPABEAttributes", "Encrypt")],
-            [("Ciphertext (B)", "ciphertext_means")],
-        ),
-        "CpabeDecryptTable": _build_cpabe_rsa_timing_table(
-            "Policy Attributes",
-            attributes,
-            timing[("CPABEAttributes", "Decrypt")],
-            [("Stored Key (B)", "stored_key_means")],
-        ),
-        "RsaSubscribersEncryptTable": _build_cpabe_rsa_timing_table(
-            "Subscribers",
-            subscribers,
-            timing[("RSASubscribers", "Encrypt")],
+        "CpabePolicyScalingTable": _build_data_table(
             [
-                ("Ciphertext (B)", "ciphertext_means"),
-                ("Total Ciphertext (B)", "total_ciphertext_means"),
+                "Policy Attributes",
+                "Encrypt Latency (µs/op)",
+                "Decrypt Latency (µs/op)",
+                "Ciphertext (B)",
+                "Stored Key (B)",
+            ],
+            [
+                [str(value) for value in attributes],
+                _mark_throttled_cells(
+                    _mean_ci_column(
+                        cpabe_encrypt["latency_means"], cpabe_encrypt["latency_cis"]
+                    ),
+                    cpabe_encrypt["timing_throttled"],
+                ),
+                _mark_throttled_cells(
+                    _mean_ci_column(
+                        cpabe_decrypt["latency_means"], cpabe_decrypt["latency_cis"]
+                    ),
+                    cpabe_decrypt["timing_throttled"],
+                ),
+                [
+                    _format_byte_size(value)
+                    for value in cpabe_encrypt["ciphertext_means"]
+                ],
+                [
+                    _format_byte_size(value)
+                    for value in cpabe_decrypt["stored_key_means"]
+                ],
+            ],
+        ),
+        "RsaSubscriberScalingTable": _build_data_table(
+            [
+                "Subscribers",
+                "Encrypt Latency (µs/op)",
+                "Ciphertext (B)",
+                "Total Ciphertext (B)",
+            ],
+            [
+                [str(value) for value in subscribers],
+                _mark_throttled_cells(
+                    _mean_ci_column(
+                        subscriber_encrypt["latency_means"],
+                        subscriber_encrypt["latency_cis"],
+                    ),
+                    subscriber_encrypt["timing_throttled"],
+                ),
+                [
+                    _format_byte_size(value)
+                    for value in subscriber_encrypt["ciphertext_means"]
+                ],
+                [
+                    _format_byte_size(value)
+                    for value in subscriber_encrypt["total_ciphertext_means"]
+                ],
             ],
         ),
         "RsaKeySizeSensitivityTable": build_html_table(
@@ -658,30 +677,24 @@ def _build_cpabe_rsa_timing_report_tables(
             _rows_from_columns(
                 [
                     [str(value) for value in rsa_key_bits],
-                    _mean_ci_column(
-                        timing[("RSAKeyBits", "Encrypt")]["latency_means"],
-                        timing[("RSAKeyBits", "Encrypt")]["latency_cis"],
+                    _mark_throttled_cells(
+                        _mean_ci_column(
+                            rsa_encrypt["latency_means"], rsa_encrypt["latency_cis"]
+                        ),
+                        rsa_encrypt["timing_throttled"],
                     ),
-                    _mean_ci_column(
-                        timing[("RSAKeyBits", "Decrypt")]["latency_means"],
-                        timing[("RSAKeyBits", "Decrypt")]["latency_cis"],
+                    _mark_throttled_cells(
+                        _mean_ci_column(
+                            rsa_decrypt["latency_means"], rsa_decrypt["latency_cis"]
+                        ),
+                        rsa_decrypt["timing_throttled"],
                     ),
                     [
                         _format_byte_size(value)
-                        for value in timing[("RSAKeyBits", "Encrypt")][
-                            "ciphertext_means"
-                        ]
+                        for value in rsa_encrypt["ciphertext_means"]
                     ],
                 ]
             ),
-            [
-                encrypt_throttled or decrypt_throttled
-                for encrypt_throttled, decrypt_throttled in zip(
-                    timing[("RSAKeyBits", "Encrypt")]["timing_throttled"],
-                    timing[("RSAKeyBits", "Decrypt")]["timing_throttled"],
-                    strict=True,
-                )
-            ],
             highlighted=[
                 value == report_data["fixed_rsa_key_bits"] for value in rsa_key_bits
             ],
@@ -691,83 +704,116 @@ def _build_cpabe_rsa_timing_report_tables(
 
 def _build_cpabe_rsa_energy_tables(report_data: dict[str, Any]) -> dict[str, str]:
     energy = report_data["energy"]
-    specifications = (
-        (
-            "CpabeEncryptEnergyTable",
-            "Policy Attributes",
-            report_data["attribute_counts"],
-            "CPABEAttributes",
-            "Encrypt",
-        ),
-        (
-            "CpabeDecryptEnergyTable",
-            "Policy Attributes",
-            report_data["attribute_counts"],
-            "CPABEAttributes",
-            "Decrypt",
-        ),
-        (
-            "RsaSubscribersEncryptEnergyTable",
-            "Subscribers",
-            report_data["subscriber_counts"],
-            "RSASubscribers",
-            "Encrypt",
-        ),
-        (
-            "RsaFixedDecryptEnergyTable",
-            "RSA Key Bits",
-            [report_data["fixed_rsa_key_bits"]],
-            "RSAKeyBits",
-            "Decrypt",
-        ),
-    )
-    tables = {}
-    for placeholder, header, parameter_values, algorithm, operation in specifications:
-        values = energy[(algorithm, operation)]
-        tables[placeholder] = _build_data_table(
-            [header, "Energy (µJ/op)"],
+    cpabe_encrypt = energy[("CPABEAttributes", "Encrypt")]
+    cpabe_decrypt = energy[("CPABEAttributes", "Decrypt")]
+    subscriber_encrypt = energy[("RSASubscribers", "Encrypt")]
+
+    return {
+        "CpabeEnergyTable": _build_data_table(
             [
-                [str(parameter_value) for parameter_value in parameter_values],
-                _mean_ci_column(values["energy_means"], values["energy_cis"]),
+                "Policy Attributes",
+                "Encrypt Energy (µJ/op)",
+                "Decrypt Energy (µJ/op)",
             ],
-            values["energy_throttled"],
-        )
-    return tables
+            [
+                [str(value) for value in report_data["attribute_counts"]],
+                _mark_throttled_cells(
+                    _mean_ci_column(
+                        cpabe_encrypt["energy_means"], cpabe_encrypt["energy_cis"]
+                    ),
+                    cpabe_encrypt["energy_throttled"],
+                ),
+                _mark_throttled_cells(
+                    _mean_ci_column(
+                        cpabe_decrypt["energy_means"], cpabe_decrypt["energy_cis"]
+                    ),
+                    cpabe_decrypt["energy_throttled"],
+                ),
+            ],
+        ),
+        "RsaSubscriberEnergyTable": _build_data_table(
+            ["Subscribers", "Encrypt Energy (µJ/op)"],
+            [
+                [str(value) for value in report_data["subscriber_counts"]],
+                _mark_throttled_cells(
+                    _mean_ci_column(
+                        subscriber_encrypt["energy_means"],
+                        subscriber_encrypt["energy_cis"],
+                    ),
+                    subscriber_encrypt["energy_throttled"],
+                ),
+            ],
+        ),
+    }
 
 
 def _build_cpabe_rsa_memory_report_tables(
     report_data: dict[str, Any],
 ) -> dict[str, str]:
     memory = report_data["memory"]
-
-    def table(index_header, index_values, values):
-        return build_html_table(
-            [index_header, "Peak RSS (MB)"],
-            _rows_from_columns(
-                [
-                    [str(value) for value in index_values],
-                    _mean_ci_column(values["means"], values["cis"]),
-                ]
-            ),
-        )
-
     cpabe_encrypt = memory[("CPABEAttributes", "Encrypt")]
     cpabe_decrypt = memory[("CPABEAttributes", "Decrypt")]
     subscriber_encrypt = memory[("RSASubscribers", "Encrypt")]
-    rsa_decrypt = memory[("RSAKeyBits", "Decrypt")]
 
     return {
-        "PeakMemoryCpabeEncryptTable": table(
-            "Policy Attributes", report_data["attribute_counts"], cpabe_encrypt
+        "CpabePeakMemoryTable": _build_data_table(
+            [
+                "Policy Attributes",
+                "Encrypt Peak RSS (MB)",
+                "Decrypt Peak RSS (MB)",
+            ],
+            [
+                [str(value) for value in report_data["attribute_counts"]],
+                _mean_ci_column(cpabe_encrypt["means"], cpabe_encrypt["cis"]),
+                _mean_ci_column(cpabe_decrypt["means"], cpabe_decrypt["cis"]),
+            ],
         ),
-        "PeakMemoryCpabeDecryptTable": table(
-            "Policy Attributes", report_data["attribute_counts"], cpabe_decrypt
+        "RsaSubscriberPeakMemoryTable": _build_data_table(
+            ["Subscribers", "Encrypt Peak RSS (MB)"],
+            [
+                [str(value) for value in report_data["subscriber_counts"]],
+                _mean_ci_column(subscriber_encrypt["means"], subscriber_encrypt["cis"]),
+            ],
         ),
-        "PeakMemoryRsaSubscribersEncryptTable": table(
-            "Subscribers", report_data["subscriber_counts"], subscriber_encrypt
+    }
+
+
+def _build_cpabe_rsa_fixed_reference_tables(
+    report_data: dict[str, Any],
+) -> dict[str, str]:
+    fixed_rsa_key_bits = str(report_data["fixed_rsa_key_bits"])
+
+    latency = format_mean_with_ci(
+        report_data["fixed_rsa_decrypt_latency"],
+        report_data["fixed_rsa_decrypt_latency_ci"],
+    )
+    if report_data["fixed_rsa_decrypt_timing_throttled"]:
+        latency = _append_thermal_mark(latency)
+
+    energy = format_mean_with_ci(
+        report_data["fixed_rsa_decrypt_energy"],
+        report_data["fixed_rsa_decrypt_energy_ci"],
+    )
+    if report_data["fixed_rsa_decrypt_energy_throttled"]:
+        energy = _append_thermal_mark(energy)
+
+    memory = format_mean_with_ci(
+        report_data["fixed_rsa_decrypt_memory"],
+        report_data["fixed_rsa_decrypt_memory_ci"],
+    )
+
+    return {
+        "FixedRsaDecryptLatencyTable": build_html_table(
+            ["RSA Key Bits", "Subscribers", "Decrypt Latency (µs/op)"],
+            [[fixed_rsa_key_bits, "1", latency]],
         ),
-        "PeakMemoryRsaFixedDecryptTable": table(
-            "RSA Key Bits", [report_data["fixed_rsa_key_bits"]], rsa_decrypt
+        "FixedRsaDecryptEnergyTable": build_html_table(
+            ["RSA Key Bits", "Subscribers", "Decrypt Energy (µJ/op)"],
+            [[fixed_rsa_key_bits, "1", energy]],
+        ),
+        "FixedRsaDecryptMemoryTable": build_html_table(
+            ["RSA Key Bits", "Subscribers", "Decrypt Peak RSS (MB)"],
+            [[fixed_rsa_key_bits, "1", memory]],
         ),
     }
 
@@ -807,6 +853,7 @@ def write_cpabe_rsa_report(
         **_build_cpabe_rsa_timing_report_tables(report_data),
         **_build_cpabe_rsa_energy_tables(report_data),
         **_build_cpabe_rsa_memory_report_tables(report_data),
+        **_build_cpabe_rsa_fixed_reference_tables(report_data),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
