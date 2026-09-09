@@ -25,7 +25,7 @@ REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
 
 REMOTE_PACKAGE = "./micro/cpabe_rsa"
-REMOTE_PROVISION_PACKAGE = "./cmd/provision"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision_cpabe_rsa"
 
 REMOTE_BINARY = "/tmp/cpabe-rsa-benchmark"
 REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-provision"
@@ -135,29 +135,6 @@ def build_binaries():
     subprocess.run(["ssh", SSH_TARGET, command], check=True)
 
 
-def run_provision_case(algorithm, parameter_value):
-
-    print(f"Provision: {algorithm} {parameter_value}")
-    command = (
-        f"cd {REMOTE_PROJECT_DIRECTORY} && "
-        f"set -a && "
-        f". {REMOTE_ENVIRONMENT_FILE} && "
-        f"set +a && "
-        f"{REMOTE_PROVISION_BINARY} "
-        f"{algorithm} "
-        f"{parameter_value}"
-    )
-
-    result = subprocess.run(
-        ["ssh", SSH_TARGET, command], stderr=subprocess.PIPE, text=True
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Provision Failed: {algorithm} {parameter_value}\n" f"{result.stderr}"
-        )
-
-
 def orchestrate_provision():
 
     print("Provisioning CP-ABE vs. RSA Fixtures...")
@@ -172,11 +149,20 @@ def orchestrate_provision():
         check=True,
     )
 
-    for attribute_count in ATTRIBUTE_COUNTS:
-        run_provision_case("CPABEAttributes", attribute_count)
-    for subscriber_count in SUBSCRIBER_COUNTS:
-        run_provision_case("RSASubscribers", subscriber_count)
-    run_provision_case("RSAKeyBits", FIXED_RSA_KEY_BITS)
+    command = (
+        f"cd {REMOTE_PROJECT_DIRECTORY} && "
+        f"set -a && "
+        f". {REMOTE_ENVIRONMENT_FILE} && "
+        f"set +a && "
+        f"{REMOTE_PROVISION_BINARY}"
+    )
+
+    result = subprocess.run(
+        ["ssh", SSH_TARGET, command], stderr=subprocess.PIPE, text=True
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Provision Failed: CP-ABE vs. RSA\n{result.stderr}")
 
     print("Finished Provisioning")
 

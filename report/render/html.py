@@ -431,9 +431,9 @@ def _build_full_schema_wire_size_table(
     return _build_data_table(
         [
             "Payload Size (B)",
-            "PSK Wire Size (B)",
-            "RSA Wire Size (B)",
-            "CP-ABE Wire Size (B)",
+            "PSK Envelope (B)",
+            "RSA Envelope (B)",
+            "CP-ABE Envelope (B)",
         ],
         [
             [f"{value:,}" for value in payload_sizes],
@@ -540,7 +540,7 @@ def write_full_schema_report(
         "LatencyPlot": plots["latency"],
         "LatencyOverheadSharePlot": plots["latency_overhead_share"],
         "ThroughputPlot": plots["throughput"],
-        "WireExpansionPlot": plots["wire_expansion"],
+        "WireOverheadPlot": plots["wire_overhead"],
         "EnergyPlot": plots["energy"],
         "AdditionalEnergyPlot": plots["additional_energy"],
         "MemoryPlot": plots["memory"],

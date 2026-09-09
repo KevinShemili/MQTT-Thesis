@@ -2,9 +2,10 @@ package full_schema
 
 import (
 	"benchmark/cache"
-	"benchmark/cryptography/aes"
+	"benchmark/cryptography/ascon"
 	"benchmark/cryptography/cpabe"
 	"benchmark/cryptography/rsa"
+	"benchmark/envelope"
 	"benchmark/memory"
 	"benchmark/micro/full_schema/shared"
 	"benchmark/thermal"
@@ -18,7 +19,7 @@ import (
 // Peak memory is a property of a whole process rather than of a loop, so these
 // cases are driven one sample per process with -test.benchtime=1x.
 //
-// Every fixture is restored from the cache populated by cmd/provision in an
+// Every fixture is restored from the cache populated by the Full Schema provisioner in an
 // earlier process so fixture generation does not pollute the measured peak.
 func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
@@ -28,7 +29,9 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSK/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize)))
+			cipher := ascon.NewASCON(
+				cache.LoadFile(cache.CreateASCONKeyFileName(config.SymmetricKeySize)),
+			)
 			plaintext := cache.LoadFile(cache.CreateFullSchemaPlaintextFileName(payloadSize))
 
 			thermal.WaitForCooldown()
@@ -37,7 +40,12 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			for b.Loop() {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				cipher.Seal(nil, nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Seal(nil, nonce, plaintext, nil)
+
+				envelope.SerializeCBOR(envelope.Envelope{
+					Nonce:               nonce,
+					SymmetricCiphertext: symmetricCiphertext,
+				})
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -54,8 +62,8 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				cache.LoadFile(cache.CreateRSAPublicKeyFileName(config.RSAKeyBits, 0)),
 			)
 			plaintext := cache.LoadFile(cache.CreateFullSchemaPlaintextFileName(payloadSize))
-			nonceSize := aes.NewAES(
-				cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize)),
+			nonceSize := ascon.NewASCON(
+				cache.LoadFile(cache.CreateASCONKeyFileName(config.SymmetricKeySize)),
 			).NonceSize()
 
 			thermal.WaitForCooldown()
@@ -64,11 +72,17 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			for b.Loop() {
 				nonce := utility.GenerateRandomBytes(nonceSize)
-				symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-				messageCipher := aes.NewAES(symmetricKey)
+				symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+				messageCipher := ascon.NewASCON(symmetricKey)
 
-				publicKey.Encrypt(symmetricKey)
-				messageCipher.Seal(nil, nonce, plaintext, nil)
+				asymmetricCiphertext := publicKey.Encrypt(symmetricKey)
+				symmetricCiphertext := messageCipher.Seal(nil, nonce, plaintext, nil)
+
+				envelope.SerializeCBOR(envelope.Envelope{
+					AsymmetricCiphertext: asymmetricCiphertext,
+					Nonce:                nonce,
+					SymmetricCiphertext:  symmetricCiphertext,
+				})
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -86,8 +100,8 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				string(cache.LoadFile(cache.CreateCPABEPolicyFileName(config.AttributeCount))),
 			)
 			plaintext := cache.LoadFile(cache.CreateFullSchemaPlaintextFileName(payloadSize))
-			nonceSize := aes.NewAES(
-				cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize)),
+			nonceSize := ascon.NewASCON(
+				cache.LoadFile(cache.CreateASCONKeyFileName(config.SymmetricKeySize)),
 			).NonceSize()
 
 			thermal.WaitForCooldown()
@@ -96,11 +110,17 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			for b.Loop() {
 				nonce := utility.GenerateRandomBytes(nonceSize)
-				symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-				messageCipher := aes.NewAES(symmetricKey)
+				symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+				messageCipher := ascon.NewASCON(symmetricKey)
 
-				publicKey.Encrypt(policy, symmetricKey)
-				messageCipher.Seal(nil, nonce, plaintext, nil)
+				asymmetricCiphertext := publicKey.Encrypt(policy, symmetricKey)
+				symmetricCiphertext := messageCipher.Seal(nil, nonce, plaintext, nil)
+
+				envelope.SerializeCBOR(envelope.Envelope{
+					AsymmetricCiphertext: asymmetricCiphertext,
+					Nonce:                nonce,
+					SymmetricCiphertext:  symmetricCiphertext,
+				})
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -118,16 +138,22 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSK/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize)))
-			ciphertext := cache.LoadFile(cache.CreateFullSchemaCiphertextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateAESGCMNonceFileName())
+			cipher := ascon.NewASCON(
+				cache.LoadFile(cache.CreateASCONKeyFileName(config.SymmetricKeySize)),
+			)
+			serializedEnvelope := cache.LoadFile(
+				cache.CreateFullSchemaEnvelopeFileName("psk", payloadSize),
+			)
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				cipher.Open(nil, nonce, ciphertext, nil)
+				env := envelope.DeserializeCBOR(serializedEnvelope)
+				if _, err := cipher.Open(nil, env.Nonce, env.SymmetricCiphertext, nil); err != nil {
+					panic(err)
+				}
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -143,19 +169,25 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 			privateKey := rsa.UnmarshalPrivateKey(
 				cache.LoadFile(cache.CreateRSAPrivateKeyFileName(config.RSAKeyBits, 0)),
 			)
-			encryptedSymmetricKey := cache.LoadFile(
-				cache.CreateRSACiphertextFileName(config.RSAKeyBits, 0),
+			serializedEnvelope := cache.LoadFile(
+				cache.CreateFullSchemaEnvelopeFileName("rsa", payloadSize),
 			)
-			ciphertext := cache.LoadFile(cache.CreateFullSchemaCiphertextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateAESGCMNonceFileName())
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				symmetricKey := privateKey.Decrypt(encryptedSymmetricKey)
-				aes.NewAES(symmetricKey).Open(nil, nonce, ciphertext, nil)
+				env := envelope.DeserializeCBOR(serializedEnvelope)
+				symmetricKey := privateKey.Decrypt(env.AsymmetricCiphertext)
+				if _, err := ascon.NewASCON(symmetricKey).Open(
+					nil,
+					env.Nonce,
+					env.SymmetricCiphertext,
+					nil,
+				); err != nil {
+					panic(err)
+				}
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -171,19 +203,25 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 			privateKey := cpabe.UnmarshalCPABEPrivateKey(
 				cache.LoadFile(cache.CreateCPABEPrivateKeyFileName(config.AttributeCount)),
 			)
-			encryptedSymmetricKey := cache.LoadFile(
-				cache.CreateCPABECiphertextFileName(config.AttributeCount),
+			serializedEnvelope := cache.LoadFile(
+				cache.CreateFullSchemaEnvelopeFileName("cpabe", payloadSize),
 			)
-			ciphertext := cache.LoadFile(cache.CreateFullSchemaCiphertextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateAESGCMNonceFileName())
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				symmetricKey := privateKey.Decrypt(encryptedSymmetricKey)
-				aes.NewAES(symmetricKey).Open(nil, nonce, ciphertext, nil)
+				env := envelope.DeserializeCBOR(serializedEnvelope)
+				symmetricKey := privateKey.Decrypt(env.AsymmetricCiphertext)
+				if _, err := ascon.NewASCON(symmetricKey).Open(
+					nil,
+					env.Nonce,
+					env.SymmetricCiphertext,
+					nil,
+				); err != nil {
+					panic(err)
+				}
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {

@@ -1,7 +1,6 @@
 # Different types of measurements collected by the Go timing benchmarks
 NS_PER_OP = "ns/op"
 MB_PER_SECOND = "MB/s"
-ADDITIONAL_OVERHEAD_BYTES = "additional_overhead_bytes"
 ENVELOPE_BYTES = "envelope_bytes"
 RAW_BYTES = "raw_bytes"
 CIPHERTEXT_BYTES = "ciphertext_bytes"

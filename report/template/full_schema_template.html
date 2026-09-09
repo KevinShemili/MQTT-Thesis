@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Full Schema Microbenchmark</title>
+    <title>Full Schema (ASCON + CBOR) Microbenchmark</title>
 
     <style>
         :root {
@@ -417,7 +417,7 @@
     <main class="page">
         <header class="hero">
             <div class="eyebrow">Microbenchmark Scenario 1</div>
-            <h1>Full Schema</h1>
+            <h1>Full Schema: ASCON + CBOR</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -448,7 +448,7 @@
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{LatencyPlot}}" alt="Scheme latency over payload size">
+                        <img src="{{LatencyPlot}}" alt="ASCON and CBOR schema latency over payload size">
                     </div>
                 </article>
 
@@ -459,7 +459,8 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{LatencyOverheadSharePlot}}" alt="RSA and CP-ABE latency overhead share above PSK over payload size">
+                            <img src="{{LatencyOverheadSharePlot}}"
+                                alt="RSA and CP-ABE latency overhead share above PSK over payload size">
                         </div>
                     </article>
 
@@ -479,7 +480,7 @@
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{ThroughputPlot}}" alt="Scheme throughput over payload size">
+                        <img src="{{ThroughputPlot}}" alt="ASCON and CBOR schema throughput over payload size">
                     </div>
                 </article>
             </div>
@@ -489,7 +490,7 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Payload Size Scaling</h3>
+                        <h3>PSK + ASCON + CBOR: Payload Size Scaling</h3>
 
                         <div class="table-wrapper">
                             {{EncryptPskTable}}
@@ -497,7 +498,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Payload Size Scaling</h3>
+                        <h3>RSA + ASCON + CBOR: Payload Size Scaling</h3>
 
                         <div class="table-wrapper">
                             {{EncryptRsaTable}}
@@ -505,7 +506,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Payload Size Scaling</h3>
+                        <h3>CP-ABE + ASCON + CBOR: Payload Size Scaling</h3>
 
                         <div class="table-wrapper">
                             {{EncryptCpabeTable}}
@@ -519,7 +520,7 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Payload Size Scaling</h3>
+                        <h3>PSK + ASCON + CBOR: Payload Size Scaling</h3>
 
                         <div class="table-wrapper">
                             {{DecryptPskTable}}
@@ -527,7 +528,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Payload Size Scaling</h3>
+                        <h3>RSA + ASCON + CBOR: Payload Size Scaling</h3>
 
                         <div class="table-wrapper">
                             {{DecryptRsaTable}}
@@ -535,7 +536,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Payload Size Scaling</h3>
+                        <h3>CP-ABE + ASCON + CBOR: Payload Size Scaling</h3>
 
                         <div class="table-wrapper">
                             {{DecryptCpabeTable}}
@@ -553,18 +554,19 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Fixed Wire Expansion per Message</h3>
+                        <h3>Serialized Envelope Wire Overhead</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{WireExpansionPlot}}" alt="Fixed additional bytes per message for PSK, RSA, and CP-ABE">
+                        <img src="{{WireOverheadPlot}}"
+                            alt="Serialized CBOR envelope wire overhead for PSK, RSA, and CP-ABE over payload size">
                     </div>
                 </article>
             </div>
 
             <div class="operation-group">
                 <div class="table-block">
-                    <h3>Payload and Wire Size Comparison</h3>
+                    <h3>Payload and Serialized Envelope Size Comparison</h3>
 
                     <div class="table-wrapper">
                         {{WireSizeTable}}
@@ -589,7 +591,7 @@
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{EnergyPlot}}" alt="Scheme energy per operation over payload size">
+                        <img src="{{EnergyPlot}}" alt="ASCON and CBOR schema energy per operation over payload size">
                     </div>
                 </article>
 
@@ -600,7 +602,8 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{AdditionalEnergyPlot}}" alt="Additional RSA and CP-ABE energy cost over PSK over payload size">
+                            <img src="{{AdditionalEnergyPlot}}"
+                                alt="Additional RSA and CP-ABE energy cost over PSK over payload size">
                         </div>
                     </article>
 
@@ -619,7 +622,7 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Energy per Operation</h3>
+                        <h3>PSK + ASCON + CBOR: Energy per Operation</h3>
 
                         <div class="table-wrapper">
                             {{EncryptPskEnergyTable}}
@@ -627,7 +630,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Energy per Operation</h3>
+                        <h3>RSA + ASCON + CBOR: Energy per Operation</h3>
 
                         <div class="table-wrapper">
                             {{EncryptRsaEnergyTable}}
@@ -635,7 +638,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Energy per Operation</h3>
+                        <h3>CP-ABE + ASCON + CBOR: Energy per Operation</h3>
 
                         <div class="table-wrapper">
                             {{EncryptCpabeEnergyTable}}
@@ -649,7 +652,7 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Energy per Operation</h3>
+                        <h3>PSK + ASCON + CBOR: Energy per Operation</h3>
 
                         <div class="table-wrapper">
                             {{DecryptPskEnergyTable}}
@@ -657,7 +660,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Energy per Operation</h3>
+                        <h3>RSA + ASCON + CBOR: Energy per Operation</h3>
 
                         <div class="table-wrapper">
                             {{DecryptRsaEnergyTable}}
@@ -665,7 +668,7 @@
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Energy per Operation</h3>
+                        <h3>CP-ABE + ASCON + CBOR: Energy per Operation</h3>
 
                         <div class="table-wrapper">
                             {{DecryptCpabeEnergyTable}}
@@ -696,7 +699,7 @@
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{MemoryPlot}}" alt="PSK, RSA, and CP-ABE peak process memory over payload size">
+                        <img src="{{MemoryPlot}}" alt="ASCON and CBOR schema peak process memory over payload size">
                     </div>
                 </article>
             </div>
@@ -706,17 +709,17 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Peak Process Memory</h3>
+                        <h3>PSK + ASCON + CBOR: Peak Process Memory</h3>
                         <div class="table-wrapper">{{EncryptPskMemoryTable}}</div>
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Peak Process Memory</h3>
+                        <h3>RSA + ASCON + CBOR: Peak Process Memory</h3>
                         <div class="table-wrapper">{{EncryptRsaMemoryTable}}</div>
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Peak Process Memory</h3>
+                        <h3>CP-ABE + ASCON + CBOR: Peak Process Memory</h3>
                         <div class="table-wrapper">{{EncryptCpabeMemoryTable}}</div>
                     </div>
                 </div>
@@ -727,17 +730,17 @@
 
                 <div class="table-row">
                     <div class="table-block">
-                        <h3>PSK: Peak Process Memory</h3>
+                        <h3>PSK + ASCON + CBOR: Peak Process Memory</h3>
                         <div class="table-wrapper">{{DecryptPskMemoryTable}}</div>
                     </div>
 
                     <div class="table-block">
-                        <h3>RSA: Peak Process Memory</h3>
+                        <h3>RSA + ASCON + CBOR: Peak Process Memory</h3>
                         <div class="table-wrapper">{{DecryptRsaMemoryTable}}</div>
                     </div>
 
                     <div class="table-block">
-                        <h3>CP-ABE: Peak Process Memory</h3>
+                        <h3>CP-ABE + ASCON + CBOR: Peak Process Memory</h3>
                         <div class="table-wrapper">{{DecryptCpabeMemoryTable}}</div>
                     </div>
                 </div>

@@ -17,7 +17,7 @@ import (
 // cases are driven one sample per process with -test.benchtime=1x
 //
 // No benchmark fixture is generated, every requisite is restored from the cache that
-// cmd/provision built in an earlier process
+// CP-ABE/RSA provisioner built in an earlier process
 func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 
 	config := shared.NewCPABERSAConfig()

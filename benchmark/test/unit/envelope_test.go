@@ -10,9 +10,9 @@ func TestJSONEnvelopeRoundTrip(t *testing.T) {
 
 	// Arrange
 	message := envelope.Envelope{
-		ABECiphertext: []byte("abe ciphertext"),
-		Nonce:         []byte("nonce"),
-		AESCiphertext: []byte("aes ciphertext"),
+		AsymmetricCiphertext: []byte("asymmetric ciphertext"),
+		Nonce:                []byte("nonce"),
+		SymmetricCiphertext:  []byte("symmetric ciphertext"),
 	}
 
 	// Act
@@ -20,11 +20,11 @@ func TestJSONEnvelopeRoundTrip(t *testing.T) {
 	deserialized := envelope.DeserializeJSON(serialized)
 
 	// Assert
-	if !bytes.Equal(deserialized.ABECiphertext, message.ABECiphertext) {
+	if !bytes.Equal(deserialized.AsymmetricCiphertext, message.AsymmetricCiphertext) {
 		t.Fatalf(
-			"ABE ciphertext produced %q, want %q",
-			deserialized.ABECiphertext,
-			message.ABECiphertext,
+			"asymmetric ciphertext produced %q, want %q",
+			deserialized.AsymmetricCiphertext,
+			message.AsymmetricCiphertext,
 		)
 	}
 
@@ -36,11 +36,11 @@ func TestJSONEnvelopeRoundTrip(t *testing.T) {
 		)
 	}
 
-	if !bytes.Equal(deserialized.AESCiphertext, message.AESCiphertext) {
+	if !bytes.Equal(deserialized.SymmetricCiphertext, message.SymmetricCiphertext) {
 		t.Fatalf(
-			"AES ciphertext produced %q, want %q",
-			deserialized.AESCiphertext,
-			message.AESCiphertext,
+			"symmetric ciphertext produced %q, want %q",
+			deserialized.SymmetricCiphertext,
+			message.SymmetricCiphertext,
 		)
 	}
 }
@@ -49,9 +49,9 @@ func TestCBOREnvelopeRoundTrip(t *testing.T) {
 
 	// Arrange
 	message := envelope.Envelope{
-		ABECiphertext: []byte("abe ciphertext"),
-		Nonce:         []byte("nonce"),
-		AESCiphertext: []byte("aes ciphertext"),
+		AsymmetricCiphertext: []byte("asymmetric ciphertext"),
+		Nonce:                []byte("nonce"),
+		SymmetricCiphertext:  []byte("symmetric ciphertext"),
 	}
 
 	// Act
@@ -59,11 +59,11 @@ func TestCBOREnvelopeRoundTrip(t *testing.T) {
 	deserialized := envelope.DeserializeCBOR(serialized)
 
 	// Assert
-	if !bytes.Equal(deserialized.ABECiphertext, message.ABECiphertext) {
+	if !bytes.Equal(deserialized.AsymmetricCiphertext, message.AsymmetricCiphertext) {
 		t.Fatalf(
-			"ABE ciphertext produced %q, want %q",
-			deserialized.ABECiphertext,
-			message.ABECiphertext,
+			"asymmetric ciphertext produced %q, want %q",
+			deserialized.AsymmetricCiphertext,
+			message.AsymmetricCiphertext,
 		)
 	}
 
@@ -75,11 +75,11 @@ func TestCBOREnvelopeRoundTrip(t *testing.T) {
 		)
 	}
 
-	if !bytes.Equal(deserialized.AESCiphertext, message.AESCiphertext) {
+	if !bytes.Equal(deserialized.SymmetricCiphertext, message.SymmetricCiphertext) {
 		t.Fatalf(
-			"AES ciphertext produced %q, want %q",
-			deserialized.AESCiphertext,
-			message.AESCiphertext,
+			"symmetric ciphertext produced %q, want %q",
+			deserialized.SymmetricCiphertext,
+			message.SymmetricCiphertext,
 		)
 	}
 }
@@ -88,9 +88,9 @@ func TestCBORIntegerKeyEnvelopeRoundTrip(t *testing.T) {
 
 	// Arrange
 	message := envelope.EnvelopeIntKeys{
-		ABECiphertext: []byte("abe ciphertext"),
-		Nonce:         []byte("nonce"),
-		AESCiphertext: []byte("aes ciphertext"),
+		AsymmetricCiphertext: []byte("asymmetric ciphertext"),
+		Nonce:                []byte("nonce"),
+		SymmetricCiphertext:  []byte("symmetric ciphertext"),
 	}
 
 	// Act
@@ -98,11 +98,11 @@ func TestCBORIntegerKeyEnvelopeRoundTrip(t *testing.T) {
 	deserialized := envelope.DeserializeCBORKeyAsInt(serialized)
 
 	// Assert
-	if !bytes.Equal(deserialized.ABECiphertext, message.ABECiphertext) {
+	if !bytes.Equal(deserialized.AsymmetricCiphertext, message.AsymmetricCiphertext) {
 		t.Fatalf(
-			"ABE ciphertext produced %q, want %q",
-			deserialized.ABECiphertext,
-			message.ABECiphertext,
+			"asymmetric ciphertext produced %q, want %q",
+			deserialized.AsymmetricCiphertext,
+			message.AsymmetricCiphertext,
 		)
 	}
 
@@ -114,11 +114,36 @@ func TestCBORIntegerKeyEnvelopeRoundTrip(t *testing.T) {
 		)
 	}
 
-	if !bytes.Equal(deserialized.AESCiphertext, message.AESCiphertext) {
+	if !bytes.Equal(deserialized.SymmetricCiphertext, message.SymmetricCiphertext) {
 		t.Fatalf(
-			"AES ciphertext produced %q, want %q",
-			deserialized.AESCiphertext,
-			message.AESCiphertext,
+			"symmetric ciphertext produced %q, want %q",
+			deserialized.SymmetricCiphertext,
+			message.SymmetricCiphertext,
+		)
+	}
+}
+
+func TestCBORPSKEnvelopeOmitsAsymmetricCiphertext(t *testing.T) {
+
+	// Arrange
+	message := envelope.Envelope{
+		Nonce:               []byte("nonce"),
+		SymmetricCiphertext: []byte("symmetric ciphertext"),
+	}
+
+	// Act
+	serialized := envelope.SerializeCBOR(message)
+	deserialized := envelope.DeserializeCBOR(serialized)
+
+	// Assert
+	if bytes.Contains(serialized, []byte("asymmetricCiphertext")) {
+		t.Fatal("PSK envelope contains an asymmetric ciphertext field")
+	}
+
+	if deserialized.AsymmetricCiphertext != nil {
+		t.Fatalf(
+			"asymmetric ciphertext produced %q, want nil",
+			deserialized.AsymmetricCiphertext,
 		)
 	}
 }

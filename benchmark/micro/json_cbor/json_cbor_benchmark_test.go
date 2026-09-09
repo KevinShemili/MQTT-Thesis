@@ -44,9 +44,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Size of the three binary fields before serialization overhead is added
@@ -106,9 +106,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Size of the three binary fields before serialization overhead is added
@@ -168,9 +168,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Construct envelope using integer keys
 			env := envelope.EnvelopeIntKeys{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Size of the three binary fields before serialization overhead is added
@@ -235,9 +235,9 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Serialize outside timed loop so only deserialization is measured
@@ -290,9 +290,9 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Serialize outside timed loop so only deserialization is measured
@@ -345,9 +345,9 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 			// Construct envelope using integer keys
 			env := envelope.EnvelopeIntKeys{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Serialize outside timed loop so only deserialization is measured

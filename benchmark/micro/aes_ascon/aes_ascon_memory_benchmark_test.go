@@ -16,7 +16,7 @@ import (
 // Peak memory is a property of a whole process rather than of a loop, so these
 // cases are driven one sample per process with -test.benchtime=1x.
 //
-// Every fixture is restored from the cache populated by cmd/provision in an
+// Every fixture is restored from the cache populated by the AES/ASCON provisioner in an
 // earlier process so fixture generation does not pollute the measured peak.
 func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 

@@ -50,9 +50,9 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			thermal.WaitForCooldown()
@@ -115,9 +115,9 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			thermal.WaitForCooldown()
@@ -180,9 +180,9 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 
 			// Construct envelope using integer keys
 			env := envelope.EnvelopeIntKeys{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			thermal.WaitForCooldown()
@@ -250,9 +250,9 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Serialize outside measured workload so only deserialization is measured
@@ -318,9 +318,9 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 
 			// Construct envelope
 			env := envelope.Envelope{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Serialize outside measured workload so only deserialization is measured
@@ -386,9 +386,9 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 
 			// Construct envelope using integer keys
 			env := envelope.EnvelopeIntKeys{
-				ABECiphertext: abeCiphertext,
-				Nonce:         nonce,
-				AESCiphertext: aesCiphertext,
+				AsymmetricCiphertext: abeCiphertext,
+				Nonce:                nonce,
+				SymmetricCiphertext:  aesCiphertext,
 			}
 
 			// Serialize outside measured workload so only deserialization is measured

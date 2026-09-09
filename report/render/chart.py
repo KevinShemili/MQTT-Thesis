@@ -754,7 +754,7 @@ def plot_full_schema_latency(
     _plot_full_schema_results(
         payload_sizes,
         results,
-        "PSK vs. RSA vs. CP-ABE: Latency vs. Payload Size",
+        "Full Schema (ASCON + CBOR): Latency vs. Payload Size",
         "Latency (µs/op)",
         output_path,
         with_small_payload_zoom=True,
@@ -848,42 +848,61 @@ def plot_full_schema_throughput(
     _plot_full_schema_results(
         payload_sizes,
         results,
-        "PSK vs. RSA vs. CP-ABE: Throughput vs. Payload Size",
+        "Full Schema (ASCON + CBOR): Throughput vs. Payload Size",
         "Throughput (MB/s)",
         output_path,
     )
 
 
-def plot_full_schema_wire_expansion(
-    wire_expansions: dict[str, float],
+def plot_full_schema_wire_overhead(
+    payload_sizes: list[int],
+    wire_overheads: dict[str, list[float]],
     output_path: str,
 ) -> None:
+    positions = list(range(len(payload_sizes)))
+    bar_width = 0.25
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
     schemes = (
         ("PSK", "PSK", TEAL),
         ("RSA", "RSA", VIOLET),
         ("CPABE", "CP-ABE", CRIMSON),
     )
-    values = [wire_expansions[scheme] for scheme, _, _ in schemes]
-    bars = axis.bar(
-        [label for _, label, _ in schemes],
-        values,
-        color=[color for _, _, color in schemes],
-    )
+
+    for series_index, (scheme, label, color) in enumerate(schemes):
+        offset = (series_index - 1) * bar_width
+        axis.bar(
+            [position + offset for position in positions],
+            wire_overheads[scheme],
+            width=bar_width,
+            label=label,
+            color=color,
+        )
 
     axis.set_title(
-        "PSK vs. RSA vs. CP-ABE: Fixed Wire Expansion per Message",
+        "Full Schema (ASCON + CBOR): Serialized Envelope Wire Overhead",
         fontsize=13,
     )
-    axis.set_ylabel("Additional Bytes per Message")
-    axis.set_ylim(bottom=0)
-    axis.bar_label(
-        bars,
-        labels=[f"{round(value):,} B" for value in values],
-        padding=4,
+    axis.set_xlabel("Payload Size")
+    axis.set_ylabel("Wire overhead (bytes, log scale)")
+    _configure_byte_logarithmic_y_axis(axis)
+    axis.set_ylim(bottom=1)
+    axis.set_xticks(positions)
+    axis.set_xticklabels(
+        [
+            formatting.format_byte_size(payload_size, compact=True)
+            for payload_size in payload_sizes
+        ]
     )
-    _configure_plain_y_axis(axis)
-    apply_value_grid(axis)
+    axis.set_xlim(-0.6, len(positions) - 0.4)
+    axis.grid(
+        True,
+        axis="y",
+        which="both",
+        linestyle="-",
+        linewidth=0.5,
+        alpha=0.18,
+    )
+    axis.legend(fontsize=10)
 
     figure.tight_layout()
     save_figure(figure, output_path)
@@ -897,7 +916,7 @@ def plot_full_schema_energy(
     _plot_full_schema_results(
         payload_sizes,
         results,
-        "PSK vs. RSA vs. CP-ABE: Energy per Operation vs. Payload Size",
+        "Full Schema (ASCON + CBOR): Energy per Operation vs. Payload Size",
         "Energy (µJ/op)",
         output_path,
         with_small_payload_zoom=True,
@@ -989,7 +1008,7 @@ def plot_full_schema_memory(
     _plot_full_schema_results(
         payload_sizes,
         results,
-        "PSK vs. RSA vs. CP-ABE: Peak Process Memory vs. Payload Size",
+        "Full Schema (ASCON + CBOR): Peak Process Memory vs. Payload Size",
         "Peak RSS (MB)",
         output_path,
         baseline_memory_mean=baseline_memory_mean,

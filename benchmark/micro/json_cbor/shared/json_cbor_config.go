@@ -15,6 +15,6 @@ func NewJSONCBORConfig() JSONCBORConfig {
 	return JSONCBORConfig{
 		PayloadSizes:        utility.ParseIntListFromEnv("PAYLOAD_SIZES"),
 		CPABEAttributeCount: fixedCPABEAttributeCount,
-		AESKeySize:          utility.ParseIntFromEnv("AES_ASCON_KEY_SIZE"),
+		AESKeySize:          utility.ParseIntFromEnv("SYMMETRIC_KEY_SIZE"),
 	}
 }

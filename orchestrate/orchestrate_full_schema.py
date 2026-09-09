@@ -24,7 +24,7 @@ REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
 REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
 REMOTE_PACKAGE = "./micro/full_schema"
-REMOTE_PROVISION_PACKAGE = "./cmd/provision"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision_full_schema"
 REMOTE_BINARY = "/tmp/full-schema-benchmark"
 REMOTE_PROVISION_BINARY = "/tmp/full-schema-provision"
 
@@ -119,31 +119,6 @@ def build_binaries():
     )
 
 
-def run_provision_case(payload_size):
-
-    print(f"Provision: FullSchema {payload_size}B")
-    command = (
-        f"cd {REMOTE_PROJECT_DIRECTORY} && "
-        f"set -a && "
-        f". {REMOTE_ENVIRONMENT_FILE} && "
-        f"set +a && "
-        f"{REMOTE_PROVISION_BINARY} "
-        f"FullSchema "
-        f"{payload_size}"
-    )
-
-    result = subprocess.run(
-        ["ssh", SSH_TARGET, command],
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Provision Failed: FullSchema {payload_size}B\n{result.stderr}"
-        )
-
-
 def orchestrate_provision():
 
     print("Provisioning Full Schema Fixtures...")
@@ -153,8 +128,22 @@ def orchestrate_provision():
         check=True,
     )
 
-    for payload_size in PAYLOAD_SIZES:
-        run_provision_case(payload_size)
+    command = (
+        f"cd {REMOTE_PROJECT_DIRECTORY} && "
+        f"set -a && "
+        f". {REMOTE_ENVIRONMENT_FILE} && "
+        f"set +a && "
+        f"{REMOTE_PROVISION_BINARY}"
+    )
+
+    result = subprocess.run(
+        ["ssh", SSH_TARGET, command],
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Provision Failed: Full Schema\n{result.stderr}")
 
     print("Finished Provisioning")
 

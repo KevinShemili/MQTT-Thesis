@@ -28,7 +28,7 @@ func NewCPABERSAConfig() CPABERSAConfig {
 			"CPABE_RSA_FIXED_RSA_KEY_SIZE",
 		),
 		AESKeySize: utility.ParseIntFromEnv(
-			"CPABE_RSA_AES_KEY_SIZE",
+			"SYMMETRIC_KEY_SIZE",
 		),
 	}
 }

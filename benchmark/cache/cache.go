@@ -9,7 +9,6 @@ import (
 
 const fileExtension = ".bin"
 const CPABEPublicKeyFileName = "cpabe-public-key"
-const CPABEMasterSecretFileName = "cpabe-master-secret"
 
 var cacheDirectory = utility.ParseStringFromEnv("CACHE_DIRECTORY")
 
@@ -25,23 +24,11 @@ func StoreFile(fileName string, fileContent []byte) {
 	}
 }
 
-// Look up a file by its name and return its contents. Important in provisioning process
-// - If find returns false -> Create file accordingly
-func FindFile(fileName string) ([]byte, bool) {
+// Load a fixture from the cache, panicking if it was never provisioned
+func LoadFile(fileName string) []byte {
 
 	content, err := os.ReadFile(getFilePath(fileName))
 	if err != nil {
-		return nil, false
-	}
-
-	return content, true
-}
-
-// Same as FindFile but panics if the file is not found
-func LoadFile(fileName string) []byte {
-
-	content, found := FindFile(fileName)
-	if !found {
 		panic(fmt.Sprintf("fixture %q was never provisioned", fileName))
 	}
 

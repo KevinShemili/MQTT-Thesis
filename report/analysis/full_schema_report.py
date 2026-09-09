@@ -21,7 +21,7 @@ from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import PEAK_RSS_BYTES
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
-    ADDITIONAL_OVERHEAD_BYTES,
+    ENVELOPE_BYTES,
     MB_PER_SECOND,
     NS_PER_OP,
     THROTTLED as TIMING_THROTTLED,
@@ -33,7 +33,7 @@ from report.render.chart import (
     plot_full_schema_latency_overhead_share,
     plot_full_schema_memory,
     plot_full_schema_throughput,
-    plot_full_schema_wire_expansion,
+    plot_full_schema_wire_overhead,
 )
 from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
 from report.render.html import write_full_schema_report
@@ -58,7 +58,7 @@ REPORT_TEMPLATE_NAME = "full_schema_template.html"
 LATENCY_PLOT = "latency.png"
 LATENCY_OVERHEAD_SHARE_PLOT = "latency_overhead_share.png"
 THROUGHPUT_PLOT = "throughput.png"
-WIRE_EXPANSION_PLOT = "wire_expansion.png"
+WIRE_OVERHEAD_PLOT = "wire_overhead.png"
 ENERGY_PLOT = "energy.png"
 ADDITIONAL_ENERGY_PLOT = "additional_energy.png"
 MEMORY_PLOT = "memory.png"
@@ -121,12 +121,12 @@ def collect_memory_aggregations(
     return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
-def collect_overhead(
+def collect_envelope_sizes(
     aggregations: list[TimingAggregation],
 ) -> list[float]:
 
     return [
-        aggregation.cases[0].measurements[ADDITIONAL_OVERHEAD_BYTES]
+        aggregation.cases[0].measurements[ENVELOPE_BYTES]
         for aggregation in aggregations
     ]
 
@@ -209,27 +209,24 @@ def analyze_memory_case(
 
 
 def calculate_wire_sizes(
-    payload_sizes: list[int],
     encrypt_aggregations: list[TimingAggregation],
 ) -> list[float]:
 
-    overhead_bytes = collect_overhead(encrypt_aggregations)
+    return collect_envelope_sizes(encrypt_aggregations)
 
+
+def calculate_wire_overhead(
+    payload_sizes: list[int],
+    wire_sizes: list[float],
+) -> list[float]:
     return [
-        payload_size + overhead
-        for payload_size, overhead in zip(
+        wire_size - payload_size
+        for payload_size, wire_size in zip(
             payload_sizes,
-            overhead_bytes,
+            wire_sizes,
             strict=True,
         )
     ]
-
-
-def calculate_wire_expansion(
-    payload_sizes: list[int],
-    wire_sizes: list[float],
-) -> float:
-    return wire_sizes[0] - payload_sizes[0]
 
 
 def main() -> None:
@@ -264,7 +261,7 @@ def main() -> None:
 
     case_results = {}
     wire_data = {}
-    wire_expansions = {}
+    wire_overheads = {}
 
     for scheme in ("PSK", "RSA", "CPABE"):
         for operation in ("Encrypt", "Decrypt"):
@@ -291,11 +288,10 @@ def main() -> None:
 
             if operation == "Encrypt":
                 wire_sizes = calculate_wire_sizes(
-                    payload_sizes,
                     timing_aggregations,
                 )
                 wire_data[scheme] = wire_sizes
-                wire_expansions[scheme] = calculate_wire_expansion(
+                wire_overheads[scheme] = calculate_wire_overhead(
                     payload_sizes,
                     wire_sizes,
                 )
@@ -386,9 +382,10 @@ def main() -> None:
         str(result_directory / THROUGHPUT_PLOT),
     )
 
-    plot_full_schema_wire_expansion(
-        wire_expansions,
-        str(result_directory / WIRE_EXPANSION_PLOT),
+    plot_full_schema_wire_overhead(
+        payload_sizes,
+        wire_overheads,
+        str(result_directory / WIRE_OVERHEAD_PLOT),
     )
 
     plot_full_schema_energy(
@@ -422,7 +419,7 @@ def main() -> None:
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
         "wire_sizes": wire_data,
-        "wire_expansions": wire_expansions,
+        "wire_overheads": wire_overheads,
         "memory": memory_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
@@ -430,7 +427,7 @@ def main() -> None:
             "latency": LATENCY_PLOT,
             "latency_overhead_share": LATENCY_OVERHEAD_SHARE_PLOT,
             "throughput": THROUGHPUT_PLOT,
-            "wire_expansion": WIRE_EXPANSION_PLOT,
+            "wire_overhead": WIRE_OVERHEAD_PLOT,
             "energy": ENERGY_PLOT,
             "additional_energy": ADDITIONAL_ENERGY_PLOT,
             "memory": MEMORY_PLOT,

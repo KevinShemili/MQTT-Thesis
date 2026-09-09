@@ -10,7 +10,7 @@ Go implements the benchmark workloads. Python on the laptop builds and executes 
 | --- | --- | --- | --- |
 | AES vs. ASCON | Payload size | AES-GCM and ASCON Encrypt/Decrypt | Latency, throughput, wire overhead, energy/op, iterations, thermal state |
 | JSON vs. CBOR | Payload size | JSON, CBOR, and CBOR with integer keys Serialize/Deserialize | Latency, encoded size, format overhead, energy/op, iterations, thermal state |
-| Full Schema | Payload size | PSK, RSA, and CP-ABE Encrypt/Decrypt | Latency, throughput chart, wire size, energy/op, peak RSS, and thermal state |
+| Full Schema | Payload size | PSK, RSA, and CP-ABE with ASCON and CBOR Encrypt/Decrypt | Latency, throughput chart, serialized envelope size, energy/op, peak RSS, and thermal state |
 | CP-ABE vs. RSA | CP-ABE policy attributes and RSA subscribers; RSA key size is a secondary timing sensitivity | CP-ABE and RSA Encrypt/Decrypt | Latency, wrapped-key sizes, energy/op, peak RSS, slopes, crossovers, asymmetry, and comparisons |
 
 ## How the pipeline works
@@ -153,7 +153,7 @@ Generated results live under `results/` and are intentionally ignored by Git.
 | --- | --- | --- |
 | `results/aes_ascon/` | `timing.txt`, `energy.txt` | `latency.png`, `throughput.png`, `energy.png` |
 | `results/json_cbor/` | `timing.txt`, `energy.txt` | `latency.png`, `size.png`, `energy.png` |
-| `results/full_schema/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `latency_overhead_share.png`, `throughput.png`, `wire_expansion.png`, `energy.png`, `additional_energy.png`, `memory.png` |
+| `results/full_schema/` | `timing.txt`, `memory.txt`, `energy.txt` | `latency.png`, `latency_overhead_share.png`, `throughput.png`, `wire_overhead.png`, `energy.png`, `additional_energy.png`, `memory.png` |
 | `results/cpabe_rsa/` | `timing.txt`, `memory.txt`, `energy.txt` | `cpabe_attributes.png`, `rsa_subscribers.png`, `rsa_key_size_sensitivity.png`, `energy.png`, `peak_memory.png`, and four comparison charts |
 
 Every directory also receives `report.html`. Timing and energy thermal observations are reported separately.
@@ -166,7 +166,7 @@ The raw energy format contains one scenario-level `[baseline]`, followed by para
 .
 ├── benchmark/
 │   ├── cache/                    # Provisioned benchmark fixtures
-│   ├── cmd/provision/            # Benchmark fixture provisioning binary
+│   ├── cmd/provision_*/          # Scenario-specific fixture provisioning binaries
 │   ├── cryptography/             # AES-GCM, ASCON, RSA, and CP-ABE adapters
 │   ├── envelope/                 # JSON and CBOR envelope representations
 │   ├── micro/                    # Timing, energy, and memory benchmarks
