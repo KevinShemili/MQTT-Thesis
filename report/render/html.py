@@ -390,165 +390,6 @@ def write_json_cbor_report(
     build_html_report(template_path, report_path, placeholders)
 
 
-def _build_full_schema_tables(
-    payload_sizes: list[int],
-    cases: dict[tuple[str, str], dict[str, Any]],
-) -> dict[str, str]:
-    headers = [
-        "Payload Size (B)",
-        "Latency (µs/op)",
-    ]
-    specifications = [
-        ("EncryptPskTable", ("PSK", "Encrypt")),
-        ("EncryptRsaTable", ("RSA", "Encrypt")),
-        ("EncryptCpabeTable", ("CPABE", "Encrypt")),
-        ("DecryptPskTable", ("PSK", "Decrypt")),
-        ("DecryptRsaTable", ("RSA", "Decrypt")),
-        ("DecryptCpabeTable", ("CPABE", "Decrypt")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = cases[case]
-        tables[placeholder] = _build_data_table(
-            headers,
-            [
-                [f"{value:,}" for value in payload_sizes],
-                _mean_ci_column(
-                    values["latency_means"],
-                    values["latency_cis"],
-                ),
-            ],
-            values["timing_throttled"],
-        )
-
-    return tables
-
-
-def _build_full_schema_wire_size_table(
-    payload_sizes: list[int],
-    wire_sizes: dict[str, list[float]],
-) -> str:
-    return _build_data_table(
-        [
-            "Payload Size (B)",
-            "PSK Envelope (B)",
-            "RSA Envelope (B)",
-            "CP-ABE Envelope (B)",
-        ],
-        [
-            [f"{value:,}" for value in payload_sizes],
-            [f"{round(value):,}" for value in wire_sizes["PSK"]],
-            [f"{round(value):,}" for value in wire_sizes["RSA"]],
-            [f"{round(value):,}" for value in wire_sizes["CPABE"]],
-        ],
-    )
-
-
-def _build_full_schema_energy_tables(
-    payload_sizes: list[int],
-    cases: dict[tuple[str, str], dict[str, Any]],
-) -> dict[str, str]:
-    headers = ["Payload Size (B)", "Energy (µJ/op)"]
-    specifications = [
-        ("EncryptPskEnergyTable", ("PSK", "Encrypt")),
-        ("EncryptRsaEnergyTable", ("RSA", "Encrypt")),
-        ("EncryptCpabeEnergyTable", ("CPABE", "Encrypt")),
-        ("DecryptPskEnergyTable", ("PSK", "Decrypt")),
-        ("DecryptRsaEnergyTable", ("RSA", "Decrypt")),
-        ("DecryptCpabeEnergyTable", ("CPABE", "Decrypt")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = cases[case]
-        tables[placeholder] = _build_data_table(
-            headers,
-            [
-                [f"{value:,}" for value in payload_sizes],
-                _mean_ci_column(
-                    values["energy_means"],
-                    values["energy_cis"],
-                ),
-            ],
-            values["energy_throttled"],
-        )
-
-    return tables
-
-
-def _build_full_schema_memory_tables(
-    payload_sizes: list[int],
-    memory: dict[tuple[str, str], dict[str, Any]],
-) -> dict[str, str]:
-    specifications = [
-        ("EncryptPskMemoryTable", ("PSK", "Encrypt")),
-        ("EncryptRsaMemoryTable", ("RSA", "Encrypt")),
-        ("EncryptCpabeMemoryTable", ("CPABE", "Encrypt")),
-        ("DecryptPskMemoryTable", ("PSK", "Decrypt")),
-        ("DecryptRsaMemoryTable", ("RSA", "Decrypt")),
-        ("DecryptCpabeMemoryTable", ("CPABE", "Decrypt")),
-    ]
-    tables = {}
-    for placeholder, case in specifications:
-        values = memory[case]
-        tables[placeholder] = _build_data_table(
-            ["Payload Size (B)", "Peak RSS (MB)"],
-            [
-                [f"{value:,}" for value in payload_sizes],
-                _mean_ci_column(values["means"], values["cis"]),
-            ],
-        )
-
-    return tables
-
-
-def write_full_schema_report(
-    report_data: dict[str, Any],
-    template_path: str,
-    report_path: str,
-) -> None:
-    payload_sizes = report_data["payload_sizes"]
-    cases = report_data["cases"]
-    plots = report_data["plots"]
-    timing_throttled = [
-        flag for values in cases.values() for flag in values["timing_throttled"]
-    ]
-    energy_throttled = [
-        flag for values in cases.values() for flag in values["energy_throttled"]
-    ]
-
-    placeholders = {
-        "RunCount": str(report_data["runs"]),
-        "ConfidenceLevel": CONFIDENCE_LEVEL,
-        **_build_full_schema_tables(
-            payload_sizes,
-            cases,
-        ),
-        "WireSizeTable": _build_full_schema_wire_size_table(
-            payload_sizes,
-            report_data["wire_sizes"],
-        ),
-        **_build_full_schema_energy_tables(payload_sizes, cases),
-        **_build_full_schema_memory_tables(
-            payload_sizes,
-            report_data["memory"],
-        ),
-        "TimingThermalLegend": build_thermal_legend(timing_throttled),
-        "EnergyThermalLegend": build_thermal_legend(energy_throttled),
-        "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
-        "EnergyWindowStart": f'{report_data["energy_window_start"]:g}',
-        "EnergyWindowEnd": f'{report_data["energy_window_end"]:g}',
-        "LatencyPlot": plots["latency"],
-        "LatencyOverheadSharePlot": plots["latency_overhead_share"],
-        "ThroughputPlot": plots["throughput"],
-        "WireOverheadPlot": plots["wire_overhead"],
-        "EnergyPlot": plots["energy"],
-        "AdditionalEnergyPlot": plots["additional_energy"],
-        "MemoryPlot": plots["memory"],
-    }
-
-    build_html_report(template_path, report_path, placeholders)
-
-
 FANOUT_LARGEST_DIAMETER_PX = 168.0
 FANOUT_SMALLEST_DIAMETER_PX = 22.0
 
@@ -612,10 +453,10 @@ def _build_cpabe_rsa_timing_report_tables(
         "CpabePolicyScalingTable": _build_data_table(
             [
                 "Policy Attributes",
-                "Encrypt Latency (µs/op)",
-                "Decrypt Latency (µs/op)",
-                "Ciphertext (B)",
-                "Stored Key (B)",
+                "Encrypt",
+                "Decrypt",
+                "Ciphertext",
+                "Stored Key",
             ],
             [
                 [str(value) for value in attributes],
@@ -644,9 +485,9 @@ def _build_cpabe_rsa_timing_report_tables(
         "RsaSubscriberScalingTable": _build_data_table(
             [
                 "Subscribers",
-                "Encrypt Latency (µs/op)",
-                "Ciphertext (B)",
-                "Total Ciphertext (B)",
+                "Encrypt",
+                "Ciphertext",
+                "Total Ciphertext",
             ],
             [
                 [str(value) for value in subscribers],
@@ -670,9 +511,9 @@ def _build_cpabe_rsa_timing_report_tables(
         "RsaKeySizeSensitivityTable": build_html_table(
             [
                 "RSA Key Bits",
-                "Encrypt Latency (µs/op)",
-                "Decrypt Latency (µs/op)",
-                "Ciphertext (B)",
+                "Encrypt",
+                "Decrypt",
+                "Ciphertext",
             ],
             _rows_from_columns(
                 [
@@ -712,8 +553,8 @@ def _build_cpabe_rsa_energy_tables(report_data: dict[str, Any]) -> dict[str, str
         "CpabeEnergyTable": _build_data_table(
             [
                 "Policy Attributes",
-                "Encrypt Energy (µJ/op)",
-                "Decrypt Energy (µJ/op)",
+                "Encrypt",
+                "Decrypt",
             ],
             [
                 [str(value) for value in report_data["attribute_counts"]],
@@ -732,7 +573,7 @@ def _build_cpabe_rsa_energy_tables(report_data: dict[str, Any]) -> dict[str, str
             ],
         ),
         "RsaSubscriberEnergyTable": _build_data_table(
-            ["Subscribers", "Encrypt Energy (µJ/op)"],
+            ["Subscribers", "Encrypt"],
             [
                 [str(value) for value in report_data["subscriber_counts"]],
                 _mark_throttled_cells(
@@ -759,8 +600,8 @@ def _build_cpabe_rsa_memory_report_tables(
         "CpabePeakMemoryTable": _build_data_table(
             [
                 "Policy Attributes",
-                "Encrypt Peak RSS (MB)",
-                "Decrypt Peak RSS (MB)",
+                "Encrypt",
+                "Decrypt",
             ],
             [
                 [str(value) for value in report_data["attribute_counts"]],
@@ -769,7 +610,7 @@ def _build_cpabe_rsa_memory_report_tables(
             ],
         ),
         "RsaSubscriberPeakMemoryTable": _build_data_table(
-            ["Subscribers", "Encrypt Peak RSS (MB)"],
+            ["Subscribers", "Encrypt"],
             [
                 [str(value) for value in report_data["subscriber_counts"]],
                 _mean_ci_column(subscriber_encrypt["means"], subscriber_encrypt["cis"]),
@@ -804,15 +645,15 @@ def _build_cpabe_rsa_fixed_reference_tables(
 
     return {
         "FixedRsaDecryptLatencyTable": build_html_table(
-            ["RSA Key Bits", "Subscribers", "Decrypt Latency (µs/op)"],
+            ["RSA Key Bits", "Subscribers", "Decrypt"],
             [[fixed_rsa_key_bits, "1", latency]],
         ),
         "FixedRsaDecryptEnergyTable": build_html_table(
-            ["RSA Key Bits", "Subscribers", "Decrypt Energy (µJ/op)"],
+            ["RSA Key Bits", "Subscribers", "Decrypt"],
             [[fixed_rsa_key_bits, "1", energy]],
         ),
         "FixedRsaDecryptMemoryTable": build_html_table(
-            ["RSA Key Bits", "Subscribers", "Decrypt Peak RSS (MB)"],
+            ["RSA Key Bits", "Subscribers", "Decrypt"],
             [[fixed_rsa_key_bits, "1", memory]],
         ),
     }

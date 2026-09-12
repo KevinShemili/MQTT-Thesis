@@ -122,28 +122,3 @@ func TestCBORIntegerKeyEnvelopeRoundTrip(t *testing.T) {
 		)
 	}
 }
-
-func TestCBORPSKEnvelopeOmitsAsymmetricCiphertext(t *testing.T) {
-
-	// Arrange
-	message := envelope.Envelope{
-		Nonce:               []byte("nonce"),
-		SymmetricCiphertext: []byte("symmetric ciphertext"),
-	}
-
-	// Act
-	serialized := envelope.SerializeCBOR(message)
-	deserialized := envelope.DeserializeCBOR(serialized)
-
-	// Assert
-	if bytes.Contains(serialized, []byte("asymmetricCiphertext")) {
-		t.Fatal("PSK envelope contains an asymmetric ciphertext field")
-	}
-
-	if deserialized.AsymmetricCiphertext != nil {
-		t.Fatalf(
-			"asymmetric ciphertext produced %q, want nil",
-			deserialized.AsymmetricCiphertext,
-		)
-	}
-}

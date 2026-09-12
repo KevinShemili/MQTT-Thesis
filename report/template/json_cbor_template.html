@@ -410,6 +410,31 @@
             .section {
                 box-shadow: none;
             }
+
+            /* Preserve graph + explanation side-by-side */
+            .comparison-row {
+                display: grid;
+                grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.55fr);
+                gap: 14px;
+
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            /* Keep individual report components together */
+            .plot-card,
+            .comparison-explanation,
+            .table-block,
+            .operation-group {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .plot-frame img {
+                display: block;
+                width: 100%;
+                height: auto;
+            }
         }
     </style>
 </head>
@@ -417,7 +442,7 @@
 <body>
     <main class="page">
         <header class="hero">
-            <div class="eyebrow">Microbenchmark Scenario 3</div>
+            <div class="eyebrow">Microbenchmark Scenario 2</div>
             <h1>Envelope Serialization under Payload Size Scaling</h1>
         </header>
 
@@ -449,7 +474,8 @@
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{LatencyPlot}}" alt="JSON and CBOR serialization and deserialization latency over payload size">
+                        <img src="{{LatencyPlot}}"
+                            alt="JSON and CBOR serialization and deserialization latency over payload size">
                     </div>
                 </article>
 
@@ -460,7 +486,8 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{LatencySpeedupPlot}}" alt="CBOR serialization and deserialization latency speedup relative to JSON over payload size">
+                            <img src="{{LatencySpeedupPlot}}"
+                                alt="CBOR serialization and deserialization latency speedup relative to JSON over payload size">
                         </div>
                     </article>
 
@@ -531,7 +558,8 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{WireOverheadPlot}}" alt="JSON and CBOR wire overhead above the raw binary envelope data over payload size">
+                            <img src="{{WireOverheadPlot}}"
+                                alt="JSON and CBOR wire overhead above the raw binary envelope data over payload size">
                         </div>
                     </article>
 
@@ -590,7 +618,8 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{EnergyReductionPlot}}" alt="CBOR serialization and deserialization energy reduction relative to JSON over payload size">
+                            <img src="{{EnergyReductionPlot}}"
+                                alt="CBOR serialization and deserialization energy reduction relative to JSON over payload size">
                         </div>
                     </article>
 

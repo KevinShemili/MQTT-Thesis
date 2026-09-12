@@ -572,6 +572,39 @@
             .section {
                 box-shadow: none;
             }
+
+            /* Keep graph + explanation side-by-side */
+            .comparison-row {
+                display: grid;
+                grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.55fr);
+                gap: 14px;
+
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            /* Tables can stack if needed for print */
+            .table-row {
+                display: block;
+            }
+
+            .table-row>*+* {
+                margin-top: 14px;
+            }
+
+            .plot-card,
+            .comparison-explanation,
+            .table-block,
+            .fanout-card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .plot-frame img {
+                display: block;
+                width: 100%;
+                height: auto;
+            }
         }
     </style>
 </head>
@@ -579,7 +612,7 @@
 <body>
     <main class="page">
         <header class="hero">
-            <div class="eyebrow">Microbenchmark Scenario 2</div>
+            <div class="eyebrow">Microbenchmark Scenario 3</div>
             <h1>CP-ABE vs. RSA</h1>
         </header>
 
@@ -719,7 +752,7 @@
             <div class="operation-group">
                 <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>CP-ABE Policy Scaling</h3>
+                        <h3>Latency (µs/op) and Size (B)</h3>
                         <div class="table-wrapper">{{CpabePolicyScalingTable}}</div>
                     </div>
                 </div>
@@ -728,11 +761,11 @@
             <div class="operation-group">
                 <div class="comparison-row">
                     <div class="table-block">
-                        <h3>RSA Subscriber Scaling</h3>
+                        <h3>Latency (µs/op) and Size (B)</h3>
                         <div class="table-wrapper">{{RsaSubscriberScalingTable}}</div>
                     </div>
                     <div class="table-block compact-reference-table">
-                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt Reference</h3>
+                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt Reference — Latency (µs/op)</h3>
                         <div class="table-wrapper">{{FixedRsaDecryptLatencyTable}}</div>
                     </div>
                 </div>
@@ -751,7 +784,7 @@
                 </article>
                 <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>Latency and Ciphertext Size</h3>
+                        <h3>Latency (µs/op) and Ciphertext Size (B)</h3>
                         <div class="table-wrapper">{{RsaKeySizeSensitivityTable}}</div>
                     </div>
                 </div>
@@ -781,7 +814,7 @@
             <div class="operation-group">
                 <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>CP-ABE Energy</h3>
+                        <h3>CP-ABE Energy (µJ/op)</h3>
                         <div class="table-wrapper">{{CpabeEnergyTable}}</div>
                     </div>
                 </div>
@@ -790,11 +823,11 @@
             <div class="operation-group">
                 <div class="comparison-row">
                     <div class="table-block">
-                        <h3>RSA Subscriber Energy</h3>
+                        <h3>RSA Subscriber Energy (µJ/op)</h3>
                         <div class="table-wrapper">{{RsaSubscriberEnergyTable}}</div>
                     </div>
                     <div class="table-block compact-reference-table">
-                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt Reference</h3>
+                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt Reference — Energy (µJ/op)</h3>
                         <div class="table-wrapper">{{FixedRsaDecryptEnergyTable}}</div>
                     </div>
                 </div>
@@ -827,7 +860,7 @@
             <div class="operation-group">
                 <div class="table-row table-row-one">
                     <div class="table-block">
-                        <h3>CP-ABE Peak Memory</h3>
+                        <h3>CP-ABE Peak RSS (MB)</h3>
                         <div class="table-wrapper">{{CpabePeakMemoryTable}}</div>
                     </div>
                 </div>
@@ -836,11 +869,11 @@
             <div class="operation-group">
                 <div class="comparison-row">
                     <div class="table-block">
-                        <h3>RSA Subscriber Peak Memory</h3>
+                        <h3>RSA Subscriber Peak RSS (MB)</h3>
                         <div class="table-wrapper">{{RsaSubscriberPeakMemoryTable}}</div>
                     </div>
                     <div class="table-block compact-reference-table">
-                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt RSS Reference</h3>
+                        <h3>RSA-{{FixedRsaKeyBits}} Fixed Decrypt RSS Reference (MB)</h3>
                         <div class="table-wrapper">{{FixedRsaDecryptMemoryTable}}</div>
                     </div>
                 </div>

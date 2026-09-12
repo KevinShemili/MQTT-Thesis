@@ -47,16 +47,6 @@ func CreateAESGCMCiphertextFileName(payloadSize int) string {
 	return fmt.Sprintf("aes-gcm-ciphertext-%d", payloadSize)
 }
 
-// Identifier for file that stores a full-schema plaintext of a specific size
-func CreateFullSchemaPlaintextFileName(payloadSize int) string {
-	return fmt.Sprintf("full-schema-plaintext-%d", payloadSize)
-}
-
-// Identifier for file that stores a serialized full-schema envelope of a specific scheme and size
-func CreateFullSchemaEnvelopeFileName(scheme string, payloadSize int) string {
-	return fmt.Sprintf("full-schema-%s-envelope-%d", scheme, payloadSize)
-}
-
 // Identifier for file that stores an ASCON ciphertext for a specific payload size
 func CreateASCONCiphertextFileName(payloadSize int) string {
 	return fmt.Sprintf("ascon-ciphertext-%d", payloadSize)

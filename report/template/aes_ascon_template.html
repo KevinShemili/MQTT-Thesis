@@ -420,6 +420,29 @@
             .section {
                 box-shadow: none;
             }
+
+            .comparison-row,
+            .table-row {
+                display: block;
+            }
+
+            .comparison-explanation {
+                margin-top: 14px;
+            }
+
+            .plot-card,
+            .comparison-explanation,
+            .table-block,
+            .operation-group {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .plot-frame img {
+                display: block;
+                width: 100%;
+                height: auto;
+            }
         }
     </style>
 </head>
@@ -427,7 +450,7 @@
 <body>
     <main class="page">
         <header class="hero">
-            <div class="eyebrow">Microbenchmark Scenario 4</div>
+            <div class="eyebrow">Microbenchmark Scenario 1</div>
             <h1>AES-GCM vs. ASCON under Payload Size Scaling</h1>
         </header>
 
@@ -470,7 +493,8 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{LatencySpeedupPlot}}" alt="Point estimates of ASCON encryption and decryption latency speedup relative to AES-GCM, with equal performance marked at one times">
+                            <img src="{{LatencySpeedupPlot}}"
+                                alt="Point estimates of ASCON encryption and decryption latency speedup relative to AES-GCM, with equal performance marked at one times">
                         </div>
                     </article>
 
@@ -553,13 +577,15 @@
                         </div>
 
                         <div class="plot-frame">
-                            <img src="{{EnergyReductionPlot}}" alt="Point estimates of ASCON encryption and decryption energy reduction relative to AES-GCM, with no reduction marked at zero percent">
+                            <img src="{{EnergyReductionPlot}}"
+                                alt="Point estimates of ASCON encryption and decryption energy reduction relative to AES-GCM, with no reduction marked at zero percent">
                         </div>
                     </article>
 
                     <aside class="comparison-explanation">
                         <div class="comparison-label">ASCON Energy Reduction relative to AES-GCM</div>
-                        <p>Points compare reported mean energy per operation. The 0% reference represents no reduction.</p>
+                        <p>Points compare reported mean energy per operation. The 0% reference represents no reduction.
+                        </p>
                         <p><strong>Encrypt</strong></p>
                         <div class="comparison-value">{{EnergyReductionEncryptMin}}% –
                             {{EnergyReductionEncryptMax}}%</div>

@@ -23,18 +23,6 @@ services:
       - ../../results:/app/results
     command: ["python3", "orchestrate/raspberry/orchestrate_json_cbor.py"]
 
-  full-schema:
-    build:
-      context: ../..
-      dockerfile: orchestrate/laptop/Dockerfile
-    container_name: full-schema-benchmark
-    restart: "no"
-    tty: true
-    working_dir: /app
-    volumes:
-      - ../../results:/app/results
-    command: ["python3", "orchestrate/raspberry/orchestrate_full_schema.py"]
-
   cpabe-rsa:
     build:
       context: ../..
