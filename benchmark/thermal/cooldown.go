@@ -1,11 +1,11 @@
 package thermal
 
 import (
-	"benchmark/utility"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"thesis/benchmark/utility"
 	"time"
 )
 

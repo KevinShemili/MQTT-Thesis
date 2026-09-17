@@ -1,0 +1,6 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine
+    network_mode: host
+    volumes:
+      - ./config:/mosquitto/config:ro

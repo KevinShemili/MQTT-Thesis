@@ -1,16 +1,16 @@
 package aes_ascon
 
 import (
-	"benchmark/cache"
-	"benchmark/cryptography/aes"
-	"benchmark/cryptography/ascon"
-	"benchmark/memory"
-	"benchmark/micro/aes_ascon/shared"
-	"benchmark/thermal"
 	"fmt"
 	"runtime"
 	"runtime/debug"
 	"testing"
+	"thesis/benchmark/cache"
+	"thesis/benchmark/cryptography/aes"
+	"thesis/benchmark/cryptography/ascon"
+	"thesis/benchmark/memory"
+	"thesis/benchmark/micro/aes_ascon/shared"
+	"thesis/benchmark/thermal"
 )
 
 // Peak memory is a property of a whole process rather than of a loop, so these

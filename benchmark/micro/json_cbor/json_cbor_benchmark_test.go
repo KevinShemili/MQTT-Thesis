@@ -1,19 +1,23 @@
 package json_cbor
 
 import (
-	"benchmark/cryptography/aes"
-	"benchmark/cryptography/cpabe"
-	"benchmark/envelope"
-	"benchmark/micro/json_cbor/shared"
-	"benchmark/thermal"
-	"benchmark/utility"
 	"fmt"
 	"testing"
+	"thesis/benchmark/cryptography/aes"
+	"thesis/benchmark/cryptography/cpabe"
+	"thesis/benchmark/micro/json_cbor/shared"
+	"thesis/benchmark/thermal"
+	"thesis/benchmark/utility"
+	"thesis/internal/envelope"
+	"thesis/internal/serialization"
 )
 
 func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
+
+	jsonSerializer := serialization.JSONSerializer{}
+	cborSerializer := serialization.CBORSerializer{}
 
 	// Scenario 1: JSON Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
@@ -54,7 +58,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
-			jsonEnvelopeSize := len(envelope.SerializeJSON(env))
+			serializedEnvelope, _ := jsonSerializer.Serialize(env)
+			jsonEnvelopeSize := len(serializedEnvelope)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -63,7 +68,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				envelope.SerializeJSON(env)
+				jsonSerializer.Serialize(env)
 			}
 
 			b.ReportMetric(float64(jsonEnvelopeSize), "envelope_bytes")
@@ -116,7 +121,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
-			cborEnvelopeSize := len(envelope.SerializeCBOR(env))
+			serializedEnvelope, _ := cborSerializer.Serialize(env)
+			cborEnvelopeSize := len(serializedEnvelope)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -125,7 +131,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				envelope.SerializeCBOR(env)
+				cborSerializer.Serialize(env)
 			}
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
@@ -178,7 +184,8 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 
 			// Serialized size is fixed for this benchmark case, so measure once
 			// outside the timed loop
-			cborEnvelopeSize := len(envelope.SerializeCBORKeyAsInt(env))
+			serializedEnvelope, _ := cborSerializer.Serialize(env)
+			cborEnvelopeSize := len(serializedEnvelope)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -187,7 +194,7 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				envelope.SerializeCBORKeyAsInt(env)
+				cborSerializer.Serialize(env)
 			}
 
 			b.ReportMetric(float64(cborEnvelopeSize), "envelope_bytes")
@@ -205,6 +212,9 @@ func BenchmarkEnvelopeSerialize(benchmark *testing.B) {
 func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
+
+	jsonSerializer := serialization.JSONSerializer{}
+	cborSerializer := serialization.CBORSerializer{}
 
 	// Scenario 1: JSON Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
@@ -241,7 +251,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			}
 
 			// Serialize outside timed loop so only deserialization is measured
-			serializedEnvelope := envelope.SerializeJSON(env)
+			serializedEnvelope, _ := jsonSerializer.Serialize(env)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -250,7 +260,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				envelope.DeserializeJSON(serializedEnvelope)
+				var decoded envelope.Envelope
+				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			if throttle.IsThrottled() {
@@ -296,7 +307,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			}
 
 			// Serialize outside timed loop so only deserialization is measured
-			serializedEnvelope := envelope.SerializeCBOR(env)
+			serializedEnvelope, _ := cborSerializer.Serialize(env)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -305,7 +316,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				envelope.DeserializeCBOR(serializedEnvelope)
+				var decoded envelope.Envelope
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			if throttle.IsThrottled() {
@@ -351,7 +363,7 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			}
 
 			// Serialize outside timed loop so only deserialization is measured
-			serializedEnvelope := envelope.SerializeCBORKeyAsInt(env)
+			serializedEnvelope, _ := cborSerializer.Serialize(env)
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -360,7 +372,8 @@ func BenchmarkEnvelopeDeserialize(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
+				var decoded envelope.EnvelopeIntKeys
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			if throttle.IsThrottled() {

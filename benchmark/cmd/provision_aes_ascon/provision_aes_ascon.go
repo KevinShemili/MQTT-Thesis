@@ -1,11 +1,11 @@
 package main
 
 import (
-	"benchmark/cache"
-	"benchmark/cryptography/aes"
-	"benchmark/cryptography/ascon"
-	"benchmark/micro/aes_ascon/shared"
-	"benchmark/utility"
+	"thesis/benchmark/cache"
+	"thesis/benchmark/cryptography/aes"
+	"thesis/benchmark/cryptography/ascon"
+	"thesis/benchmark/micro/aes_ascon/shared"
+	"thesis/benchmark/utility"
 )
 
 // The point of this program is to provide the fixture data for the AES/ASCON

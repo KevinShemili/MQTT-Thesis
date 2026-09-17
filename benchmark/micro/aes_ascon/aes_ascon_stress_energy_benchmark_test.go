@@ -1,13 +1,13 @@
 package aes_ascon
 
 import (
-	"benchmark/cryptography/aes"
-	"benchmark/cryptography/ascon"
-	"benchmark/micro/aes_ascon/shared"
-	"benchmark/thermal"
-	"benchmark/utility"
 	"fmt"
 	"testing"
+	"thesis/benchmark/cryptography/aes"
+	"thesis/benchmark/cryptography/ascon"
+	"thesis/benchmark/micro/aes_ascon/shared"
+	"thesis/benchmark/thermal"
+	"thesis/benchmark/utility"
 	"time"
 )
 

@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"benchmark/utility"
+	"thesis/benchmark/utility"
 )
 
 type CPABERSAConfig struct {

@@ -1,14 +1,15 @@
 package json_cbor
 
 import (
-	"benchmark/cryptography/aes"
-	"benchmark/cryptography/cpabe"
-	"benchmark/envelope"
-	"benchmark/micro/json_cbor/shared"
-	"benchmark/thermal"
-	"benchmark/utility"
 	"fmt"
 	"testing"
+	"thesis/benchmark/cryptography/aes"
+	"thesis/benchmark/cryptography/cpabe"
+	"thesis/benchmark/micro/json_cbor/shared"
+	"thesis/benchmark/thermal"
+	"thesis/benchmark/utility"
+	"thesis/internal/envelope"
+	"thesis/internal/serialization"
 	"time"
 )
 
@@ -20,6 +21,9 @@ var (
 func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
+
+	jsonSerializer := serialization.JSONSerializer{}
+	cborSerializer := serialization.CBORSerializer{}
 
 	// Scenario 1: JSON Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
@@ -64,18 +68,16 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				envelope.SerializeJSON(env)
+				jsonSerializer.Serialize(env)
 			}
-
 			// Actually measure this region
 			for b.Loop() {
-				envelope.SerializeJSON(env)
+				jsonSerializer.Serialize(env)
 			}
-
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				envelope.SerializeJSON(env)
+				jsonSerializer.Serialize(env)
 			}
 
 			if throttle.IsThrottled() {
@@ -129,18 +131,16 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				envelope.SerializeCBOR(env)
+				cborSerializer.Serialize(env)
 			}
-
 			// Actually measure this region
 			for b.Loop() {
-				envelope.SerializeCBOR(env)
+				cborSerializer.Serialize(env)
 			}
-
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				envelope.SerializeCBOR(env)
+				cborSerializer.Serialize(env)
 			}
 
 			if throttle.IsThrottled() {
@@ -194,18 +194,19 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				envelope.SerializeCBORKeyAsInt(env)
-			}
+				cborSerializer.Serialize(env)
 
+			}
 			// Actually measure this region
 			for b.Loop() {
-				envelope.SerializeCBORKeyAsInt(env)
-			}
+				cborSerializer.Serialize(env)
 
+			}
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				envelope.SerializeCBORKeyAsInt(env)
+				cborSerializer.Serialize(env)
+
 			}
 
 			if throttle.IsThrottled() {
@@ -221,6 +222,9 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 
 	config := shared.NewJSONCBORConfig()
 
+	jsonSerializer := serialization.JSONSerializer{}
+	cborSerializer := serialization.CBORSerializer{}
+
 	// Scenario 1: JSON Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
 
@@ -256,7 +260,7 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 			}
 
 			// Serialize outside measured workload so only deserialization is measured
-			serializedEnvelope := envelope.SerializeJSON(env)
+			serializedEnvelope, _ := jsonSerializer.Serialize(env)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
@@ -267,18 +271,21 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				envelope.DeserializeJSON(serializedEnvelope)
+				var decoded envelope.Envelope
+				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				envelope.DeserializeJSON(serializedEnvelope)
+				var decoded envelope.Envelope
+				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				envelope.DeserializeJSON(serializedEnvelope)
+				var decoded envelope.Envelope
+				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			if throttle.IsThrottled() {
@@ -324,7 +331,7 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 			}
 
 			// Serialize outside measured workload so only deserialization is measured
-			serializedEnvelope := envelope.SerializeCBOR(env)
+			serializedEnvelope, _ := cborSerializer.Serialize(env)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
@@ -335,18 +342,21 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				envelope.DeserializeCBOR(serializedEnvelope)
+				var decoded envelope.Envelope
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				envelope.DeserializeCBOR(serializedEnvelope)
+				var decoded envelope.Envelope
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				envelope.DeserializeCBOR(serializedEnvelope)
+				var decoded envelope.Envelope
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			if throttle.IsThrottled() {
@@ -392,7 +402,7 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 			}
 
 			// Serialize outside measured workload so only deserialization is measured
-			serializedEnvelope := envelope.SerializeCBORKeyAsInt(env)
+			serializedEnvelope, _ := cborSerializer.Serialize(env)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
@@ -403,18 +413,21 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
+				var decoded envelope.EnvelopeIntKeys
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
+				var decoded envelope.EnvelopeIntKeys
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				envelope.DeserializeCBORKeyAsInt(serializedEnvelope)
+				var decoded envelope.EnvelopeIntKeys
+				cborSerializer.Deserialize(serializedEnvelope, &decoded)
 			}
 
 			if throttle.IsThrottled() {

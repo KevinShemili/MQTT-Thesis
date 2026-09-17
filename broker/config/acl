@@ -1,0 +1,5 @@
+user macro_publisher
+topic write mqtt-thesis/macro/data
+
+user macro_subscriber
+topic read mqtt-thesis/macro/data

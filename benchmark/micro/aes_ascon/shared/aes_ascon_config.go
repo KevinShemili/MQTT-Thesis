@@ -1,6 +1,6 @@
 package shared
 
-import "benchmark/utility"
+import "thesis/benchmark/utility"
 
 type AESASCONConfig struct {
 	PayloadSizes []int

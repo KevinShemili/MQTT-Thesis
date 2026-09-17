@@ -1,10 +1,10 @@
 package cache
 
 import (
-	"benchmark/utility"
 	"fmt"
 	"os"
 	"path/filepath"
+	"thesis/benchmark/utility"
 )
 
 const fileExtension = ".bin"

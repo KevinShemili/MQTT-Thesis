@@ -1,11 +1,11 @@
 package main
 
 import (
-	"benchmark/cache"
-	"benchmark/cryptography/cpabe"
-	"benchmark/cryptography/rsa"
-	"benchmark/micro/cpabe_rsa/shared"
-	"benchmark/utility"
+	"thesis/benchmark/cache"
+	"thesis/benchmark/cryptography/cpabe"
+	"thesis/benchmark/cryptography/rsa"
+	"thesis/benchmark/micro/cpabe_rsa/shared"
+	"thesis/benchmark/utility"
 )
 
 // The point of this program is to provide the fixture data for the CP-ABE/RSA

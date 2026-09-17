@@ -1,13 +1,13 @@
 package unit
 
 import (
-	"benchmark/cryptography/aes"
-	"benchmark/cryptography/ascon"
-	"benchmark/cryptography/cpabe"
-	"benchmark/cryptography/rsa"
-	"benchmark/utility"
 	"bytes"
 	"testing"
+	"thesis/benchmark/cryptography/aes"
+	"thesis/benchmark/cryptography/ascon"
+	"thesis/benchmark/cryptography/cpabe"
+	"thesis/benchmark/cryptography/rsa"
+	"thesis/benchmark/utility"
 )
 
 var AES_KEY_SIZE = 16

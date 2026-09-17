@@ -1,12 +1,12 @@
 package cpabe_rsa
 
 import (
-	"benchmark/cryptography/cpabe"
-	"benchmark/micro/cpabe_rsa/shared"
-	"benchmark/thermal"
-	"benchmark/utility"
 	"fmt"
 	"testing"
+	"thesis/benchmark/cryptography/cpabe"
+	"thesis/benchmark/micro/cpabe_rsa/shared"
+	"thesis/benchmark/thermal"
+	"thesis/benchmark/utility"
 	"time"
 )
 

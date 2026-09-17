@@ -1,16 +1,16 @@
 package cpabe_rsa
 
 import (
-	"benchmark/cache"
-	"benchmark/cryptography/cpabe"
-	"benchmark/cryptography/rsa"
-	"benchmark/memory"
-	"benchmark/micro/cpabe_rsa/shared"
-	"benchmark/thermal"
 	"fmt"
 	"runtime"
 	"runtime/debug"
 	"testing"
+	"thesis/benchmark/cache"
+	"thesis/benchmark/cryptography/cpabe"
+	"thesis/benchmark/cryptography/rsa"
+	"thesis/benchmark/memory"
+	"thesis/benchmark/micro/cpabe_rsa/shared"
+	"thesis/benchmark/thermal"
 )
 
 // Peak memory is a property of a whole process rather than of a loop, so these
