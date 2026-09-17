@@ -9,7 +9,7 @@ import (
 
 const (
 	protocolVersion = 4 // MQTT 3.1.1
-	qos             = 1
+	qos             = 0
 )
 
 type ClientConfig struct {
@@ -56,9 +56,8 @@ func (client *Client) Connect() error {
 func (client *Client) Subscribe(topic string, handler func(MQTTDelivery)) error {
 	token := client.pahoClient.Subscribe(topic, qos, func(_ mqtt.Client, message mqtt.Message) {
 		handler(MQTTDelivery{
-			Topic:     message.Topic(),
-			Payload:   message.Payload(),
-			Duplicate: message.Duplicate(),
+			Topic:   message.Topic(),
+			Payload: message.Payload(),
 		})
 	},
 	)
@@ -72,12 +71,10 @@ func (client *Client) Subscribe(topic string, handler func(MQTTDelivery)) error 
 	return nil
 }
 
-func (client *Client) Publish(topic string, payload []byte) IPublishToken {
-	return PublishToken{
-		token: client.pahoClient.Publish(topic, qos, false, payload),
-	}
+func (client *Client) Publish(topic string, payload []byte) {
+	client.pahoClient.Publish(topic, qos, false, payload)
 }
 
 func (client *Client) Disconnect() {
-	client.pahoClient.Disconnect(0)
+	client.pahoClient.Disconnect(250)
 }

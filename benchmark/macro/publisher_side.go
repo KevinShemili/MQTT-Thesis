@@ -22,8 +22,7 @@ func ExecutePublishBenchmark(
 	}
 	defer client.Disconnect()
 
-	pendingPublishTokens := make([]mqtt.IPublishToken, 0, config.MessageCount)
-
+	publishedMessages := 0
 	var lastReleaseTime time.Time
 
 	for range config.MessageCount {
@@ -42,9 +41,8 @@ func ExecutePublishBenchmark(
 			return fmt.Errorf("serialize message %s: %w", msg.ID, err)
 		}
 
-		publishToken := client.Publish(config.Topic, serializedMessage)
-
-		pendingPublishTokens = append(pendingPublishTokens, publishToken)
+		client.Publish(config.Topic, serializedMessage)
+		publishedMessages++
 
 		lastReleaseTime = releaseTime
 
@@ -56,16 +54,10 @@ func ExecutePublishBenchmark(
 		)
 	}
 
-	for _, publishToken := range pendingPublishTokens {
-		if err := publishToken.Wait(); err != nil {
-			return fmt.Errorf("wait for MQTT publish completion: %w", err)
-		}
-	}
-
 	fmt.Fprintf(
 		output,
 		"SUMMARY role=publisher published=%d\n",
-		len(pendingPublishTokens),
+		publishedMessages,
 	)
 
 	return nil

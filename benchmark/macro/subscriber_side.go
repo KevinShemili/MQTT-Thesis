@@ -9,8 +9,6 @@ import (
 	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
-
-	"github.com/google/uuid"
 )
 
 func ExecuteSubscribeBenchmark(
@@ -24,13 +22,10 @@ func ExecuteSubscribeBenchmark(
 	}
 	defer client.Disconnect()
 
-	completedMessageIDs := make(map[uuid.UUID]struct{}, config.MessageCount)
-
-	duplicates := 0
+	completedMessages := 0
 	benchmarkResult := make(chan error, 1)
 
 	err := client.Subscribe(config.Topic, func(delivery mqtt.MQTTDelivery) {
-
 		var msg message.Message
 
 		if err := serializer.Deserialize(delivery.Payload, &msg); err != nil {
@@ -50,22 +45,8 @@ func ExecuteSubscribeBenchmark(
 			return
 		}
 
-		if _, exists := completedMessageIDs[msg.ID]; exists {
-			duplicates++
-
-			fmt.Fprintf(
-				output,
-				"DUPLICATE message_id=%s mqtt_duplicate=%t\n",
-				msg.ID,
-				delivery.Duplicate,
-			)
-
-			return
-		}
-
 		completedAt := time.Now()
-
-		completedMessageIDs[msg.ID] = struct{}{}
+		completedMessages++
 
 		fmt.Fprintf(
 			output,
@@ -74,7 +55,7 @@ func ExecuteSubscribeBenchmark(
 			completedAt.UnixNano(),
 		)
 
-		if len(completedMessageIDs) == config.MessageCount {
+		if completedMessages == config.MessageCount {
 			benchmarkResult <- nil
 		}
 	},
@@ -91,9 +72,8 @@ func ExecuteSubscribeBenchmark(
 
 	fmt.Fprintf(
 		output,
-		"SUMMARY role=subscriber completed=%d duplicates=%d\n",
-		len(completedMessageIDs),
-		duplicates,
+		"SUMMARY role=subscriber completed=%d\n",
+		completedMessages,
 	)
 
 	return nil
