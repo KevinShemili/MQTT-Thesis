@@ -30,9 +30,9 @@ from report.model.timing.timing_case import (
 from report.render.chart import (
     plot_full_schema_energy,
     plot_full_schema_latency,
+    plot_full_schema_latency_overview,
     plot_full_schema_memory,
-    plot_full_schema_throughput,
-    plot_full_schema_wire_overhead,
+    plot_full_schema_serialized_envelope_size,
 )
 from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
 from report.render.html import write_full_schema_report
@@ -59,13 +59,15 @@ ENERGY_RESULT_NAME = "energy.txt"
 REPORT_TEMPLATE_NAME = "full_schema_template.html"
 
 LATENCY_PLOT = "latency.png"
-THROUGHPUT_PLOT = "throughput.png"
-WIRE_OVERHEAD_PLOT = "wire_overhead.png"
+LATENCY_OVERVIEW_PLOT = "latency_overview.png"
+SERIALIZED_ENVELOPE_SIZE_PLOT = "serialized_envelope_size.png"
 ENERGY_PLOT = "energy.png"
 MEMORY_PLOT = "memory.png"
 OBSOLETE_PLOTS = (
     "latency_overhead_share.png",
     "additional_energy.png",
+    "throughput.png",
+    "wire_overhead.png",
 )
 
 MICROJOULES_PER_JOULE = 1_000_000
@@ -212,20 +214,6 @@ def analyze_memory_case(
     }
 
 
-def calculate_wire_overhead(
-    payload_sizes: list[int],
-    wire_sizes: list[float],
-) -> list[float]:
-    return [
-        wire_size - payload_size
-        for payload_size, wire_size in zip(
-            payload_sizes,
-            wire_sizes,
-            strict=True,
-        )
-    ]
-
-
 def main() -> None:
 
     load_dotenv(
@@ -262,8 +250,7 @@ def main() -> None:
     )
 
     case_results = {}
-    wire_sizes = {}
-    wire_overheads = {}
+    envelope_sizes = {}
 
     for configuration in CONFIGURATIONS:
         for operation in ("Encrypt", "Decrypt"):
@@ -289,11 +276,8 @@ def main() -> None:
             )
 
             if operation == "Encrypt":
-                sizes = collect_envelope_sizes(timing_aggregations)
-                wire_sizes[configuration] = sizes
-                wire_overheads[configuration] = calculate_wire_overhead(
-                    payload_sizes,
-                    sizes,
+                envelope_sizes[configuration] = collect_envelope_sizes(
+                    timing_aggregations
                 )
 
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
@@ -322,14 +306,6 @@ def main() -> None:
         for case, values in case_results.items()
     }
 
-    throughput_results = {
-        case: (
-            values["throughput_means"],
-            values["throughput_cis"],
-        )
-        for case, values in case_results.items()
-    }
-
     energy_results = {
         case: (
             values["energy_means"],
@@ -343,22 +319,22 @@ def main() -> None:
         for case, values in memory_results.items()
     }
 
+    plot_full_schema_latency_overview(
+        payload_sizes,
+        latency_results,
+        str(result_directory / LATENCY_OVERVIEW_PLOT),
+    )
+
     plot_full_schema_latency(
         payload_sizes,
         latency_results,
         str(result_directory / LATENCY_PLOT),
     )
 
-    plot_full_schema_throughput(
+    plot_full_schema_serialized_envelope_size(
         payload_sizes,
-        throughput_results,
-        str(result_directory / THROUGHPUT_PLOT),
-    )
-
-    plot_full_schema_wire_overhead(
-        payload_sizes,
-        wire_overheads,
-        str(result_directory / WIRE_OVERHEAD_PLOT),
+        envelope_sizes,
+        str(result_directory / SERIALIZED_ENVELOPE_SIZE_PLOT),
     )
 
     plot_full_schema_energy(
@@ -382,14 +358,14 @@ def main() -> None:
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
-        "wire_sizes": wire_sizes,
+        "envelope_sizes": envelope_sizes,
         "memory": memory_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "plots": {
             "latency": LATENCY_PLOT,
-            "throughput": THROUGHPUT_PLOT,
-            "wire_overhead": WIRE_OVERHEAD_PLOT,
+            "latency_overview": LATENCY_OVERVIEW_PLOT,
+            "serialized_envelope_size": SERIALIZED_ENVELOPE_SIZE_PLOT,
             "energy": ENERGY_PLOT,
             "memory": MEMORY_PLOT,
         },

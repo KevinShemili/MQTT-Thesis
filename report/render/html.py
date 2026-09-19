@@ -246,12 +246,12 @@ def write_aes_ascon_report(
 
 
 FULL_SCHEMA_CONFIGURATIONS = (
-    ("PSKStandard", "PSK — Standard"),
-    ("PSKLightweight", "PSK — Lightweight"),
-    ("RSAStandard", "RSA — Standard"),
-    ("RSALightweight", "RSA — Lightweight"),
-    ("CPABEStandard", "CP-ABE — Standard"),
-    ("CPABELightweight", "CP-ABE — Lightweight"),
+    ("PSKStandard", "PSK (Standard)"),
+    ("PSKLightweight", "PSK (Lightweight)"),
+    ("RSAStandard", "RSA (Standard)"),
+    ("RSALightweight", "RSA (Lightweight)"),
+    ("CPABEStandard", "CP-ABE (Standard)"),
+    ("CPABELightweight", "CP-ABE (Lightweight)"),
 )
 
 
@@ -278,7 +278,10 @@ def _build_full_schema_measurement_table(
         rows.append([label, *cells])
 
     return build_html_table(
-        ["Configuration", *_byte_column(payload_sizes)],
+        [
+            "Configuration",
+            *[format_byte_size(payload_size) for payload_size in payload_sizes],
+        ],
         rows,
     )
 
@@ -302,14 +305,17 @@ def _build_full_schema_timing_tables(
 
 def _build_full_schema_size_table(
     payload_sizes: list[int],
-    wire_sizes: dict[str, list[float]],
+    envelope_sizes: dict[str, list[float]],
 ) -> str:
     return build_html_table(
-        ["Configuration", *_byte_column(payload_sizes)],
+        [
+            "Configuration",
+            *[format_byte_size(payload_size) for payload_size in payload_sizes],
+        ],
         [
             [
                 label,
-                *[f"{round(value):,} B" for value in wire_sizes[configuration]],
+                *[f"{round(value):,}" for value in envelope_sizes[configuration]],
             ]
             for configuration, label in FULL_SCHEMA_CONFIGURATIONS
         ],
@@ -367,25 +373,19 @@ def write_full_schema_report(
     placeholders = {
         "RunCount": str(report_data["runs"]),
         "ConfidenceLevel": CONFIDENCE_LEVEL,
-        "RsaKeyBits": f'{report_data["rsa_key_bits"]:,}',
-        "AttributeCount": str(report_data["attribute_count"]),
-        "EnergyWindow": (
-            f'[{report_data["energy_window_start"]:g}, '
-            f'{report_data["energy_window_end"]:g}) s'
-        ),
         "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
         **_build_full_schema_timing_tables(payload_sizes, cases),
-        "WireSizeTable": _build_full_schema_size_table(
+        "SerializedEnvelopeSizeTable": _build_full_schema_size_table(
             payload_sizes,
-            report_data["wire_sizes"],
+            report_data["envelope_sizes"],
         ),
         **_build_full_schema_energy_tables(payload_sizes, cases),
         **_build_full_schema_memory_tables(payload_sizes, report_data["memory"]),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
-        "LatencyPlot": plots["latency"],
-        "ThroughputPlot": plots["throughput"],
-        "WireOverheadPlot": plots["wire_overhead"],
+        "LatencyOverviewPlot": plots["latency_overview"],
+        "LatencyDetailPlot": plots["latency"],
+        "SerializedEnvelopeSizePlot": plots["serialized_envelope_size"],
         "EnergyPlot": plots["energy"],
         "MemoryPlot": plots["memory"],
     }

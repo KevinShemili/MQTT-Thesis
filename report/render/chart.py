@@ -8,8 +8,13 @@ from report.render import formatting
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
-from math import isnan
+from matplotlib.ticker import (
+    FixedLocator,
+    FuncFormatter,
+    LogLocator,
+    NullFormatter,
+)
+from math import ceil, floor, isclose, isnan, log10
 from typing import Any, Callable
 
 from .color import *
@@ -36,14 +41,19 @@ def draw_summary(
     with_ci: bool = False,
     **style: Any,
 ) -> None:
-    options = {"linewidth": 1.8, "markersize": 5, "capsize": 4, **style}
+    options = {
+        "linewidth": 1.8,
+        "markersize": 5,
+        "capsize": 4,
+        "marker": "o",
+        **style,
+    }
     axis.errorbar(
         parameter_values,
         means,
         yerr=confidence_intervals if with_ci else None,
         label=label,
         color=color,
-        marker="o",
         **options,
     )
 
@@ -543,19 +553,241 @@ def plot_aes_ascon_memory(
     )
 
 
-FULL_SCHEMA_FIGURE_SIZE = (15, 8)
+FULL_SCHEMA_DETAIL_FIGURE_SIZE = (15, 9.2)
+FULL_SCHEMA_TICK_LABEL_SPACING = 1.35
+FULL_SCHEMA_LINEAR_STEP_MANTISSAS = (1.0, 2.0, 2.5, 5.0, 10.0)
+FULL_SCHEMA_LOGARITHMIC_MANTISSA_TIERS = (
+    (1.0,),
+    (1.0, 3.0),
+    (1.0, 2.0, 5.0),
+    (1.0, 1.5, 2.0, 3.0, 5.0, 7.0),
+    (1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0),
+    (
+        1.0,
+        1.25,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0,
+        7.5,
+        8.0,
+    ),
+    (
+        1.0,
+        1.25,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0,
+        7.5,
+        8.0,
+        8.5,
+        9.0,
+        9.5,
+    ),
+)
 FULL_SCHEMA_FAMILIES = (
-    ("PSK", "PSK"),
-    ("RSA", "RSA"),
-    ("CPABE", "CP-ABE"),
+    ("PSK", "PSK", TEAL),
+    ("RSA", "RSA", VIOLET),
+    ("CPABE", "CP-ABE", CRIMSON),
 )
 FULL_SCHEMA_PROFILES = (
-    ("Standard", "Standard", AMBER),
-    ("Lightweight", "Lightweight", VIOLET),
+    ("Standard", "Standard", "-", "o", ""),
+    ("Lightweight", "Lightweight", "--", "s", "//"),
 )
 
 
-def _plot_full_schema_results(
+def _full_schema_series(
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    operation: str,
+) -> list[tuple[str, list[float], list[float], str, str, str]]:
+    series = []
+
+    for family, family_label, color in FULL_SCHEMA_FAMILIES:
+        for profile, profile_label, linestyle, marker, _ in FULL_SCHEMA_PROFILES:
+            configuration = f"{family}{profile}"
+            means, confidence_intervals = results[(configuration, operation)]
+            series.append(
+                (
+                    f"{family_label} — {profile_label}",
+                    means,
+                    confidence_intervals,
+                    color,
+                    linestyle,
+                    marker,
+                )
+            )
+
+    return series
+
+
+def _draw_full_schema_series(
+    axis: Axes,
+    payload_sizes: list[int],
+    series: list[tuple[str, list[float], list[float], str, str, str]],
+) -> None:
+    for label, means, confidence_intervals, color, linestyle, marker in series:
+        draw_summary(
+            axis,
+            payload_sizes,
+            means,
+            confidence_intervals,
+            label,
+            color,
+            with_ci=True,
+            linestyle=linestyle,
+            marker=marker,
+        )
+
+
+def _configure_full_schema_payload_axis(
+    axis: Axes,
+    payload_sizes: list[int],
+) -> None:
+    _configure_log2_parameter_axis(
+        axis,
+        payload_sizes,
+        [formatting.format_byte_size(payload_size) for payload_size in payload_sizes],
+    )
+
+
+def _format_full_schema_number(value: float, _position: float) -> str:
+    nearest_integer = round(value)
+    tolerance = max(1e-9, abs(value) * 1e-12)
+
+    if isclose(value, nearest_integer, rel_tol=0.0, abs_tol=tolerance):
+        return f"{nearest_integer:,}"
+
+    return f"{value:,.6f}".rstrip("0").rstrip(".")
+
+
+def _full_schema_minimum_tick_spacing(axis: Axes) -> float:
+    label_size = axis.yaxis.get_major_ticks()[0].label1.get_fontsize()
+    label_height = label_size * axis.figure.dpi / 72
+    return label_height * FULL_SCHEMA_TICK_LABEL_SPACING
+
+
+def _full_schema_ticks_are_readable(axis: Axes, ticks: list[float]) -> bool:
+    if len(ticks) < 2:
+        return True
+
+    x_position = axis.get_xlim()[0]
+    display_positions = [
+        axis.transData.transform((x_position, tick))[1] for tick in ticks
+    ]
+    minimum_spacing = min(
+        second - first
+        for first, second in zip(display_positions, display_positions[1:])
+    )
+    return minimum_spacing >= _full_schema_minimum_tick_spacing(axis)
+
+
+def _full_schema_nice_linear_step(minimum_step: float) -> float:
+    magnitude = 10 ** floor(log10(minimum_step))
+    normalized_step = minimum_step / magnitude
+
+    for mantissa in FULL_SCHEMA_LINEAR_STEP_MANTISSAS:
+        if mantissa >= normalized_step:
+            return mantissa * magnitude
+
+    raise ValueError(f"Unable to calculate a linear tick step for {minimum_step}")
+
+
+def _full_schema_linear_ticks(
+    axis: Axes,
+    lower_bound: float,
+    upper_bound: float,
+) -> list[float]:
+    axis_height = axis.get_window_extent().height
+    visible_range = upper_bound - lower_bound
+    minimum_step = visible_range * _full_schema_minimum_tick_spacing(axis) / axis_height
+    step = _full_schema_nice_linear_step(minimum_step)
+    first_multiple = ceil(lower_bound / step)
+    last_multiple = floor(upper_bound / step)
+
+    return [multiple * step for multiple in range(first_multiple, last_multiple + 1)]
+
+
+def _full_schema_logarithmic_candidates(
+    lower_bound: float,
+    upper_bound: float,
+    mantissas: tuple[float, ...],
+) -> list[float]:
+    first_exponent = floor(log10(lower_bound)) - 1
+    last_exponent = ceil(log10(upper_bound)) + 1
+
+    return sorted(
+        {
+            mantissa * 10**exponent
+            for exponent in range(first_exponent, last_exponent + 1)
+            for mantissa in mantissas
+            if lower_bound <= mantissa * 10**exponent <= upper_bound
+        }
+    )
+
+
+def _full_schema_logarithmic_ticks(
+    axis: Axes,
+    lower_bound: float,
+    upper_bound: float,
+) -> list[float]:
+    for mantissas in reversed(FULL_SCHEMA_LOGARITHMIC_MANTISSA_TIERS):
+        ticks = _full_schema_logarithmic_candidates(
+            lower_bound,
+            upper_bound,
+            mantissas,
+        )
+
+        if ticks and _full_schema_ticks_are_readable(axis, ticks):
+            return ticks
+
+    return _full_schema_logarithmic_candidates(
+        lower_bound,
+        upper_bound,
+        FULL_SCHEMA_LOGARITHMIC_MANTISSA_TIERS[0],
+    )
+
+
+def _configure_full_schema_logarithmic_y_axis(axis: Axes) -> None:
+    axis.set_yscale("log", base=10)
+    y_limits = axis.get_ylim()
+    lower_bound, upper_bound = y_limits
+    ticks = _full_schema_logarithmic_ticks(axis, lower_bound, upper_bound)
+    axis.yaxis.set_major_locator(FixedLocator(ticks))
+    axis.yaxis.set_major_formatter(FuncFormatter(_format_full_schema_number))
+    axis.yaxis.set_minor_formatter(NullFormatter())
+    axis.tick_params(axis="y", labelleft=True)
+    apply_value_grid(axis)
+    assert axis.get_ylim() == y_limits
+
+
+def _configure_full_schema_linear_y_axis(axis: Axes) -> None:
+    y_limits = axis.get_ylim()
+    ticks = _full_schema_linear_ticks(axis, *y_limits)
+    axis.yaxis.set_major_locator(FixedLocator(ticks))
+    axis.yaxis.set_major_formatter(FuncFormatter(_format_full_schema_number))
+    axis.tick_params(axis="y", labelleft=True)
+    apply_value_grid(axis)
+    assert axis.get_ylim() == y_limits
+
+
+def _plot_full_schema_overview(
     payload_sizes: list[int],
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     title: str,
@@ -564,37 +796,117 @@ def _plot_full_schema_results(
     with_logarithmic_y_axis: bool = False,
     baseline_memory_mean: float | None = None,
 ) -> None:
-    figure, axes = plt.subplots(2, 3, figsize=FULL_SCHEMA_FIGURE_SIZE)
+    figure, axes = plt.subplots(1, 2, figsize=(13, 5.8), sharey=True)
     figure.suptitle(title, fontsize=13)
     rendered_panels = []
 
-    for row_index, operation in enumerate(("Encrypt", "Decrypt")):
-        for column_index, (family, family_label) in enumerate(FULL_SCHEMA_FAMILIES):
-            axis = axes[row_index][column_index]
-            series = []
-
-            for profile, profile_label, color in FULL_SCHEMA_PROFILES:
-                configuration = f"{family}{profile}"
-                means, confidence_intervals = results[(configuration, operation)]
-                series.append((profile_label, means, confidence_intervals, color))
-
-            _draw_summaries(axis, payload_sizes, series, with_ci=True)
-            axis.set_title(f"{family_label} — {operation}", fontsize=11)
-            axis.set_xlabel("Payload Size")
-            if column_index == 0:
-                axis.set_ylabel(y_label)
-
-            _configure_log2_payload_axis(axis, payload_sizes)
-
-            if with_logarithmic_y_axis:
-                _configure_compact_logarithmic_y_axis(axis)
-            elif baseline_memory_mean is None:
-                axis.set_ylim(bottom=0)
-
-            rendered_panels.append((axis, payload_sizes, series))
+    for axis, operation in zip(axes, ("Encrypt", "Decrypt"), strict=True):
+        series = _full_schema_series(results, operation)
+        _draw_full_schema_series(axis, payload_sizes, series)
+        axis.set_title(operation, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_ylabel(y_label)
+        _configure_full_schema_payload_axis(axis, payload_sizes)
+        if with_logarithmic_y_axis:
+            axis.set_yscale("log", base=10)
+        rendered_panels.append(
+            (
+                axis,
+                payload_sizes,
+                [
+                    (label, means, confidence_intervals, color)
+                    for label, means, confidence_intervals, color, _, _ in series
+                ],
+            )
+        )
 
     if baseline_memory_mean is not None:
         _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
+    elif not with_logarithmic_y_axis:
+        for axis in axes:
+            axis.set_ylim(bottom=0)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+
+    if baseline_memory_mean is not None:
+        baseline_index = labels.index("Runtime baseline")
+        baseline_handle = handles.pop(baseline_index)
+        labels.pop(baseline_index)
+        axes[0].legend(
+            [baseline_handle],
+            ["Runtime baseline"],
+            fontsize=9,
+            loc="upper left",
+        )
+
+    figure.legend(
+        handles,
+        labels,
+        fontsize=9,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.94),
+        ncol=3,
+    )
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.82))
+
+    for axis in axes:
+        if with_logarithmic_y_axis:
+            _configure_full_schema_logarithmic_y_axis(axis)
+        else:
+            _configure_full_schema_linear_y_axis(axis)
+
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.82))
+    save_figure(figure, output_path)
+
+
+def plot_full_schema_latency_overview(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_full_schema_overview(
+        payload_sizes,
+        results,
+        "Full Schema Latency Overview",
+        "Latency (µs/op)",
+        output_path,
+        with_logarithmic_y_axis=True,
+    )
+
+
+def plot_full_schema_latency(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    figure, axes = plt.subplots(2, 3, figsize=FULL_SCHEMA_DETAIL_FIGURE_SIZE)
+    figure.suptitle("Full Schema Latency Detail by Key Management", fontsize=13)
+
+    for row_index, operation in enumerate(("Encrypt", "Decrypt")):
+        for column_index, (family, family_label, color) in enumerate(
+            FULL_SCHEMA_FAMILIES
+        ):
+            axis = axes[row_index][column_index]
+
+            for profile, profile_label, linestyle, marker, _ in FULL_SCHEMA_PROFILES:
+                means, confidence_intervals = results[(f"{family}{profile}", operation)]
+                draw_summary(
+                    axis,
+                    payload_sizes,
+                    means,
+                    confidence_intervals,
+                    profile_label,
+                    color,
+                    with_ci=True,
+                    linestyle=linestyle,
+                    marker=marker,
+                )
+
+            axis.set_title(f"{family_label} — {operation}", fontsize=11)
+            axis.set_xlabel("Payload Size")
+            axis.set_ylabel("Latency (µs/op)")
+            _configure_full_schema_payload_axis(axis, payload_sizes)
+            axis.set_yscale("log", base=10)
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     figure.legend(
@@ -603,100 +915,60 @@ def _plot_full_schema_results(
         fontsize=10,
         loc="upper center",
         bbox_to_anchor=(0.5, 0.95),
-        ncol=len(labels),
+        ncol=2,
     )
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.91))
+
+    for axis in axes.flat:
+        _configure_full_schema_logarithmic_y_axis(axis)
+
     figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.91))
     save_figure(figure, output_path)
 
 
-def plot_full_schema_latency(
+def plot_full_schema_serialized_envelope_size(
     payload_sizes: list[int],
-    results: dict[tuple[str, str], tuple[list[float], list[float]]],
-    output_path: str,
-) -> None:
-    _plot_full_schema_results(
-        payload_sizes,
-        results,
-        "Full Schema: Latency by Package and Key Management",
-        "Latency (µs/op)",
-        output_path,
-        with_logarithmic_y_axis=True,
-    )
-
-
-def plot_full_schema_throughput(
-    payload_sizes: list[int],
-    results: dict[tuple[str, str], tuple[list[float], list[float]]],
-    output_path: str,
-) -> None:
-    _plot_full_schema_results(
-        payload_sizes,
-        results,
-        "Full Schema: Throughput by Package and Key Management",
-        "Throughput (MB/s)",
-        output_path,
-    )
-
-
-def plot_full_schema_wire_overhead(
-    payload_sizes: list[int],
-    wire_overheads: dict[str, list[float]],
+    envelope_sizes: dict[str, list[float]],
     output_path: str,
 ) -> None:
     positions = list(range(len(payload_sizes)))
-    bar_width = 0.36
-    figure, axes = plt.subplots(1, 3, figsize=(15, 4.8), sharey=True)
-    figure.suptitle("Serialized Envelope Wire Overhead", fontsize=13)
+    bar_width = 0.13
+    figure, axis = plt.subplots(figsize=(11, 5.8))
 
-    for axis, (family, family_label) in zip(
-        axes,
-        FULL_SCHEMA_FAMILIES,
-        strict=True,
-    ):
-        for profile_index, (profile, profile_label, color) in enumerate(
-            FULL_SCHEMA_PROFILES
-        ):
-            offset = (profile_index - 0.5) * bar_width
+    series_index = 0
+    for family, family_label, color in FULL_SCHEMA_FAMILIES:
+        for profile, profile_label, _, _, hatch in FULL_SCHEMA_PROFILES:
+            offset = (series_index - 2.5) * bar_width
             axis.bar(
                 [position + offset for position in positions],
-                wire_overheads[f"{family}{profile}"],
+                envelope_sizes[f"{family}{profile}"],
                 width=bar_width,
-                label=profile_label,
+                label=f"{family_label} — {profile_label}",
                 color=color,
+                edgecolor="black",
+                linewidth=0.4,
+                hatch=hatch,
             )
+            series_index += 1
 
-        axis.set_title(family_label, fontsize=11)
-        axis.set_xlabel("Payload Size")
-        axis.set_yscale("log", base=10)
-        axis.set_ylim(bottom=1)
-        axis.set_xticks(positions)
-        axis.set_xticklabels(
-            [
-                formatting.format_byte_size(payload_size, compact=True)
-                for payload_size in payload_sizes
-            ]
-        )
-        axis.set_xlim(-0.6, len(positions) - 0.4)
-        axis.grid(
-            True,
-            axis="y",
-            which="both",
-            linestyle="-",
-            linewidth=0.5,
-            alpha=0.18,
-        )
-
-    axes[0].set_ylabel("Wire overhead (bytes, log scale)")
-    handles, labels = axes[0].get_legend_handles_labels()
-    figure.legend(
-        handles,
-        labels,
-        fontsize=10,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.93),
-        ncol=2,
+    axis.set_title("Serialized Envelope Size", fontsize=13)
+    axis.set_xlabel("Payload Size")
+    axis.set_ylabel("Serialized Envelope Size (bytes)")
+    axis.set_xticks(positions)
+    axis.set_xticklabels(
+        [formatting.format_byte_size(payload_size) for payload_size in payload_sizes]
     )
-    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.86))
+    axis.set_xlim(-0.65, len(positions) - 0.35)
+    axis.set_yscale("log", base=10)
+    axis.legend(
+        fontsize=10,
+        loc="upper left",
+        ncol=3,
+    )
+
+    figure.tight_layout()
+    _configure_full_schema_logarithmic_y_axis(axis)
+    figure.tight_layout()
     save_figure(figure, output_path)
 
 
@@ -705,10 +977,10 @@ def plot_full_schema_energy(
     results: dict[tuple[str, str], tuple[list[float], list[float]]],
     output_path: str,
 ) -> None:
-    _plot_full_schema_results(
+    _plot_full_schema_overview(
         payload_sizes,
         results,
-        "Full Schema: Energy per Operation by Package and Key Management",
+        "Full Schema Energy per Operation",
         "Energy (µJ/op)",
         output_path,
         with_logarithmic_y_axis=True,
@@ -721,10 +993,10 @@ def plot_full_schema_memory(
     baseline_memory_mean: float,
     output_path: str,
 ) -> None:
-    _plot_full_schema_results(
+    _plot_full_schema_overview(
         payload_sizes,
         results,
-        "Full Schema: Peak Process Memory by Package and Key Management",
+        "Full Schema Peak Process Memory",
         "Peak RSS (MB)",
         output_path,
         baseline_memory_mean=baseline_memory_mean,
