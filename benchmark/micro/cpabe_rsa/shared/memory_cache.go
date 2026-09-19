@@ -1,6 +1,6 @@
 package shared
 
-import "thesis/benchmark/cryptography/rsa"
+import "thesis/internal/cryptography/rsa"
 
 // Helps if -test.count >>> 1
 var rsaKeyInMemoryCache = map[int][]rsa.RSA{}

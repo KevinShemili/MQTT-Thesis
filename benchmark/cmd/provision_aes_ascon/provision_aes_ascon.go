@@ -2,10 +2,10 @@ package main
 
 import (
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
 	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
 )
 
 // The point of this program is to provide the fixture data for the AES/ASCON
@@ -15,31 +15,31 @@ func main() {
 	config := shared.NewAESASCONConfig()
 
 	aesKey := utility.GenerateRandomBytes(config.AESKeySize)
-	cache.StoreFile(cache.CreateAESKeyFileName(config.AESKeySize), aesKey)
+	cache.Store(cache.AESKeyFileName, aesKey)
 	aesGCM := aes.NewAES(aesKey)
 
 	asconKey := utility.GenerateRandomBytes(config.ASCONKeySize)
-	cache.StoreFile(cache.CreateASCONKeyFileName(config.ASCONKeySize), asconKey)
+	cache.Store(cache.ASCONKeyFileName, asconKey)
 	asconCipher := ascon.NewASCON(asconKey)
 
 	aesNonce := utility.GenerateRandomBytes(aesGCM.NonceSize())
-	cache.StoreFile(cache.CreateAESGCMNonceFileName(), aesNonce)
+	cache.Store(cache.AESGCMNonceFileName, aesNonce)
 
 	asconNonce := utility.GenerateRandomBytes(asconCipher.NonceSize())
-	cache.StoreFile(cache.CreateASCONNonceFileName(), asconNonce)
+	cache.Store(cache.ASCONNonceFileName, asconNonce)
 
 	for _, payloadSize := range config.PayloadSizes {
 
 		plaintext := utility.GenerateRandomBytes(payloadSize)
-		cache.StoreFile(cache.CreateAESASCONPlaintextFileName(payloadSize), plaintext)
+		cache.Store(cache.CreateAESASCONPlaintextFileName(payloadSize), plaintext)
 
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateAESGCMCiphertextFileName(payloadSize),
-			aesGCM.Seal(nil, aesNonce, plaintext, nil),
+			aesGCM.Encrypt(nil, aesNonce, plaintext),
 		)
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateASCONCiphertextFileName(payloadSize),
-			asconCipher.Seal(nil, asconNonce, plaintext, nil),
+			asconCipher.Encrypt(nil, asconNonce, plaintext),
 		)
 	}
 }

@@ -2,10 +2,10 @@ package main
 
 import (
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cryptography/cpabe"
-	"thesis/benchmark/cryptography/rsa"
 	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/cpabe"
+	"thesis/internal/cryptography/rsa"
 )
 
 // The point of this program is to provide the fixture data for the CP-ABE/RSA
@@ -15,27 +15,27 @@ func main() {
 	config := shared.NewCPABERSAConfig()
 
 	symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-	cache.StoreFile(cache.CreateAESKeyFileName(config.AESKeySize), symmetricKey)
+	cache.Store(cache.AESKeyFileName, symmetricKey)
 
-	authority := cpabe.NewCPABEAuthority()
-	cache.StoreFile(
+	authority := cpabe.NewAuthority()
+	cache.Store(
 		cache.CPABEPublicKeyFileName,
-		cpabe.MarshalCPABEPublicKey(authority.PublicKey),
+		authority.PublicKeyBytes(),
 	)
 
 	for _, attributeCount := range config.AttributeCounts {
 
 		policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateCPABEPolicyFileName(attributeCount),
 			[]byte(policy.String()),
 		)
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateCPABEPrivateKeyFileName(attributeCount),
-			cpabe.MarshalCPABEPrivateKey(authority.IssuePrivateKey(attributes).PrivateKey),
+			authority.IssuePrivateKey(attributes).Bytes(),
 		)
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateCPABECiphertextFileName(attributeCount),
 			authority.Encrypt(policy, symmetricKey),
 		)
@@ -48,26 +48,17 @@ func main() {
 		}
 	}
 
-	var firstSubscriber rsa.RSA
 	for index := range maximumSubscriberCount {
 
 		subscriber := rsa.NewRSA(config.FixedRSAKeyBits)
+		cache.Store(
+			cache.CreateRSAPublicKeyFileName(index),
+			subscriber.PublicKeyBytes(),
+		)
+
 		if index == 0 {
-			firstSubscriber = subscriber
+			cache.Store(cache.RSAPrivateKeyFileName, subscriber.PrivateKeyBytes())
+			cache.Store(cache.RSACiphertextFileName, subscriber.Encrypt(symmetricKey))
 		}
-
-		cache.StoreFile(
-			cache.CreateRSAPrivateKeyFileName(config.FixedRSAKeyBits, index),
-			rsa.MarshalPrivateKey(subscriber.PrivateKey),
-		)
-		cache.StoreFile(
-			cache.CreateRSAPublicKeyFileName(config.FixedRSAKeyBits, index),
-			rsa.MarshalPublicKey(subscriber.PublicKey),
-		)
 	}
-
-	cache.StoreFile(
-		cache.CreateRSACiphertextFileName(config.FixedRSAKeyBits, 0),
-		firstSubscriber.Encrypt(symmetricKey),
-	)
 }

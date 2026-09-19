@@ -3,11 +3,11 @@ package aes_ascon
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
 	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
 	"time"
 )
 
@@ -38,18 +38,18 @@ func BenchmarkAESASCONEnergyEncrypt(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
+				aes.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
+				aes.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
+				aes.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			if throttle.IsThrottled() {
@@ -78,18 +78,18 @@ func BenchmarkAESASCONEnergyEncrypt(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
+				ascon.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
+				ascon.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
+				ascon.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			if throttle.IsThrottled() {
@@ -112,7 +112,7 @@ func BenchmarkAESASCONEnergyDecrypt(benchmark *testing.B) {
 			aes := aes.NewAES(utility.GenerateRandomBytes(config.AESKeySize))
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-			ciphertext := aes.Seal(nil, nonce, plaintext, nil)
+			ciphertext := aes.Encrypt(nil, nonce, plaintext)
 			decryptedPlaintext := make([]byte, 0, payloadSize)
 
 			thermal.WaitForCooldown()
@@ -124,18 +124,18 @@ func BenchmarkAESASCONEnergyDecrypt(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				aes.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				aes.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				aes.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -153,7 +153,7 @@ func BenchmarkAESASCONEnergyDecrypt(benchmark *testing.B) {
 			ascon := ascon.NewASCON(utility.GenerateRandomBytes(config.ASCONKeySize))
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 			nonce := utility.GenerateRandomBytes(ascon.NonceSize())
-			ciphertext := ascon.Seal(nil, nonce, plaintext, nil)
+			ciphertext := ascon.Encrypt(nil, nonce, plaintext)
 			decryptedPlaintext := make([]byte, 0, payloadSize)
 
 			thermal.WaitForCooldown()
@@ -165,18 +165,18 @@ func BenchmarkAESASCONEnergyDecrypt(benchmark *testing.B) {
 			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				ascon.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
-				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				ascon.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				ascon.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			if throttle.IsThrottled() {

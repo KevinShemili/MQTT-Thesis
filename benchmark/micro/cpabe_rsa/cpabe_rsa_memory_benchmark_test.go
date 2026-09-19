@@ -6,11 +6,11 @@ import (
 	"runtime/debug"
 	"testing"
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cryptography/cpabe"
-	"thesis/benchmark/cryptography/rsa"
 	"thesis/benchmark/memory"
 	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/thermal"
+	"thesis/internal/cryptography/cpabe"
+	"thesis/internal/cryptography/rsa"
 )
 
 // Peak memory is a property of a whole process rather than of a loop, so these
@@ -31,16 +31,16 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// 1. Public Key
 			// 2. Policy
 			// 3. AES Symmetric Key
-			asymmetricPublicKey := cpabe.UnmarshalCPABEPublicKey(cache.LoadFile(cache.CPABEPublicKeyFileName))
-			abePolicy := cpabe.ParseCPABEPolicy(string(cache.LoadFile(cache.CreateCPABEPolicyFileName(attributeCount))))
-			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
+			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(cache.CPABEPublicKeyFileName))
+			abePolicy := cpabe.ParseCPABEPolicy(string(cache.Load(cache.CreateCPABEPolicyFileName(attributeCount))))
+			symmetricKey := cache.Load(cache.AESKeyFileName)
 
 			thermal.WaitForCooldown()
 
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				asymmetricPublicKey.Encrypt(abePolicy, symmetricKey)
+				authority.Encrypt(abePolicy, symmetricKey)
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -57,8 +57,8 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// Load from cache:
 			// 1. Each subscriber's public key
 			// 2. AES Symmetric Key
-			publicKeySlice := loadIndividualRSAPublicKeys(config.FixedRSAKeyBits, subscriberCount)
-			symmetricKey := cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize))
+			publicKeySlice := loadIndividualRSAPublicKeys(subscriberCount)
+			symmetricKey := cache.Load(cache.AESKeyFileName)
 
 			thermal.WaitForCooldown()
 
@@ -90,15 +90,15 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 			// Load from cache:
 			// 1. Private key with attributes
 			// 2. Ciphertext to decrypt
-			asymmetricPrivateKey := cpabe.UnmarshalCPABEPrivateKey(cache.LoadFile(cache.CreateCPABEPrivateKeyFileName(attributeCount)))
-			asymmetricCiphertext := cache.LoadFile(cache.CreateCPABECiphertextFileName(attributeCount))
+			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(cache.CreateCPABEPrivateKeyFileName(attributeCount)))
+			asymmetricCiphertext := cache.Load(cache.CreateCPABECiphertextFileName(attributeCount))
 
 			thermal.WaitForCooldown()
 
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				asymmetricPrivateKey.Decrypt(asymmetricCiphertext)
+				privateKey.Decrypt(asymmetricCiphertext)
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -111,19 +111,15 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 	rsaKeyBits := config.FixedRSAKeyBits
 	benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-		asymmetricPrivateKey := rsa.UnmarshalPrivateKey(
-			cache.LoadFile(cache.CreateRSAPrivateKeyFileName(rsaKeyBits, 0)),
-		)
-		asymmetricCiphertext := cache.LoadFile(
-			cache.CreateRSACiphertextFileName(rsaKeyBits, 0),
-		)
+		privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(cache.RSAPrivateKeyFileName))
+		asymmetricCiphertext := cache.Load(cache.RSACiphertextFileName)
 
 		thermal.WaitForCooldown()
 
 		isPrepared := preparePeakMemoryMeasurement()
 
 		for b.Loop() {
-			asymmetricPrivateKey.Decrypt(asymmetricCiphertext)
+			privateKey.Decrypt(asymmetricCiphertext)
 		}
 
 		if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -173,13 +169,13 @@ func preparePeakMemoryMeasurement() bool {
 }
 
 // Load the individual public keys of all subscribers
-func loadIndividualRSAPublicKeys(rsaKeyBits int, requiredCount int) []rsa.RSA {
+func loadIndividualRSAPublicKeys(requiredCount int) []rsa.RSA {
 
 	keySlice := make([]rsa.RSA, requiredCount)
 
 	for index := range requiredCount {
-		keySlice[index] = rsa.UnmarshalPublicKey(
-			cache.LoadFile(cache.CreateRSAPublicKeyFileName(rsaKeyBits, index)),
+		keySlice[index] = rsa.RSAFromPublicKeyBytes(
+			cache.Load(cache.CreateRSAPublicKeyFileName(index)),
 		)
 	}
 

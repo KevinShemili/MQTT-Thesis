@@ -3,11 +3,11 @@ package unit
 import (
 	"bytes"
 	"testing"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
-	"thesis/benchmark/cryptography/cpabe"
-	"thesis/benchmark/cryptography/rsa"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
+	"thesis/internal/cryptography/cpabe"
+	"thesis/internal/cryptography/rsa"
 )
 
 var AES_KEY_SIZE = 16
@@ -23,14 +23,10 @@ func TestAESRoundTrip(t *testing.T) {
 	nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 	// Act
-	ciphertext := aes.Seal(nil, nonce, plaintext, nil)
-	decrypted, err := aes.Open(nil, nonce, ciphertext, nil)
+	ciphertext := aes.Encrypt(nil, nonce, plaintext)
+	decrypted := aes.Decrypt(nil, nonce, ciphertext)
 
 	// Assert
-	if err != nil {
-		t.Fatalf("AES: Decrypt Ciphertext: %v", err)
-	}
-
 	if !bytes.Equal(decrypted, plaintext) {
 		t.Fatalf("AES: Round trip produced %q, want %q", decrypted, plaintext)
 	}
@@ -45,14 +41,10 @@ func TestASCONRoundTrip(t *testing.T) {
 	nonce := utility.GenerateRandomBytes(ascon.NonceSize())
 
 	// Act
-	ciphertext := ascon.Seal(nil, nonce, plaintext, nil)
-	decrypted, err := ascon.Open(nil, nonce, ciphertext, nil)
+	ciphertext := ascon.Encrypt(nil, nonce, plaintext)
+	decrypted := ascon.Decrypt(nil, nonce, ciphertext)
 
 	// Assert
-	if err != nil {
-		t.Fatalf("ASCON: Decrypt Ciphertext: %v", err)
-	}
-
 	if !bytes.Equal(decrypted, plaintext) {
 		t.Fatalf("ASCON: Round trip produced %q, want %q", decrypted, plaintext)
 	}
@@ -62,11 +54,13 @@ func TestRSARoundTrip(t *testing.T) {
 
 	// Arrange
 	plaintext := []byte("test")
-	rsa := rsa.NewRSA(RSA_KEY_SIZE)
+	rsaScheme := rsa.NewRSA(RSA_KEY_SIZE)
+	publicKey := rsa.RSAFromPublicKeyBytes(rsaScheme.PublicKeyBytes())
+	privateKey := rsa.RSAFromPrivateKeyBytes(rsaScheme.PrivateKeyBytes())
 
 	// Act
-	ciphertext := rsa.Encrypt(plaintext)
-	decrypted := rsa.Decrypt(ciphertext)
+	ciphertext := publicKey.Encrypt(plaintext)
+	decrypted := privateKey.Decrypt(ciphertext)
 
 	// Assert
 	if !bytes.Equal(decrypted, plaintext) {
@@ -79,12 +73,13 @@ func TestCPABERoundTrip(t *testing.T) {
 	// Arrange
 	plaintext := []byte("test")
 	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(1)
-	authority := cpabe.NewCPABEAuthority()
-	subscriberKey := authority.IssuePrivateKey(attributes)
+	authority := cpabe.NewAuthority()
+	publicAuthority := cpabe.AuthorityFromPublicKeyBytes(authority.PublicKeyBytes())
+	privateKey := cpabe.PrivateKeyFromBytes(authority.IssuePrivateKey(attributes).Bytes())
 
 	// Act
-	ciphertext := authority.Encrypt(policy, plaintext)
-	decrypted := subscriberKey.Decrypt(ciphertext)
+	ciphertext := publicAuthority.Encrypt(policy, plaintext)
+	decrypted := privateKey.Decrypt(ciphertext)
 
 	// Assert
 	if !bytes.Equal(decrypted, plaintext) {

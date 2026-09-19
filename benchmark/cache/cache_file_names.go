@@ -2,6 +2,17 @@ package cache
 
 import "fmt"
 
+const AESKeyFileName = "aes-key"
+const ASCONKeyFileName = "ascon-key"
+const AESGCMNonceFileName = "aes-gcm-nonce"
+const ASCONNonceFileName = "ascon-nonce"
+const CPABEPublicKeyFileName = "cpabe-public-key"
+const CPABEPolicyFileName = "cpabe-policy"
+const CPABEPrivateKeyFileName = "cpabe-private-key"
+const RSACiphertextFileName = "rsa-ciphertext"
+const RSAPrivateKeyFileName = "rsa-private-key"
+const RSAPublicKeyFileName = "rsa-public-key"
+
 // Identifier for file that stores the CP-ABE policy for a specific attribute count
 func CreateCPABEPolicyFileName(attributeCount int) string {
 	return fmt.Sprintf("cpabe-policy-a%d", attributeCount)
@@ -15,26 +26,6 @@ func CreateCPABEPrivateKeyFileName(attributeCount int) string {
 // Identifier for file that stores the CP-ABE ciphertext for a specific attribute count
 func CreateCPABECiphertextFileName(attributeCount int) string {
 	return fmt.Sprintf("cpabe-ciphertext-a%d", attributeCount)
-}
-
-// Identifier for file that stores the AES key for a specific key size
-func CreateAESKeyFileName(aesKeySize int) string {
-	return fmt.Sprintf("aes-key-%d", aesKeySize)
-}
-
-// Identifier for file that stores an ASCON key of a specific size
-func CreateASCONKeyFileName(asconKeySize int) string {
-	return fmt.Sprintf("ascon-key-%d", asconKeySize)
-}
-
-// Identifier for file that stores an AES-GCM nonce
-func CreateAESGCMNonceFileName() string {
-	return "aes-gcm-nonce"
-}
-
-// Identifier for file that stores an ASCON nonce
-func CreateASCONNonceFileName() string {
-	return "ascon-nonce"
 }
 
 // Identifier for file that stores an AES/ASCON plaintext of a specific size
@@ -62,17 +53,7 @@ func CreateASCONCiphertextFileName(payloadSize int) string {
 	return fmt.Sprintf("ascon-ciphertext-%d", payloadSize)
 }
 
-// Identifier for file that stores the RSA ciphertext for a specific key size & subscriber
-func CreateRSACiphertextFileName(rsaKeyBits int, subscriberIndex int) string {
-	return fmt.Sprintf("rsa-ciphertext-%d-i%d", rsaKeyBits, subscriberIndex)
-}
-
-// Identifier for file that stores the RSA private key for a specific key size & subscriber
-func CreateRSAPrivateKeyFileName(rsaKeyBits int, subscriberIndex int) string {
-	return fmt.Sprintf("rsa-private-key-%d-i%d", rsaKeyBits, subscriberIndex)
-}
-
-// Identifier for file that stores the RSA public key for a specific key size & subscriber
-func CreateRSAPublicKeyFileName(rsaKeyBits int, subscriberIndex int) string {
-	return fmt.Sprintf("rsa-public-key-%d-i%d", rsaKeyBits, subscriberIndex)
+// Identifier for file that stores the RSA public key for a specific subscriber
+func CreateRSAPublicKeyFileName(subscriberIndex int) string {
+	return fmt.Sprintf("rsa-public-key-i%d", subscriberIndex)
 }

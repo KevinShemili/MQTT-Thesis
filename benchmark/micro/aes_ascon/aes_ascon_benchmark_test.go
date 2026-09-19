@@ -3,11 +3,11 @@ package aes_ascon
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
 	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
 )
 
 func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
@@ -41,7 +41,7 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				aes.Seal(ciphertext[:0], nonce, plaintext, nil)
+				aes.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			if throttle.IsThrottled() {
@@ -81,7 +81,7 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				ascon.Seal(ciphertext[:0], nonce, plaintext, nil)
+				ascon.Encrypt(ciphertext[:0], nonce, plaintext)
 			}
 
 			if throttle.IsThrottled() {
@@ -114,7 +114,7 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			nonce := utility.GenerateRandomBytes(aes.NonceSize())
 
 			// Create ciphertext to measure decryption cost
-			ciphertext := aes.Seal(nil, nonce, plaintext, nil)
+			ciphertext := aes.Encrypt(nil, nonce, plaintext)
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -129,7 +129,7 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				aes.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				aes.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -157,7 +157,7 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			nonce := utility.GenerateRandomBytes(ascon.NonceSize())
 
 			// Create ciphertext to measure decryption cost
-			ciphertext := ascon.Seal(nil, nonce, plaintext, nil)
+			ciphertext := ascon.Encrypt(nil, nonce, plaintext)
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -172,7 +172,7 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				ascon.Open(decryptedPlaintext[:0], nonce, ciphertext, nil)
+				ascon.Decrypt(decryptedPlaintext[:0], nonce, ciphertext)
 			}
 
 			if throttle.IsThrottled() {

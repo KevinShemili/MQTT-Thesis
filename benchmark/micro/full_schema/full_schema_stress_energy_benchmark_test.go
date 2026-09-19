@@ -3,13 +3,13 @@ package full_schema
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
-	"thesis/benchmark/cryptography/cpabe"
-	"thesis/benchmark/cryptography/rsa"
 	"thesis/benchmark/micro/full_schema/shared"
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
+	"thesis/internal/cryptography/cpabe"
+	"thesis/internal/cryptography/rsa"
 	"thesis/internal/envelope"
 	"thesis/internal/serialization"
 	"time"
@@ -31,9 +31,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKStandard/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
-			)
+			cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
 
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 
@@ -47,7 +45,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricCiphertext := cipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					Nonce:               nonce,
@@ -57,7 +55,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 			for b.Loop() {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricCiphertext := cipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					Nonce:               nonce,
@@ -68,7 +66,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricCiphertext := cipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					Nonce:               nonce,
@@ -93,9 +91,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 
-			cipher := aes.NewAES(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
-			)
+			cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -111,7 +107,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -126,7 +122,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -142,7 +138,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -164,17 +160,13 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEStandard/%dB", payloadSize), func(b *testing.B) {
 
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(
-				config.AttributeCount,
-			)
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 
-			cipher := aes.NewAES(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
-			)
+			cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -190,7 +182,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -205,7 +197,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -221,7 +213,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -243,9 +235,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKLightweight/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
-			)
+			cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
 
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 
@@ -261,7 +251,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricCiphertext := cipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					Nonce:               nonce,
@@ -272,7 +262,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 			// Actually measure this region
 			for b.Loop() {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricCiphertext := cipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					Nonce:               nonce,
@@ -284,7 +274,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricCiphertext := cipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					Nonce:               nonce,
@@ -309,9 +299,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 
-			cipher := ascon.NewASCON(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
-			)
+			cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -329,7 +317,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -345,7 +333,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -362,7 +350,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -384,17 +372,13 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABELightweight/%dB", payloadSize), func(b *testing.B) {
 
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(
-				config.AttributeCount,
-			)
+			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
 			plaintext := utility.GenerateRandomBytes(payloadSize)
 
-			cipher := ascon.NewASCON(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
-			)
+			cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -412,7 +396,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -428,7 +412,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -445,7 +429,7 @@ func BenchmarkFullSchemaEnergyEncrypt(benchmark *testing.B) {
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-				symmetricCiphertext := messageCipher.Seal(ciphertext[:0], nonce, plaintext, nil)
+				symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.Envelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
@@ -484,7 +468,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 
 			serializedEnvelope, _ := jsonSerializer.Serialize(envelope.Envelope{
 				Nonce:               nonce,
-				SymmetricCiphertext: cipher.Seal(nil, nonce, plaintext, nil),
+				SymmetricCiphertext: cipher.Encrypt(nil, nonce, plaintext),
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -499,28 +483,14 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				var env envelope.Envelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 
-				if _, err := cipher.Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			for b.Loop() {
 				var env envelope.Envelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 
-				if _, err := cipher.Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			tailDeadline := time.Now().Add(tailDuration)
@@ -528,14 +498,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				var env envelope.Envelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 
-				if _, err := cipher.Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -564,7 +527,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			serializedEnvelope, _ := jsonSerializer.Serialize(envelope.Envelope{
 				AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
 				Nonce:                nonce,
-				SymmetricCiphertext:  cipher.Seal(nil, nonce, plaintext, nil),
+				SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -580,14 +543,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 				recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := aes.NewAES(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				aes.NewAES(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			for b.Loop() {
@@ -595,14 +551,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 				recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := aes.NewAES(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				aes.NewAES(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			tailDeadline := time.Now().Add(tailDuration)
@@ -611,14 +560,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 				recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := aes.NewAES(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				aes.NewAES(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -634,7 +576,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEStandard/%dB", payloadSize), func(b *testing.B) {
 
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(
 				config.AttributeCount,
@@ -653,7 +595,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			serializedEnvelope, _ := jsonSerializer.Serialize(envelope.Envelope{
 				AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),
 				Nonce:                nonce,
-				SymmetricCiphertext:  cipher.Seal(nil, nonce, plaintext, nil),
+				SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -667,53 +609,26 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			for time.Now().Before(warmupDeadline) {
 				var env envelope.Envelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
-				recoveredSymmetricKey := subscriberKey.Decrypt(
-					env.AsymmetricCiphertext,
-				)
+				recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := aes.NewAES(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				aes.NewAES(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			for b.Loop() {
 				var env envelope.Envelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
-				recoveredSymmetricKey := subscriberKey.Decrypt(
-					env.AsymmetricCiphertext,
-				)
+				recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := aes.NewAES(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				aes.NewAES(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
 				var env envelope.Envelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
-				recoveredSymmetricKey := subscriberKey.Decrypt(
-					env.AsymmetricCiphertext,
-				)
+				recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := aes.NewAES(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				aes.NewAES(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -739,7 +654,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.Envelope{
 				Nonce:               nonce,
-				SymmetricCiphertext: cipher.Seal(nil, nonce, plaintext, nil),
+				SymmetricCiphertext: cipher.Encrypt(nil, nonce, plaintext),
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -756,14 +671,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 
-				if _, err := cipher.Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			// Actually measure this region
@@ -771,14 +679,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 
-				if _, err := cipher.Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			// Keep same workload running after measured region
@@ -787,14 +688,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 
-				if _, err := cipher.Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -823,7 +717,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.Envelope{
 				AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
 				Nonce:                nonce,
-				SymmetricCiphertext:  cipher.Seal(nil, nonce, plaintext, nil),
+				SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -831,24 +725,15 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
 
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 				recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := ascon.NewASCON(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				ascon.NewASCON(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			// Actually measure this region
@@ -857,14 +742,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 				recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := ascon.NewASCON(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				ascon.NewASCON(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			// Keep same workload running after measured region
@@ -874,14 +752,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 				recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := ascon.NewASCON(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				ascon.NewASCON(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			if throttle.IsThrottled() {
@@ -897,7 +768,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABELightweight/%dB", payloadSize), func(b *testing.B) {
 
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(
 				config.AttributeCount,
@@ -916,7 +787,7 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.Envelope{
 				AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),
 				Nonce:                nonce,
-				SymmetricCiphertext:  cipher.Seal(nil, nonce, plaintext, nil),
+				SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
@@ -932,36 +803,18 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			for time.Now().Before(warmupDeadline) {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
-				recoveredSymmetricKey := subscriberKey.Decrypt(
-					env.AsymmetricCiphertext,
-				)
+				recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := ascon.NewASCON(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				ascon.NewASCON(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			// Actually measure this region
 			for b.Loop() {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
-				recoveredSymmetricKey := subscriberKey.Decrypt(
-					env.AsymmetricCiphertext,
-				)
+				recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := ascon.NewASCON(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				ascon.NewASCON(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			// Keep same workload running after measured region
@@ -969,18 +822,9 @@ func BenchmarkFullSchemaEnergyDecrypt(benchmark *testing.B) {
 			for time.Now().Before(tailDeadline) {
 				var env envelope.Envelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
-				recoveredSymmetricKey := subscriberKey.Decrypt(
-					env.AsymmetricCiphertext,
-				)
+				recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
-				if _, err := ascon.NewASCON(recoveredSymmetricKey).Open(
-					decryptedPlaintext[:0],
-					env.Nonce,
-					env.SymmetricCiphertext,
-					nil,
-				); err != nil {
-					panic(err)
-				}
+				ascon.NewASCON(recoveredSymmetricKey).Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
 			}
 
 			if throttle.IsThrottled() {

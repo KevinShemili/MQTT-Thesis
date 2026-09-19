@@ -3,10 +3,10 @@ package cpabe_rsa
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/cryptography/cpabe"
 	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/cpabe"
 	"time"
 )
 
@@ -24,7 +24,7 @@ func BenchmarkCPABERSAEnergyEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
@@ -121,7 +121,7 @@ func BenchmarkCPABERSAEnergyDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(
 				attributeCount,

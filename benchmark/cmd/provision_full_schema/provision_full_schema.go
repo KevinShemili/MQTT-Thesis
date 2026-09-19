@@ -2,12 +2,12 @@ package main
 
 import (
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
-	"thesis/benchmark/cryptography/cpabe"
-	"thesis/benchmark/cryptography/rsa"
 	"thesis/benchmark/micro/full_schema/shared"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
+	"thesis/internal/cryptography/cpabe"
+	"thesis/internal/cryptography/rsa"
 	"thesis/internal/envelope"
 	"thesis/internal/serialization"
 )
@@ -21,47 +21,47 @@ func main() {
 	cborSerializer := serialization.CBORSerializer{}
 
 	standardSymmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
-	cache.StoreFile(
-		cache.CreateAESKeyFileName(config.SymmetricKeySize),
+	cache.Store(
+		cache.AESKeyFileName,
 		standardSymmetricKey,
 	)
 	standardCipher := aes.NewAES(standardSymmetricKey)
 	standardNonce := utility.GenerateRandomBytes(standardCipher.NonceSize())
 
 	lightweightSymmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
-	cache.StoreFile(
-		cache.CreateASCONKeyFileName(config.SymmetricKeySize),
+	cache.Store(
+		cache.ASCONKeyFileName,
 		lightweightSymmetricKey,
 	)
 	lightweightCipher := ascon.NewASCON(lightweightSymmetricKey)
 	lightweightNonce := utility.GenerateRandomBytes(lightweightCipher.NonceSize())
 
 	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
-	cache.StoreFile(
-		cache.CreateRSAPrivateKeyFileName(config.RSAKeyBits, 0),
-		rsa.MarshalPrivateKey(rsaScheme.PrivateKey),
+	cache.Store(
+		cache.RSAPrivateKeyFileName,
+		rsaScheme.PrivateKeyBytes(),
 	)
-	cache.StoreFile(
-		cache.CreateRSAPublicKeyFileName(config.RSAKeyBits, 0),
-		rsa.MarshalPublicKey(rsaScheme.PublicKey),
+	cache.Store(
+		cache.RSAPublicKeyFileName,
+		rsaScheme.PublicKeyBytes(),
 	)
 	standardRSACiphertext := rsaScheme.Encrypt(standardSymmetricKey)
 	lightweightRSACiphertext := rsaScheme.Encrypt(lightweightSymmetricKey)
 
-	authority := cpabe.NewCPABEAuthority()
-	cache.StoreFile(
+	authority := cpabe.NewAuthority()
+	cache.Store(
 		cache.CPABEPublicKeyFileName,
-		cpabe.MarshalCPABEPublicKey(authority.PublicKey),
+		authority.PublicKeyBytes(),
 	)
 
 	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
-	cache.StoreFile(
-		cache.CreateCPABEPolicyFileName(config.AttributeCount),
+	cache.Store(
+		cache.CPABEPolicyFileName,
 		[]byte(policy.String()),
 	)
-	cache.StoreFile(
-		cache.CreateCPABEPrivateKeyFileName(config.AttributeCount),
-		cpabe.MarshalCPABEPrivateKey(authority.IssuePrivateKey(attributes).PrivateKey),
+	cache.Store(
+		cache.CPABEPrivateKeyFileName,
+		authority.IssuePrivateKey(attributes).Bytes(),
 	)
 	standardCPABECiphertext := authority.Encrypt(policy, standardSymmetricKey)
 	lightweightCPABECiphertext := authority.Encrypt(policy, lightweightSymmetricKey)
@@ -69,22 +69,20 @@ func main() {
 	for _, payloadSize := range config.PayloadSizes {
 
 		plaintext := utility.GenerateRandomBytes(payloadSize)
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaPlaintextFileName(payloadSize),
 			plaintext,
 		)
 
-		standardSymmetricCiphertext := standardCipher.Seal(
+		standardSymmetricCiphertext := standardCipher.Encrypt(
 			nil,
 			standardNonce,
 			plaintext,
-			nil,
 		)
-		lightweightSymmetricCiphertext := lightweightCipher.Seal(
+		lightweightSymmetricCiphertext := lightweightCipher.Encrypt(
 			nil,
 			lightweightNonce,
 			plaintext,
-			nil,
 		)
 
 		pskStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
@@ -94,7 +92,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaEnvelopeFileName("psk", "standard", payloadSize),
 			pskStandardEnvelope,
 		)
@@ -106,7 +104,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaEnvelopeFileName("psk", "lightweight", payloadSize),
 			pskLightweightEnvelope,
 		)
@@ -119,7 +117,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaEnvelopeFileName("rsa", "standard", payloadSize),
 			rsaStandardEnvelope,
 		)
@@ -132,7 +130,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaEnvelopeFileName("rsa", "lightweight", payloadSize),
 			rsaLightweightEnvelope,
 		)
@@ -145,7 +143,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaEnvelopeFileName("cpabe", "standard", payloadSize),
 			cpabeStandardEnvelope,
 		)
@@ -158,7 +156,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.StoreFile(
+		cache.Store(
 			cache.CreateFullSchemaEnvelopeFileName("cpabe", "lightweight", payloadSize),
 			cpabeLightweightEnvelope,
 		)

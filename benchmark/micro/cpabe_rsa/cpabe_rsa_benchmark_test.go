@@ -3,10 +3,10 @@ package cpabe_rsa
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/cryptography/cpabe"
 	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
+	"thesis/internal/cryptography/cpabe"
 )
 
 func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
@@ -19,7 +19,7 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
 			// Instantiate authority
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
 			// Build policy for given attribute number
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -133,7 +133,7 @@ func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("CPABEAttributes/%d", attributeCount), func(b *testing.B) {
 
 			// Instantiate authority
-			authority := cpabe.NewCPABEAuthority()
+			authority := cpabe.NewAuthority()
 
 			// Create synthetic policy and attributes for given attribute count
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
@@ -147,7 +147,7 @@ func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 			asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
 
 			// Measure size of created private key, relevant as it is attribute count dependent
-			privateKeySize := privateKey.StoredPrivateKeySize()
+			privateKeySize := len(privateKey.Bytes())
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()

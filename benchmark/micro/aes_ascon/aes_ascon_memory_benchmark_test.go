@@ -6,11 +6,11 @@ import (
 	"runtime/debug"
 	"testing"
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/ascon"
 	"thesis/benchmark/memory"
 	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/thermal"
+	"thesis/internal/cryptography/aes"
+	"thesis/internal/cryptography/ascon"
 )
 
 // Peak memory is a property of a whole process rather than of a loop, so these
@@ -26,16 +26,16 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize)))
-			plaintext := cache.LoadFile(cache.CreateAESASCONPlaintextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateAESGCMNonceFileName())
+			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
+			plaintext := cache.Load(cache.CreateAESASCONPlaintextFileName(payloadSize))
+			nonce := cache.Load(cache.AESGCMNonceFileName)
 
 			thermal.WaitForCooldown()
 
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				cipher.Seal(nil, nonce, plaintext, nil)
+				cipher.Encrypt(nil, nonce, plaintext)
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -48,16 +48,16 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.LoadFile(cache.CreateASCONKeyFileName(config.ASCONKeySize)))
-			plaintext := cache.LoadFile(cache.CreateAESASCONPlaintextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateASCONNonceFileName())
+			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
+			plaintext := cache.Load(cache.CreateAESASCONPlaintextFileName(payloadSize))
+			nonce := cache.Load(cache.ASCONNonceFileName)
 
 			thermal.WaitForCooldown()
 
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				cipher.Seal(nil, nonce, plaintext, nil)
+				cipher.Encrypt(nil, nonce, plaintext)
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -75,16 +75,16 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.LoadFile(cache.CreateAESKeyFileName(config.AESKeySize)))
-			ciphertext := cache.LoadFile(cache.CreateAESGCMCiphertextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateAESGCMNonceFileName())
+			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
+			ciphertext := cache.Load(cache.CreateAESGCMCiphertextFileName(payloadSize))
+			nonce := cache.Load(cache.AESGCMNonceFileName)
 
 			thermal.WaitForCooldown()
 
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				cipher.Open(nil, nonce, ciphertext, nil)
+				cipher.Decrypt(nil, nonce, ciphertext)
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {
@@ -97,16 +97,16 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.LoadFile(cache.CreateASCONKeyFileName(config.ASCONKeySize)))
-			ciphertext := cache.LoadFile(cache.CreateASCONCiphertextFileName(payloadSize))
-			nonce := cache.LoadFile(cache.CreateASCONNonceFileName())
+			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
+			ciphertext := cache.Load(cache.CreateASCONCiphertextFileName(payloadSize))
+			nonce := cache.Load(cache.ASCONNonceFileName)
 
 			thermal.WaitForCooldown()
 
 			isPrepared := preparePeakMemoryMeasurement()
 
 			for b.Loop() {
-				cipher.Open(nil, nonce, ciphertext, nil)
+				cipher.Decrypt(nil, nonce, ciphertext)
 			}
 
 			if peakBytes, isAvailable := memory.PeakResidentMemory(); isPrepared && isAvailable {

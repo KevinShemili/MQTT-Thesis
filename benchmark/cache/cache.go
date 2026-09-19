@@ -1,19 +1,16 @@
 package cache
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"thesis/benchmark/utility"
 )
 
 const fileExtension = ".bin"
-const CPABEPublicKeyFileName = "cpabe-public-key"
 
 var cacheDirectory = utility.ParseStringFromEnv("CACHE_DIRECTORY")
 
-// Persist file in cache
-func StoreFile(fileName string, fileContent []byte) {
+func Store(fileName string, fileContent []byte) {
 
 	if err := os.MkdirAll(cacheDirectory, utility.DirectoryPermissions); err != nil {
 		panic(err)
@@ -24,12 +21,11 @@ func StoreFile(fileName string, fileContent []byte) {
 	}
 }
 
-// Load a fixture from the cache, panicking if it was never provisioned
-func LoadFile(fileName string) []byte {
+func Load(fileName string) []byte {
 
 	content, err := os.ReadFile(getFilePath(fileName))
 	if err != nil {
-		panic(fmt.Sprintf("fixture %q was never provisioned", fileName))
+		panic(err)
 	}
 
 	return content
