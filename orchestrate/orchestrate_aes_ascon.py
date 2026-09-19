@@ -28,9 +28,6 @@ REMOTE_PROVISION_PACKAGE = "./cmd/provision_aes_ascon"
 REMOTE_BINARY = "/tmp/aes-ascon-benchmark"
 REMOTE_PROVISION_BINARY = "/tmp/aes-ascon-provision"
 
-# UM24C Bluetooth serial port
-UM24C_PORT = "COM11"
-
 
 def load_environment_variables():
 
@@ -285,9 +282,9 @@ def run_energy_case(meter, output, algorithm, operation, payload_size):
 def orchestrate_energy():
 
     # Create the UM24C Instance & Ensure Auto Close in Case of Exception
-    with closing(UM24C(UM24C_PORT)) as um24c:
+    with closing(UM24C()) as um24c:
 
-        print(f"Using UM24C on Port {UM24C_PORT}")
+        print(f"Using UM24C at {UM24C.MAC_ADDRESS}")
         print(
             f"Collection of {RUNS} Idle Baseline Power Windows "
             f"for {BASELINE_DURATION}s each..."

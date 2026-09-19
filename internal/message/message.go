@@ -8,14 +8,28 @@ import (
 )
 
 type Message struct {
-	ID      uuid.UUID
-	Payload []byte
+	ID      uuid.UUID `json:"id" cbor:"id"`
+	Payload []byte    `json:"payload" cbor:"payload"`
+}
+
+type MessageIntKeys struct {
+	ID      uuid.UUID `cbor:"0,keyasint"`
+	Payload []byte    `cbor:"1,keyasint"`
 }
 
 func NewMessage(payloadSize int) Message {
 	messageID := uuid.New()
 
 	return Message{
+		ID:      messageID,
+		Payload: BuildPayload(payloadSize),
+	}
+}
+
+func NewMessageIntKeys(payloadSize int) MessageIntKeys {
+	messageID := uuid.New()
+
+	return MessageIntKeys{
 		ID:      messageID,
 		Payload: BuildPayload(payloadSize),
 	}

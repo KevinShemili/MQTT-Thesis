@@ -245,6 +245,154 @@ def write_aes_ascon_report(
     build_html_report(template_path, report_path, placeholders)
 
 
+FULL_SCHEMA_CONFIGURATIONS = (
+    ("PSKStandard", "PSK — Standard"),
+    ("PSKLightweight", "PSK — Lightweight"),
+    ("RSAStandard", "RSA — Standard"),
+    ("RSALightweight", "RSA — Lightweight"),
+    ("CPABEStandard", "CP-ABE — Standard"),
+    ("CPABELightweight", "CP-ABE — Lightweight"),
+)
+
+
+def _build_full_schema_measurement_table(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], dict[str, Any]],
+    operation: str,
+    mean_key: str,
+    confidence_interval_key: str,
+    throttled_key: str | None = None,
+) -> str:
+    rows = []
+
+    for configuration, label in FULL_SCHEMA_CONFIGURATIONS:
+        values = results[(configuration, operation)]
+        cells = _mean_ci_column(
+            values[mean_key],
+            values[confidence_interval_key],
+        )
+
+        if throttled_key is not None:
+            cells = _mark_throttled_cells(cells, values[throttled_key])
+
+        rows.append([label, *cells])
+
+    return build_html_table(
+        ["Configuration", *_byte_column(payload_sizes)],
+        rows,
+    )
+
+
+def _build_full_schema_timing_tables(
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    return {
+        f"{operation}TimingTable": _build_full_schema_measurement_table(
+            payload_sizes,
+            cases,
+            operation,
+            "latency_means",
+            "latency_cis",
+            "timing_throttled",
+        )
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+
+def _build_full_schema_size_table(
+    payload_sizes: list[int],
+    wire_sizes: dict[str, list[float]],
+) -> str:
+    return build_html_table(
+        ["Configuration", *_byte_column(payload_sizes)],
+        [
+            [
+                label,
+                *[f"{round(value):,} B" for value in wire_sizes[configuration]],
+            ]
+            for configuration, label in FULL_SCHEMA_CONFIGURATIONS
+        ],
+    )
+
+
+def _build_full_schema_energy_tables(
+    payload_sizes: list[int],
+    cases: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    return {
+        f"{operation}EnergyTable": _build_full_schema_measurement_table(
+            payload_sizes,
+            cases,
+            operation,
+            "energy_means",
+            "energy_cis",
+            "energy_throttled",
+        )
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+
+def _build_full_schema_memory_tables(
+    payload_sizes: list[int],
+    memory: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, str]:
+    return {
+        f"{operation}MemoryTable": _build_full_schema_measurement_table(
+            payload_sizes,
+            memory,
+            operation,
+            "means",
+            "cis",
+        )
+        for operation in ("Encrypt", "Decrypt")
+    }
+
+
+def write_full_schema_report(
+    report_data: dict[str, Any],
+    template_path: str,
+    report_path: str,
+) -> None:
+    payload_sizes = report_data["payload_sizes"]
+    cases = report_data["cases"]
+    plots = report_data["plots"]
+    timing_throttled = [
+        flag for values in cases.values() for flag in values["timing_throttled"]
+    ]
+    energy_throttled = [
+        flag for values in cases.values() for flag in values["energy_throttled"]
+    ]
+
+    placeholders = {
+        "RunCount": str(report_data["runs"]),
+        "ConfidenceLevel": CONFIDENCE_LEVEL,
+        "RsaKeyBits": f'{report_data["rsa_key_bits"]:,}',
+        "AttributeCount": str(report_data["attribute_count"]),
+        "EnergyWindow": (
+            f'[{report_data["energy_window_start"]:g}, '
+            f'{report_data["energy_window_end"]:g}) s'
+        ),
+        "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
+        **_build_full_schema_timing_tables(payload_sizes, cases),
+        "WireSizeTable": _build_full_schema_size_table(
+            payload_sizes,
+            report_data["wire_sizes"],
+        ),
+        **_build_full_schema_energy_tables(payload_sizes, cases),
+        **_build_full_schema_memory_tables(payload_sizes, report_data["memory"]),
+        "TimingThermalLegend": build_thermal_legend(timing_throttled),
+        "EnergyThermalLegend": build_thermal_legend(energy_throttled),
+        "LatencyPlot": plots["latency"],
+        "ThroughputPlot": plots["throughput"],
+        "WireOverheadPlot": plots["wire_overhead"],
+        "EnergyPlot": plots["energy"],
+        "MemoryPlot": plots["memory"],
+    }
+
+    build_html_report(template_path, report_path, placeholders)
+
+
 def _build_json_cbor_timing_tables(
     payload_sizes: list[int],
     cases: dict[tuple[str, str], dict[str, Any]],
@@ -296,7 +444,7 @@ def _build_json_cbor_size_table(
     sizes: dict[str, list[int]],
 ) -> str:
     return _build_data_table(
-        ["Payload", "Raw binary", "JSON", "CBOR", "CBOR integer"],
+        ["Payload", "Raw message", "JSON", "CBOR", "CBOR integer"],
         [
             _byte_column(payload_sizes),
             _byte_column(raw_sizes),

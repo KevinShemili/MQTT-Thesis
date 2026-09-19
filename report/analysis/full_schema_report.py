@@ -8,6 +8,8 @@ from report.analysis.shared.parser import parse_int_env, parse_int_list_env
 from report.analysis.shared.paths import REPORT_NAME, TEMPLATE_DIR
 from report.analysis.shared.statistics import (
     energy_statistics,
+    memory_case_statistics,
+    memory_statistics,
     timing_statistics,
 )
 from report.model.benchmark_summary import BenchmarkSummary
@@ -16,53 +18,62 @@ from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
     EnergyCase,
 )
+from report.model.memory.memory_aggregation import MemoryAggregation
+from report.model.memory.memory_case import PEAK_RSS_BYTES
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
+    MB_PER_SECOND,
     NS_PER_OP,
-    RAW_BYTES,
     SERIALIZED_BYTES,
     THROTTLED as TIMING_THROTTLED,
 )
 from report.render.chart import (
-    plot_json_cbor_energy,
-    plot_json_cbor_energy_reduction,
-    plot_json_cbor_latency,
-    plot_json_cbor_latency_speedup,
-    plot_json_cbor_size,
-    plot_json_cbor_wire_overhead,
+    plot_full_schema_energy,
+    plot_full_schema_latency,
+    plot_full_schema_memory,
+    plot_full_schema_throughput,
+    plot_full_schema_wire_overhead,
 )
-from report.render.formatting import NS_PER_MICROSECOND
-from report.render.html import write_json_cbor_report
+from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
+from report.render.html import write_full_schema_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-BENCHMARK_PREFIX = "BenchmarkMessage"
+BENCHMARK_PREFIX = "BenchmarkFullSchema"
 PARAMETER = "payload_size"
-PARAMETER_BY_ALGORITHM = {
-    "JSON": PARAMETER,
-    "CBOR": PARAMETER,
-    "CBORKeyAsInt": PARAMETER,
-}
+CONFIGURATIONS = (
+    "PSKStandard",
+    "PSKLightweight",
+    "RSAStandard",
+    "RSALightweight",
+    "CPABEStandard",
+    "CPABELightweight",
+)
+PARAMETER_BY_ALGORITHM = {configuration: PARAMETER for configuration in CONFIGURATIONS}
 PARAMETER_SUFFIX = "B"
 
 TIMING_RESULT_NAME = "timing.txt"
+MEMORY_RESULT_NAME = "memory.txt"
 ENERGY_RESULT_NAME = "energy.txt"
-REPORT_TEMPLATE_NAME = "json_cbor_template.html"
+REPORT_TEMPLATE_NAME = "full_schema_template.html"
 
 LATENCY_PLOT = "latency.png"
-LATENCY_SPEEDUP_PLOT = "latency_speedup.png"
-SIZE_PLOT = "size.png"
+THROUGHPUT_PLOT = "throughput.png"
 WIRE_OVERHEAD_PLOT = "wire_overhead.png"
 ENERGY_PLOT = "energy.png"
-ENERGY_REDUCTION_PLOT = "energy_reduction.png"
+MEMORY_PLOT = "memory.png"
+OBSOLETE_PLOTS = (
+    "latency_overhead_share.png",
+    "additional_energy.png",
+)
 
 MICROJOULES_PER_JOULE = 1_000_000
 
 
 def collect_timing_aggregations(
     summary: BenchmarkSummary,
-    format_name: str,
+    configuration: str,
     operation: str,
     payload_sizes: list[int],
 ) -> list[TimingAggregation]:
@@ -70,7 +81,7 @@ def collect_timing_aggregations(
     matching_aggregations = {
         aggregation.parameter_value: aggregation
         for aggregation in summary.timing_aggregations
-        if aggregation.algorithm == format_name
+        if aggregation.algorithm == configuration
         and aggregation.operation == operation
         and aggregation.parameter == PARAMETER
     }
@@ -80,7 +91,7 @@ def collect_timing_aggregations(
 
 def collect_energy_aggregations(
     summary: BenchmarkSummary,
-    format_name: str,
+    configuration: str,
     operation: str,
     payload_sizes: list[int],
 ) -> list[EnergyAggregation]:
@@ -88,12 +99,40 @@ def collect_energy_aggregations(
     matching_aggregations = {
         aggregation.parameter_value: aggregation
         for aggregation in summary.energy_aggregations
-        if aggregation.algorithm == format_name
+        if aggregation.algorithm == configuration
         and aggregation.operation == operation
         and aggregation.parameter == PARAMETER
     }
 
     return [matching_aggregations[payload_size] for payload_size in payload_sizes]
+
+
+def collect_memory_aggregations(
+    summary: BenchmarkSummary,
+    configuration: str,
+    operation: str,
+    payload_sizes: list[int],
+) -> list[MemoryAggregation]:
+
+    matching_aggregations = {
+        aggregation.parameter_value: aggregation
+        for aggregation in summary.memory_aggregations
+        if aggregation.algorithm == configuration
+        and aggregation.operation == operation
+        and aggregation.parameter == PARAMETER
+    }
+
+    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
+
+
+def collect_envelope_sizes(
+    aggregations: list[TimingAggregation],
+) -> list[float]:
+
+    return [
+        aggregation.cases[0].measurements[SERIALIZED_BYTES]
+        for aggregation in aggregations
+    ]
 
 
 def collect_timing_throttle_flags(
@@ -124,15 +163,24 @@ def to_microjoules(values: list[float]) -> list[float]:
     return [value * MICROJOULES_PER_JOULE for value in values]
 
 
+def to_megabytes(values: list[float]) -> list[float]:
+    return [value / MEGABYTE for value in values]
+
+
 def analyze_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
     energy_baseline_cases: list[EnergyCase],
-):
+) -> dict:
 
     latency_means, latency_cis = timing_statistics(
         timing_aggregations,
         NS_PER_OP,
+    )
+
+    throughput_means, throughput_cis = timing_statistics(
+        timing_aggregations,
+        MB_PER_SECOND,
     )
 
     energy_means, energy_cis = energy_statistics(
@@ -143,11 +191,39 @@ def analyze_case(
     return {
         "latency_means": to_microseconds(latency_means),
         "latency_cis": to_microseconds(latency_cis),
+        "throughput_means": throughput_means,
+        "throughput_cis": throughput_cis,
         "energy_means": to_microjoules(energy_means),
         "energy_cis": to_microjoules(energy_cis),
         "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
         "energy_throttled": collect_energy_throttle_flags(energy_aggregations),
     }
+
+
+def analyze_memory_case(
+    aggregations: list[MemoryAggregation],
+) -> dict:
+
+    means, confidence_intervals = memory_statistics(aggregations, PEAK_RSS_BYTES)
+
+    return {
+        "means": to_megabytes(means),
+        "cis": to_megabytes(confidence_intervals),
+    }
+
+
+def calculate_wire_overhead(
+    payload_sizes: list[int],
+    wire_sizes: list[float],
+) -> list[float]:
+    return [
+        wire_size - payload_size
+        for payload_size, wire_size in zip(
+            payload_sizes,
+            wire_sizes,
+            strict=True,
+        )
+    ]
 
 
 def main() -> None:
@@ -157,19 +233,26 @@ def main() -> None:
         override=True,
     )
 
-    runs = parse_int_env("JSON_CBOR_RUNS")
-    payload_sizes = parse_int_list_env("PAYLOAD_SIZES")
+    runs = parse_int_env("FULL_SCHEMA_RUNS")
+    payload_sizes = parse_int_list_env("FULL_SCHEMA_PAYLOAD_SIZES")
+    attribute_count = parse_int_env("FULL_SCHEMA_ATTRIBUTE_COUNT")
+    rsa_key_bits = parse_int_env("FULL_SCHEMA_RSA_KEY_BITS")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
-    result_directory = PROJECT_ROOT / os.environ["JSON_CBOR_RESULT_DIR"]
+    result_directory = PROJECT_ROOT / os.environ["FULL_SCHEMA_RESULT_DIR"]
     timing_result_file = result_directory / TIMING_RESULT_NAME
+    memory_result_file = result_directory / MEMORY_RESULT_NAME
     energy_result_file = result_directory / ENERGY_RESULT_NAME
     template_path = TEMPLATE_DIR / REPORT_TEMPLATE_NAME
     report_path = result_directory / REPORT_NAME
 
+    for plot_name in OBSOLETE_PLOTS:
+        (result_directory / plot_name).unlink(missing_ok=True)
+
     summary = load_summary(
         timing_filepath=str(timing_result_file),
+        memory_filepath=str(memory_result_file),
         energy_filepath=str(energy_result_file),
         case_prefix=BENCHMARK_PREFIX,
         parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
@@ -179,28 +262,56 @@ def main() -> None:
     )
 
     case_results = {}
+    wire_sizes = {}
+    wire_overheads = {}
 
-    for format_name in ("JSON", "CBOR", "CBORKeyAsInt"):
-        for operation in ("Serialize", "Deserialize"):
+    for configuration in CONFIGURATIONS:
+        for operation in ("Encrypt", "Decrypt"):
 
             timing_aggregations = collect_timing_aggregations(
                 summary,
-                format_name,
+                configuration,
                 operation,
                 payload_sizes,
             )
 
             energy_aggregations = collect_energy_aggregations(
                 summary,
-                format_name,
+                configuration,
                 operation,
                 payload_sizes,
             )
 
-            case_results[(format_name, operation)] = analyze_case(
+            case_results[(configuration, operation)] = analyze_case(
                 timing_aggregations,
                 energy_aggregations,
                 summary.energy_baseline_cases,
+            )
+
+            if operation == "Encrypt":
+                sizes = collect_envelope_sizes(timing_aggregations)
+                wire_sizes[configuration] = sizes
+                wire_overheads[configuration] = calculate_wire_overhead(
+                    payload_sizes,
+                    sizes,
+                )
+
+    baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
+        summary.memory_baseline_cases,
+        PEAK_RSS_BYTES,
+    )
+
+    memory_results = {}
+    for configuration in CONFIGURATIONS:
+        for operation in ("Encrypt", "Decrypt"):
+            memory_aggregations = collect_memory_aggregations(
+                summary,
+                configuration,
+                f"Memory{operation}",
+                payload_sizes,
+            )
+            memory_results[(configuration, operation)] = analyze_memory_case(
+                memory_aggregations
             )
 
     latency_results = {
@@ -211,39 +322,12 @@ def main() -> None:
         for case, values in case_results.items()
     }
 
-    serialization_aggregations = {
-        format_name: collect_timing_aggregations(
-            summary,
-            format_name,
-            "Serialize",
-            payload_sizes,
+    throughput_results = {
+        case: (
+            values["throughput_means"],
+            values["throughput_cis"],
         )
-        for format_name in ("JSON", "CBOR", "CBORKeyAsInt")
-    }
-
-    size_results = {
-        format_name: [
-            int(aggregation.cases[0].measurements[SERIALIZED_BYTES])
-            for aggregation in aggregations
-        ]
-        for format_name, aggregations in serialization_aggregations.items()
-    }
-
-    raw_sizes = [
-        int(aggregation.cases[0].measurements[RAW_BYTES])
-        for aggregation in serialization_aggregations["JSON"]
-    ]
-
-    wire_overheads = {
-        format_name: [
-            message_size - raw_size
-            for message_size, raw_size in zip(
-                message_sizes,
-                raw_sizes,
-                strict=True,
-            )
-        ]
-        for format_name, message_sizes in size_results.items()
+        for case, values in case_results.items()
     }
 
     energy_results = {
@@ -254,136 +338,64 @@ def main() -> None:
         for case, values in case_results.items()
     }
 
-    latency_speedups = {
-        (format_name, operation): [
-            json_latency / alternative_latency
-            for json_latency, alternative_latency in zip(
-                case_results[("JSON", operation)]["latency_means"],
-                case_results[(format_name, operation)]["latency_means"],
-                strict=True,
-            )
-        ]
-        for format_name in ("CBOR", "CBORKeyAsInt")
-        for operation in ("Serialize", "Deserialize")
+    memory_plot_results = {
+        case: (values["means"], values["cis"])
+        for case, values in memory_results.items()
     }
 
-    energy_reductions = {
-        (format_name, operation): [
-            (json_energy - alternative_energy) / json_energy * 100.0
-            for json_energy, alternative_energy in zip(
-                case_results[("JSON", operation)]["energy_means"],
-                case_results[(format_name, operation)]["energy_means"],
-                strict=True,
-            )
-        ]
-        for format_name in ("CBOR", "CBORKeyAsInt")
-        for operation in ("Serialize", "Deserialize")
-    }
-
-    interpretations = {
-        "latency_speedup": {
-            "serialize_cbor_min": min(latency_speedups[("CBOR", "Serialize")]),
-            "serialize_cbor_max": max(latency_speedups[("CBOR", "Serialize")]),
-            "serialize_cbor_int_min": min(
-                latency_speedups[("CBORKeyAsInt", "Serialize")]
-            ),
-            "serialize_cbor_int_max": max(
-                latency_speedups[("CBORKeyAsInt", "Serialize")]
-            ),
-            "deserialize_cbor_min": min(latency_speedups[("CBOR", "Deserialize")]),
-            "deserialize_cbor_max": max(latency_speedups[("CBOR", "Deserialize")]),
-            "deserialize_cbor_int_min": min(
-                latency_speedups[("CBORKeyAsInt", "Deserialize")]
-            ),
-            "deserialize_cbor_int_max": max(
-                latency_speedups[("CBORKeyAsInt", "Deserialize")]
-            ),
-        },
-        "wire_overhead": {
-            "json_first": wire_overheads["JSON"][0],
-            "json_last": wire_overheads["JSON"][-1],
-            "cbor_min": min(wire_overheads["CBOR"]),
-            "cbor_max": max(wire_overheads["CBOR"]),
-            "cbor_int_min": min(wire_overheads["CBORKeyAsInt"]),
-            "cbor_int_max": max(wire_overheads["CBORKeyAsInt"]),
-        },
-        "energy_reduction": {
-            "serialize_cbor_min": min(energy_reductions[("CBOR", "Serialize")]),
-            "serialize_cbor_max": max(energy_reductions[("CBOR", "Serialize")]),
-            "serialize_cbor_int_min": min(
-                energy_reductions[("CBORKeyAsInt", "Serialize")]
-            ),
-            "serialize_cbor_int_max": max(
-                energy_reductions[("CBORKeyAsInt", "Serialize")]
-            ),
-            "deserialize_cbor_min": min(energy_reductions[("CBOR", "Deserialize")]),
-            "deserialize_cbor_max": max(energy_reductions[("CBOR", "Deserialize")]),
-            "deserialize_cbor_int_min": min(
-                energy_reductions[("CBORKeyAsInt", "Deserialize")]
-            ),
-            "deserialize_cbor_int_max": max(
-                energy_reductions[("CBORKeyAsInt", "Deserialize")]
-            ),
-        },
-    }
-
-    plot_json_cbor_latency(
+    plot_full_schema_latency(
         payload_sizes,
         latency_results,
         str(result_directory / LATENCY_PLOT),
     )
 
-    plot_json_cbor_latency_speedup(
+    plot_full_schema_throughput(
         payload_sizes,
-        latency_speedups,
-        str(result_directory / LATENCY_SPEEDUP_PLOT),
+        throughput_results,
+        str(result_directory / THROUGHPUT_PLOT),
     )
 
-    plot_json_cbor_size(
-        payload_sizes,
-        size_results,
-        str(result_directory / SIZE_PLOT),
-    )
-
-    plot_json_cbor_wire_overhead(
+    plot_full_schema_wire_overhead(
         payload_sizes,
         wire_overheads,
         str(result_directory / WIRE_OVERHEAD_PLOT),
     )
 
-    plot_json_cbor_energy(
+    plot_full_schema_energy(
         payload_sizes,
         energy_results,
         str(result_directory / ENERGY_PLOT),
     )
 
-    plot_json_cbor_energy_reduction(
+    plot_full_schema_memory(
         payload_sizes,
-        energy_reductions,
-        str(result_directory / ENERGY_REDUCTION_PLOT),
+        memory_plot_results,
+        baseline_memory_mean / MEGABYTE,
+        str(result_directory / MEMORY_PLOT),
     )
 
     report_data = {
         "runs": runs,
         "payload_sizes": payload_sizes,
-        "raw_sizes": raw_sizes,
-        "sizes": size_results,
-        "wire_overheads": wire_overheads,
+        "attribute_count": attribute_count,
+        "rsa_key_bits": rsa_key_bits,
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
-        "interpretations": interpretations,
+        "wire_sizes": wire_sizes,
+        "memory": memory_results,
+        "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
+        "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "plots": {
             "latency": LATENCY_PLOT,
-            "latency_speedup": LATENCY_SPEEDUP_PLOT,
-            "size": SIZE_PLOT,
+            "throughput": THROUGHPUT_PLOT,
             "wire_overhead": WIRE_OVERHEAD_PLOT,
             "energy": ENERGY_PLOT,
-            "energy_reduction": ENERGY_REDUCTION_PLOT,
+            "memory": MEMORY_PLOT,
         },
     }
 
-    write_json_cbor_report(
+    write_full_schema_report(
         report_data,
         str(template_path),
         str(report_path),

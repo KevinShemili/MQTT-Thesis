@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Envelope Serialization Microbenchmark</title>
+    <title>Message Serialization Microbenchmark</title>
 
     <style>
         :root {
@@ -443,7 +443,7 @@
     <main class="page">
         <header class="hero">
             <div class="eyebrow">Microbenchmark Scenario 2</div>
-            <h1>Envelope Serialization under Payload Size Scaling</h1>
+            <h1>Message Serialization under Payload Size Scaling</h1>
         </header>
 
         <section class="metadata" aria-label="Benchmark metadata">
@@ -543,11 +543,11 @@
             <div class="plot-stack">
                 <article class="plot-card">
                     <div class="plot-copy">
-                        <h3>Envelope Size vs. Payload Size</h3>
+                        <h3>Message Size vs. Payload Size</h3>
                     </div>
 
                     <div class="plot-frame">
-                        <img src="{{SizePlot}}" alt="JSON and CBOR envelope size over payload size">
+                        <img src="{{SizePlot}}" alt="JSON and CBOR message size over payload size">
                     </div>
                 </article>
 
@@ -559,15 +559,15 @@
 
                         <div class="plot-frame">
                             <img src="{{WireOverheadPlot}}"
-                                alt="JSON and CBOR wire overhead above the raw binary envelope data over payload size">
+                                alt="JSON and CBOR wire overhead above the raw UUID and payload data over payload size">
                         </div>
                     </article>
 
                     <aside class="comparison-explanation">
-                        <div class="comparison-label">Overhead above the three raw binary fields</div>
+                        <div class="comparison-label">Overhead above the raw UUID and payload</div>
                         <p><strong>JSON</strong><br>
-                            Grows from {{JsonWireOverheadFirst}} B to {{JsonWireOverheadLast}} B because the
-                            binary values are Base64-encoded.</p>
+                            Grows from {{JsonWireOverheadFirst}} B to {{JsonWireOverheadLast}} B because the UUID is
+                            textual and the payload is Base64-encoded.</p>
                         <p><strong>CBOR</strong><br>
                             {{CborWireOverheadMin}} B – {{CborWireOverheadMax}} B</p>
                         <p><strong>CBOR (Int Keys)</strong><br>
@@ -581,7 +581,7 @@
             <div class="operation-group">
                 <div class="table-row single-table">
                     <div class="table-block">
-                        <h3>Envelope Size Comparison</h3>
+                        <h3>Message Size Comparison</h3>
 
                         <div class="table-wrapper">
                             {{SizeComparisonTable}}

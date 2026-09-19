@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Full Schema: Standard vs. Lightweight Packages</title>
+
+    <style>
+        :root {
+            --page: #f3f1ed;
+            --surface: #ffffff;
+            --surface-soft: #faf9f7;
+            --ink: #201f24;
+            --muted: #6f6b74;
+            --border: #ded9d2;
+            --accent: #4f3b78;
+            --warm: #d97706;
+            --warm-soft: #fff2df;
+            --violet: #7c3aed;
+            --shadow: 0 18px 55px rgba(42, 36, 48, 0.09);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            background:
+                radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 34rem),
+                var(--page);
+            color: var(--ink);
+            font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        img {
+            max-width: 100%;
+        }
+
+        .page {
+            width: min(1320px, calc(100% - 40px));
+            margin: 28px auto 42px auto;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 26px;
+            background: linear-gradient(135deg, #2d2441 0%, #4f3b78 58%, #7c3aed 100%);
+            color: #ffffff;
+            box-shadow: var(--shadow);
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            right: -100px;
+            top: -150px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 50%;
+        }
+
+        .eyebrow {
+            margin-bottom: 12px;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            max-width: 940px;
+            margin: 0;
+            font-size: clamp(30px, 4vw, 48px);
+            line-height: 1.08;
+            letter-spacing: -0.04em;
+        }
+
+        .hero p {
+            position: relative;
+            z-index: 1;
+            max-width: 880px;
+            margin: 18px 0 0 0;
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 15px;
+        }
+
+        .metadata {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 16px;
+        }
+
+        .metric {
+            padding: 18px 20px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 10px 32px rgba(42, 36, 48, 0.05);
+            backdrop-filter: blur(8px);
+        }
+
+        .metric-label {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.11em;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            margin-top: 6px;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
+        .metric-copy {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .section {
+            margin-top: 22px;
+            padding: 26px;
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            background: var(--surface);
+            box-shadow: 0 12px 36px rgba(42, 36, 48, 0.055);
+        }
+
+        .section-heading {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 18px;
+        }
+
+        .section-heading h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: -0.025em;
+        }
+
+        .section-heading p {
+            max-width: 700px;
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            text-align: right;
+        }
+
+        .section-legend {
+            display: grid;
+            gap: 9px;
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border: 1px solid #f0cf9c;
+            border-radius: 14px;
+            background: var(--warm-soft);
+        }
+
+        .thermal-status {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .thermal-status-flagged,
+        .thermal-symbol {
+            color: #92400e;
+        }
+
+        .thermal-symbol {
+            font-size: 16px;
+            font-weight: 900;
+        }
+
+        .plot-stack,
+        .table-stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .table-stack {
+            margin-top: 18px;
+        }
+
+        .plot-card,
+        .table-block {
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 19px;
+            background: var(--surface-soft);
+        }
+
+        .plot-copy,
+        .table-block h3 {
+            padding: 20px 22px 4px 22px;
+        }
+
+        .plot-copy h3,
+        .table-block h3 {
+            margin: 0;
+            font-size: 18px;
+            letter-spacing: -0.015em;
+        }
+
+        .plot-copy p {
+            margin: 6px 0 0 0;
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .plot-frame {
+            padding: 14px;
+        }
+
+        .plot-frame img {
+            display: block;
+            width: 100%;
+            border: 1px solid #e5e1dc;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .table-block h3 {
+            padding-bottom: 16px;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-top: 1px solid #e6e1db;
+            background: #ffffff;
+        }
+
+        table {
+            width: 100%;
+            min-width: 720px;
+            border-collapse: collapse;
+            background: #ffffff;
+            font-size: 12px;
+        }
+
+        thead {
+            background: #f2eff6;
+        }
+
+        th {
+            padding: 11px 12px;
+            border-bottom: 1px solid var(--border);
+            color: #4d435d;
+            font-size: 10px;
+            font-weight: 850;
+            letter-spacing: 0.035em;
+            line-height: 1.25;
+            text-align: right;
+            vertical-align: middle;
+            white-space: normal;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #efebe6;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        th:first-child,
+        td:first-child {
+            min-width: 190px;
+            text-align: left;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fbfafc;
+        }
+
+        tbody tr:hover {
+            background: #f6f2fb;
+        }
+
+        .thermal-mark {
+            display: inline-block;
+            margin-left: 6px;
+            color: var(--warm);
+            font-size: 14px;
+            font-weight: 900;
+            vertical-align: middle;
+        }
+
+        .memory-note {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .metadata {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 680px) {
+            .page {
+                width: min(100% - 22px, 1320px);
+                margin-top: 12px;
+            }
+
+            .hero,
+            .section {
+                padding: 21px;
+                border-radius: 18px;
+            }
+
+            .metadata {
+                grid-template-columns: 1fr;
+            }
+
+            .section-heading {
+                display: block;
+            }
+
+            .section-heading p {
+                margin-top: 7px;
+                text-align: left;
+            }
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+            }
+
+            .page {
+                width: 100%;
+                margin: 0;
+            }
+
+            .hero,
+            .metric,
+            .section {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <header class="hero">
+            <div class="eyebrow">Microbenchmark Scenario 4</div>
+            <h1>Full Schema: Standard vs. Lightweight Packages</h1>
+            <p>This report compares complete secure-envelope operations using a Standard package based on AES-GCM
+                and JSON with a Lightweight package based on ASCON and CBOR. Both packages are evaluated with PSK,
+                RSA, and CP-ABE key management.</p>
+        </header>
+
+        <section class="metadata" aria-label="Benchmark configuration">
+            <div class="metric">
+                <div class="metric-label">Standard package</div>
+                <div class="metric-value">AES-GCM + JSON</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">Lightweight package</div>
+                <div class="metric-value">ASCON + CBOR</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">Key management</div>
+                <div class="metric-value">PSK · RSA · CP-ABE</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">RSA key size</div>
+                <div class="metric-value">{{RsaKeyBits}} bits</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">CP-ABE policy attributes</div>
+                <div class="metric-value">{{AttributeCount}}</div>
+                <div class="metric-copy">Matching subscriber key</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">Independent runs</div>
+                <div class="metric-value">{{RunCount}}</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">Confidence interval</div>
+                <div class="metric-value">{{ConfidenceLevel}}</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">Energy measurement window</div>
+                <div class="metric-value">{{EnergyWindow}}</div>
+                <div class="metric-copy">After workload start; warm-up and tail excluded</div>
+            </div>
+
+            <div class="metric">
+                <div class="metric-label">Peak-RSS runtime baseline</div>
+                <div class="metric-value">{{BaselineRss}}</div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Timing</h2>
+                <p>Latency and throughput include the complete encryption or decryption path for each package and
+                    key-management family.</p>
+            </div>
+
+            <div class="section-legend">
+                {{TimingThermalLegend}}
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Latency vs. Payload Size</h3>
+                        <p>Panels separate key-management families and operations; each panel compares Standard and
+                            Lightweight directly.</p>
+                    </div>
+                    <div class="plot-frame">
+                        <img src="{{LatencyPlot}}"
+                            alt="Full Schema Standard and Lightweight encryption and decryption latency by key-management family">
+                    </div>
+                </article>
+
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Throughput vs. Payload Size</h3>
+                    </div>
+                    <div class="plot-frame">
+                        <img src="{{ThroughputPlot}}"
+                            alt="Full Schema Standard and Lightweight encryption and decryption throughput by key-management family">
+                    </div>
+                </article>
+            </div>
+
+            <div class="table-stack">
+                <div class="table-block">
+                    <h3>Encryption Latency (µs/op)</h3>
+                    <div class="table-wrapper">{{EncryptTimingTable}}</div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Decryption Latency (µs/op)</h3>
+                    <div class="table-wrapper">{{DecryptTimingTable}}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Size</h2>
+                <p>Wire overhead is the serialized envelope size minus the raw payload size. The table reports exact
+                    serialized-envelope bytes.</p>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Serialized Envelope Wire Overhead</h3>
+                    </div>
+                    <div class="plot-frame">
+                        <img src="{{WireOverheadPlot}}"
+                            alt="Serialized envelope wire overhead for Standard and Lightweight PSK, RSA, and CP-ABE configurations">
+                    </div>
+                </article>
+            </div>
+
+            <div class="table-stack">
+                <div class="table-block">
+                    <h3>Serialized Envelope Size (bytes)</h3>
+                    <div class="table-wrapper">{{WireSizeTable}}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Energy</h2>
+                <p>Energy per operation uses the matching timing result and load samples after subtracting mean idle
+                    power.</p>
+            </div>
+
+            <div class="section-legend">
+                {{EnergyThermalLegend}}
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Energy per Operation vs. Payload Size</h3>
+                    </div>
+                    <div class="plot-frame">
+                        <img src="{{EnergyPlot}}"
+                            alt="Full Schema Standard and Lightweight encryption and decryption energy by key-management family">
+                    </div>
+                </article>
+            </div>
+
+            <div class="table-stack">
+                <div class="table-block">
+                    <h3>Encryption Energy (µJ/op)</h3>
+                    <div class="table-wrapper">{{EncryptEnergyTable}}</div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Decryption Energy (µJ/op)</h3>
+                    <div class="table-wrapper">{{DecryptEnergyTable}}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-heading">
+                <h2>Memory</h2>
+                <p>Peak RSS is measured in an independent process for each case and is not baseline-subtracted.</p>
+            </div>
+
+            <div class="section-legend">
+                <div class="memory-note">The figure includes the runtime baseline of <strong>{{BaselineRss}}</strong>
+                    as a separate reference line.</div>
+            </div>
+
+            <div class="plot-stack">
+                <article class="plot-card">
+                    <div class="plot-copy">
+                        <h3>Peak Process Memory vs. Payload Size</h3>
+                    </div>
+                    <div class="plot-frame">
+                        <img src="{{MemoryPlot}}"
+                            alt="Full Schema Standard and Lightweight encryption and decryption peak RSS with runtime baseline">
+                    </div>
+                </article>
+            </div>
+
+            <div class="table-stack">
+                <div class="table-block">
+                    <h3>Encryption Peak RSS (MB)</h3>
+                    <div class="table-wrapper">{{EncryptMemoryTable}}</div>
+                </div>
+
+                <div class="table-block">
+                    <h3>Decryption Peak RSS (MB)</h3>
+                    <div class="table-wrapper">{{DecryptMemoryTable}}</div>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

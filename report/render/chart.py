@@ -543,6 +543,194 @@ def plot_aes_ascon_memory(
     )
 
 
+FULL_SCHEMA_FIGURE_SIZE = (15, 8)
+FULL_SCHEMA_FAMILIES = (
+    ("PSK", "PSK"),
+    ("RSA", "RSA"),
+    ("CPABE", "CP-ABE"),
+)
+FULL_SCHEMA_PROFILES = (
+    ("Standard", "Standard", AMBER),
+    ("Lightweight", "Lightweight", VIOLET),
+)
+
+
+def _plot_full_schema_results(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    title: str,
+    y_label: str,
+    output_path: str,
+    with_logarithmic_y_axis: bool = False,
+    baseline_memory_mean: float | None = None,
+) -> None:
+    figure, axes = plt.subplots(2, 3, figsize=FULL_SCHEMA_FIGURE_SIZE)
+    figure.suptitle(title, fontsize=13)
+    rendered_panels = []
+
+    for row_index, operation in enumerate(("Encrypt", "Decrypt")):
+        for column_index, (family, family_label) in enumerate(FULL_SCHEMA_FAMILIES):
+            axis = axes[row_index][column_index]
+            series = []
+
+            for profile, profile_label, color in FULL_SCHEMA_PROFILES:
+                configuration = f"{family}{profile}"
+                means, confidence_intervals = results[(configuration, operation)]
+                series.append((profile_label, means, confidence_intervals, color))
+
+            _draw_summaries(axis, payload_sizes, series, with_ci=True)
+            axis.set_title(f"{family_label} — {operation}", fontsize=11)
+            axis.set_xlabel("Payload Size")
+            if column_index == 0:
+                axis.set_ylabel(y_label)
+
+            _configure_log2_payload_axis(axis, payload_sizes)
+
+            if with_logarithmic_y_axis:
+                _configure_compact_logarithmic_y_axis(axis)
+            elif baseline_memory_mean is None:
+                axis.set_ylim(bottom=0)
+
+            rendered_panels.append((axis, payload_sizes, series))
+
+    if baseline_memory_mean is not None:
+        _configure_peak_rss_axes(rendered_panels, baseline_memory_mean)
+
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        fontsize=10,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.95),
+        ncol=len(labels),
+    )
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.91))
+    save_figure(figure, output_path)
+
+
+def plot_full_schema_latency(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_full_schema_results(
+        payload_sizes,
+        results,
+        "Full Schema: Latency by Package and Key Management",
+        "Latency (µs/op)",
+        output_path,
+        with_logarithmic_y_axis=True,
+    )
+
+
+def plot_full_schema_throughput(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_full_schema_results(
+        payload_sizes,
+        results,
+        "Full Schema: Throughput by Package and Key Management",
+        "Throughput (MB/s)",
+        output_path,
+    )
+
+
+def plot_full_schema_wire_overhead(
+    payload_sizes: list[int],
+    wire_overheads: dict[str, list[float]],
+    output_path: str,
+) -> None:
+    positions = list(range(len(payload_sizes)))
+    bar_width = 0.36
+    figure, axes = plt.subplots(1, 3, figsize=(15, 4.8), sharey=True)
+    figure.suptitle("Serialized Envelope Wire Overhead", fontsize=13)
+
+    for axis, (family, family_label) in zip(
+        axes,
+        FULL_SCHEMA_FAMILIES,
+        strict=True,
+    ):
+        for profile_index, (profile, profile_label, color) in enumerate(
+            FULL_SCHEMA_PROFILES
+        ):
+            offset = (profile_index - 0.5) * bar_width
+            axis.bar(
+                [position + offset for position in positions],
+                wire_overheads[f"{family}{profile}"],
+                width=bar_width,
+                label=profile_label,
+                color=color,
+            )
+
+        axis.set_title(family_label, fontsize=11)
+        axis.set_xlabel("Payload Size")
+        axis.set_yscale("log", base=10)
+        axis.set_ylim(bottom=1)
+        axis.set_xticks(positions)
+        axis.set_xticklabels(
+            [
+                formatting.format_byte_size(payload_size, compact=True)
+                for payload_size in payload_sizes
+            ]
+        )
+        axis.set_xlim(-0.6, len(positions) - 0.4)
+        axis.grid(
+            True,
+            axis="y",
+            which="both",
+            linestyle="-",
+            linewidth=0.5,
+            alpha=0.18,
+        )
+
+    axes[0].set_ylabel("Wire overhead (bytes, log scale)")
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        fontsize=10,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.93),
+        ncol=2,
+    )
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.86))
+    save_figure(figure, output_path)
+
+
+def plot_full_schema_energy(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+    _plot_full_schema_results(
+        payload_sizes,
+        results,
+        "Full Schema: Energy per Operation by Package and Key Management",
+        "Energy (µJ/op)",
+        output_path,
+        with_logarithmic_y_axis=True,
+    )
+
+
+def plot_full_schema_memory(
+    payload_sizes: list[int],
+    results: dict[tuple[str, str], tuple[list[float], list[float]]],
+    baseline_memory_mean: float,
+    output_path: str,
+) -> None:
+    _plot_full_schema_results(
+        payload_sizes,
+        results,
+        "Full Schema: Peak Process Memory by Package and Key Management",
+        "Peak RSS (MB)",
+        output_path,
+        baseline_memory_mean=baseline_memory_mean,
+    )
+
+
 def _configure_compact_linear_y_axis(axis: Axes) -> None:
     axis.yaxis.set_major_formatter(FuncFormatter(_format_compact_number))
 
@@ -694,7 +882,7 @@ def plot_json_cbor_latency_speedup(
 
 def plot_json_cbor_size(
     payload_sizes: list[int],
-    envelope_sizes: dict[str, list[int]],
+    message_sizes: dict[str, list[int]],
     output_path: str,
 ) -> None:
     figure, axis = plt.subplots(figsize=(8.5, 5.2))
@@ -706,7 +894,7 @@ def plot_json_cbor_size(
     ):
         axis.plot(
             payload_sizes,
-            envelope_sizes[format_name],
+            message_sizes[format_name],
             label=label,
             color=color,
             marker="o",
@@ -715,11 +903,11 @@ def plot_json_cbor_size(
         )
 
     axis.set_title(
-        "JSON vs. CBOR vs. CBOR (Int Keys): Envelope Size vs. Payload Size",
+        "JSON vs. CBOR vs. CBOR (Int Keys): Message Size vs. Payload Size",
         fontsize=13,
     )
     axis.set_xlabel("Payload Size (bytes)")
-    axis.set_ylabel("Envelope size (bytes)")
+    axis.set_ylabel("Message size (bytes)")
     _configure_log2_payload_axis(axis, payload_sizes)
     _configure_byte_logarithmic_y_axis(axis)
     axis.legend(fontsize=10)
@@ -753,7 +941,7 @@ def plot_json_cbor_wire_overhead(
             color=color,
         )
 
-    axis.set_title("Wire Overhead above Raw Binary Data", fontsize=13)
+    axis.set_title("Wire Overhead above Raw Message Data", fontsize=13)
     axis.set_xlabel("Payload Size")
     axis.set_ylabel("Wire overhead (bytes, log scale)")
     _configure_byte_logarithmic_y_axis(axis)

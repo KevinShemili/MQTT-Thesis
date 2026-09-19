@@ -4,13 +4,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_summary
+from report.analysis.shared.parser import parse_int_env, parse_int_list_env
+from report.analysis.shared.paths import REPORT_NAME, TEMPLATE_DIR
 from report.analysis.shared.statistics import (
     energy_statistics,
     memory_case_statistics,
     memory_statistics,
     timing_statistics,
 )
-from report.config import REPORT_NAME, TEMPLATE_DIR, parse_int_env, parse_int_list_env
 from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
@@ -240,7 +241,7 @@ def main():
 
     energy_result_file = result_directory / ENERGY_RESULT_NAME
 
-    template_path = Path(TEMPLATE_DIR) / REPORT_TEMPLATE_NAME
+    template_path = TEMPLATE_DIR / REPORT_TEMPLATE_NAME
 
     report_path = result_directory / REPORT_NAME
 

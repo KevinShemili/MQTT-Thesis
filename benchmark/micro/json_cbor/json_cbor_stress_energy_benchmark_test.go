@@ -3,12 +3,10 @@ package json_cbor
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/cryptography/aes"
-	"thesis/benchmark/cryptography/cpabe"
 	"thesis/benchmark/micro/json_cbor/shared"
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
-	"thesis/internal/envelope"
+	"thesis/internal/message"
 	"thesis/internal/serialization"
 	"time"
 )
@@ -18,66 +16,34 @@ var (
 	tailDuration   = time.Duration(utility.ParseIntFromEnv("TAIL_DURATION")) * time.Second
 )
 
-func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
-
+func BenchmarkMessageEnergySerialize(benchmark *testing.B) {
 	config := shared.NewJSONCBORConfig()
 
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
 
-	// Scenario 1: JSON Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
 
+		// JSON Serialization
 		benchmark.Run(fmt.Sprintf("JSON/%dB", payloadSize), func(b *testing.B) {
 
-			// Instantiate CP-ABE authority
-			authority := cpabe.NewCPABEAuthority()
-
-			// Instantiate AES-GCM cipher
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aes := aes.NewAES(symmetricKey)
-
-			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(payloadSize)
-
-			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-
-			// Encrypt payload
-			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
-
-			// Build the fixed CP-ABE policy used by every payload-size case
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
-
-			// Encrypt symmetric key under policy
-			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-
-			// Construct envelope
-			env := envelope.Envelope{
-				AsymmetricCiphertext: abeCiphertext,
-				Nonce:                nonce,
-				SymmetricCiphertext:  aesCiphertext,
-			}
+			msg := message.NewMessage(payloadSize)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
+
 			for time.Now().Before(warmupDeadline) {
-				jsonSerializer.Serialize(env)
+				jsonSerializer.Serialize(msg)
 			}
-			// Actually measure this region
 			for b.Loop() {
-				jsonSerializer.Serialize(env)
+				jsonSerializer.Serialize(msg)
 			}
-			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				jsonSerializer.Serialize(env)
+				jsonSerializer.Serialize(msg)
 			}
 
 			if throttle.IsThrottled() {
@@ -88,59 +54,28 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 2: CBOR Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
 
+		// CBOR Serialization
 		benchmark.Run(fmt.Sprintf("CBOR/%dB", payloadSize), func(b *testing.B) {
 
-			// Instantiate CP-ABE authority
-			authority := cpabe.NewCPABEAuthority()
-
-			// Instantiate AES-GCM cipher
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aes := aes.NewAES(symmetricKey)
-
-			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(payloadSize)
-
-			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-
-			// Encrypt payload
-			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
-
-			// Build the fixed CP-ABE policy used by every payload-size case
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
-
-			// Encrypt symmetric key under policy
-			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-
-			// Construct envelope
-			env := envelope.Envelope{
-				AsymmetricCiphertext: abeCiphertext,
-				Nonce:                nonce,
-				SymmetricCiphertext:  aesCiphertext,
-			}
+			msg := message.NewMessage(payloadSize)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
+
 			for time.Now().Before(warmupDeadline) {
-				cborSerializer.Serialize(env)
+				cborSerializer.Serialize(msg)
 			}
-			// Actually measure this region
 			for b.Loop() {
-				cborSerializer.Serialize(env)
+				cborSerializer.Serialize(msg)
 			}
-			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				cborSerializer.Serialize(env)
+				cborSerializer.Serialize(msg)
 			}
 
 			if throttle.IsThrottled() {
@@ -151,62 +86,27 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: CBOR With Integer Keys Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
 
+		// CBOR Serialization with Integer Keys
 		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dB", payloadSize), func(b *testing.B) {
 
-			// Instantiate CP-ABE authority
-			authority := cpabe.NewCPABEAuthority()
-
-			// Instantiate AES-GCM cipher
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aes := aes.NewAES(symmetricKey)
-
-			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(payloadSize)
-
-			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-
-			// Encrypt payload
-			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
-
-			// Build the fixed CP-ABE policy used by every payload-size case
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
-
-			// Encrypt symmetric key under policy
-			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-
-			// Construct envelope using integer keys
-			env := envelope.EnvelopeIntKeys{
-				AsymmetricCiphertext: abeCiphertext,
-				Nonce:                nonce,
-				SymmetricCiphertext:  aesCiphertext,
-			}
+			msg := message.NewMessageIntKeys(payloadSize)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				cborSerializer.Serialize(env)
-
+				cborSerializer.Serialize(msg)
 			}
-			// Actually measure this region
 			for b.Loop() {
-				cborSerializer.Serialize(env)
-
+				cborSerializer.Serialize(msg)
 			}
-			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				cborSerializer.Serialize(env)
-
+				cborSerializer.Serialize(msg)
 			}
 
 			if throttle.IsThrottled() {
@@ -218,74 +118,38 @@ func BenchmarkEnvelopeEnergySerialize(benchmark *testing.B) {
 	}
 }
 
-func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
-
+func BenchmarkMessageEnergyDeserialize(benchmark *testing.B) {
 	config := shared.NewJSONCBORConfig()
 
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
 
-	// Scenario 1: JSON Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
 
+		// JSON Deserialization
 		benchmark.Run(fmt.Sprintf("JSON/%dB", payloadSize), func(b *testing.B) {
 
-			// Instantiate CP-ABE authority
-			authority := cpabe.NewCPABEAuthority()
+			msg := message.NewMessage(payloadSize)
 
-			// Instantiate AES-GCM cipher
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aes := aes.NewAES(symmetricKey)
-
-			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(payloadSize)
-
-			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-
-			// Encrypt payload
-			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
-
-			// Build the fixed CP-ABE policy used by every payload-size case
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
-
-			// Encrypt symmetric key under policy
-			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-
-			// Construct envelope
-			env := envelope.Envelope{
-				AsymmetricCiphertext: abeCiphertext,
-				Nonce:                nonce,
-				SymmetricCiphertext:  aesCiphertext,
-			}
-
-			// Serialize outside measured workload so only deserialization is measured
-			serializedEnvelope, _ := jsonSerializer.Serialize(env)
+			serializedMessage, _ := jsonSerializer.Serialize(msg)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				var decoded envelope.Envelope
-				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.Message
+				jsonSerializer.Deserialize(serializedMessage, &decoded)
 			}
-
-			// Actually measure this region
 			for b.Loop() {
-				var decoded envelope.Envelope
-				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.Message
+				jsonSerializer.Deserialize(serializedMessage, &decoded)
 			}
-
-			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				var decoded envelope.Envelope
-				jsonSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.Message
+				jsonSerializer.Deserialize(serializedMessage, &decoded)
 			}
 
 			if throttle.IsThrottled() {
@@ -296,67 +160,31 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 2: CBOR Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
 
+		// CBOR Deserialization
 		benchmark.Run(fmt.Sprintf("CBOR/%dB", payloadSize), func(b *testing.B) {
 
-			// Instantiate CP-ABE authority
-			authority := cpabe.NewCPABEAuthority()
-
-			// Instantiate AES-GCM cipher
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aes := aes.NewAES(symmetricKey)
-
-			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(payloadSize)
-
-			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-
-			// Encrypt payload
-			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
-
-			// Build the fixed CP-ABE policy used by every payload-size case
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
-
-			// Encrypt symmetric key under policy
-			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-
-			// Construct envelope
-			env := envelope.Envelope{
-				AsymmetricCiphertext: abeCiphertext,
-				Nonce:                nonce,
-				SymmetricCiphertext:  aesCiphertext,
-			}
-
-			// Serialize outside measured workload so only deserialization is measured
-			serializedEnvelope, _ := cborSerializer.Serialize(env)
+			msg := message.NewMessage(payloadSize)
+			serializedMessage, _ := cborSerializer.Serialize(msg)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				var decoded envelope.Envelope
-				cborSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.Message
+				cborSerializer.Deserialize(serializedMessage, &decoded)
 			}
-
-			// Actually measure this region
 			for b.Loop() {
-				var decoded envelope.Envelope
-				cborSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.Message
+				cborSerializer.Deserialize(serializedMessage, &decoded)
 			}
-
-			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				var decoded envelope.Envelope
-				cborSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.Message
+				cborSerializer.Deserialize(serializedMessage, &decoded)
 			}
 
 			if throttle.IsThrottled() {
@@ -367,67 +195,29 @@ func BenchmarkEnvelopeEnergyDeserialize(benchmark *testing.B) {
 		})
 	}
 
-	// Scenario 3: CBOR With Integer Keys Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
-
 		benchmark.Run(fmt.Sprintf("CBORKeyAsInt/%dB", payloadSize), func(b *testing.B) {
+			msg := message.NewMessageIntKeys(payloadSize)
 
-			// Instantiate CP-ABE authority
-			authority := cpabe.NewCPABEAuthority()
-
-			// Instantiate AES-GCM cipher
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
-			aes := aes.NewAES(symmetricKey)
-
-			// Construct plaintext
-			plaintext := utility.GenerateRandomBytes(payloadSize)
-
-			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
-
-			// Encrypt payload
-			aesCiphertext := aes.Seal(nil, nonce, plaintext, nil)
-
-			// Build the fixed CP-ABE policy used by every payload-size case
-			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.CPABEAttributeCount)
-
-			// Encrypt symmetric key under policy
-			abeCiphertext := authority.Encrypt(abePolicy, symmetricKey)
-
-			// Construct envelope using integer keys
-			env := envelope.EnvelopeIntKeys{
-				AsymmetricCiphertext: abeCiphertext,
-				Nonce:                nonce,
-				SymmetricCiphertext:  aesCiphertext,
-			}
-
-			// Serialize outside measured workload so only deserialization is measured
-			serializedEnvelope, _ := cborSerializer.Serialize(env)
+			serializedMessage, _ := cborSerializer.Serialize(msg)
 
 			thermal.WaitForCooldown()
 			throttle := thermal.NewThrottleWatch()
-
-			// Let orchestrator know that the workload has started
 			fmt.Println("ENRG-START")
 
-			// Warm up in plain loop as we do not want results recorded
 			warmupDeadline := time.Now().Add(warmupDuration)
 			for time.Now().Before(warmupDeadline) {
-				var decoded envelope.EnvelopeIntKeys
-				cborSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.MessageIntKeys
+				cborSerializer.Deserialize(serializedMessage, &decoded)
 			}
-
-			// Actually measure this region
 			for b.Loop() {
-				var decoded envelope.EnvelopeIntKeys
-				cborSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.MessageIntKeys
+				cborSerializer.Deserialize(serializedMessage, &decoded)
 			}
-
-			// Keep same workload running after measured region
 			tailDeadline := time.Now().Add(tailDuration)
 			for time.Now().Before(tailDeadline) {
-				var decoded envelope.EnvelopeIntKeys
-				cborSerializer.Deserialize(serializedEnvelope, &decoded)
+				var decoded message.MessageIntKeys
+				cborSerializer.Deserialize(serializedMessage, &decoded)
 			}
 
 			if throttle.IsThrottled() {

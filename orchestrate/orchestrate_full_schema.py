@@ -23,21 +23,16 @@ REMOTE_PROJECT_DIRECTORY = "/home/thesis/MQTT-Thesis"
 REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
 REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
 REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
-
-REMOTE_PACKAGE = "./micro/cpabe_rsa"
-REMOTE_PROVISION_PACKAGE = "./cmd/provision_cpabe_rsa"
-
-REMOTE_BINARY = "/tmp/cpabe-rsa-benchmark"
-REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-provision"
+REMOTE_PACKAGE = "./micro/full_schema"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision_full_schema"
+REMOTE_BINARY = "/tmp/full-schema-benchmark"
+REMOTE_PROVISION_BINARY = "/tmp/full-schema-provision"
 
 
 def load_environment_variables():
 
     global RUNS
-    global ATTRIBUTE_COUNTS
-    global SUBSCRIBER_COUNTS
-    global RSA_KEY_BITS
-    global FIXED_RSA_KEY_BITS
+    global PAYLOAD_SIZES
     global TIMING_DURATION
     global BASELINE_DURATION
     global WARMUP_DURATION
@@ -54,26 +49,14 @@ def load_environment_variables():
         override=True,
     )
 
-    RUNS = int(os.environ["CPABE_RSA_RUNS"])
+    RUNS = int(os.environ["FULL_SCHEMA_RUNS"])
 
-    ATTRIBUTE_COUNTS = [
-        int(attribute_count)
-        for attribute_count in os.environ["CPABE_RSA_ATTRIBUTE_COUNT"].split(",")
+    PAYLOAD_SIZES = [
+        int(payload_size)
+        for payload_size in os.environ["FULL_SCHEMA_PAYLOAD_SIZES"].split(",")
     ]
-
-    SUBSCRIBER_COUNTS = [
-        int(subscriber_count)
-        for subscriber_count in os.environ["CPABE_RSA_SUBSCRIBER_COUNT"].split(",")
-    ]
-
-    RSA_KEY_BITS = [
-        int(rsa_key_bits)
-        for rsa_key_bits in os.environ["CPABE_RSA_RSA_KEY_SIZES"].split(",")
-    ]
-    FIXED_RSA_KEY_BITS = int(os.environ["CPABE_RSA_FIXED_RSA_KEY_SIZE"])
 
     TIMING_DURATION = int(os.environ["TIMING_DURATION"])
-
     BASELINE_DURATION = int(os.environ["BASELINE_DURATION"])
     WARMUP_DURATION = int(os.environ["WARMUP_DURATION"])
     MEASUREMENT_DURATION = int(os.environ["MEASUREMENT_DURATION"])
@@ -81,11 +64,10 @@ def load_environment_variables():
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
-    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["CPABE_RSA_RESULT_DIR"]
-
+    RESULT_DIRECTORY = PROJECT_ROOT / os.environ["FULL_SCHEMA_RESULT_DIR"]
     MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
-    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
     TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
+    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
 
 
 def read_um24c(um24c, duration):
@@ -129,20 +111,18 @@ def build_binaries():
         f"{REMOTE_PROVISION_PACKAGE}"
     )
 
-    subprocess.run(["ssh", SSH_TARGET, command], check=True)
+    subprocess.run(
+        ["ssh", SSH_TARGET, command],
+        check=True,
+    )
 
 
 def orchestrate_provision():
 
-    print("Provisioning CP-ABE vs. RSA Fixtures...")
+    print("Provisioning Full Schema Fixtures...")
 
-    # Start with an empty fixture cache
     subprocess.run(
-        [
-            "ssh",
-            SSH_TARGET,
-            f"rm -rf {REMOTE_CACHE_DIRECTORY}",
-        ],
+        ["ssh", SSH_TARGET, f"rm -rf {REMOTE_CACHE_DIRECTORY}"],
         check=True,
     )
 
@@ -155,20 +135,22 @@ def orchestrate_provision():
     )
 
     result = subprocess.run(
-        ["ssh", SSH_TARGET, command], stderr=subprocess.PIPE, text=True
+        ["ssh", SSH_TARGET, command],
+        stderr=subprocess.PIPE,
+        text=True,
     )
 
     if result.returncode != 0:
-        raise RuntimeError(f"Provision Failed: CP-ABE vs. RSA\n{result.stderr}")
+        raise RuntimeError(f"Provision Failed: Full Schema\n{result.stderr}")
 
     print("Finished Provisioning")
 
 
-def run_memory_case(output, operation, algorithm, parameter_value):
+def run_memory_case(output, operation, algorithm, payload_size):
 
-    print(f"Memory: {algorithm} {operation} {parameter_value}")
+    print(f"Memory: {algorithm} {operation} {payload_size}B")
     benchmark_case = (
-        f"^BenchmarkCPABERSA{operation}$/" f"^{algorithm}$/" f"^{parameter_value}$"
+        f"^BenchmarkFullSchema{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
@@ -184,9 +166,7 @@ def run_memory_case(output, operation, algorithm, parameter_value):
         f" -test.timeout=0"
     )
 
-    # Each sample needs its own process because VmHWM is process-wide.
     for _ in range(RUNS):
-
         result = subprocess.run(
             ["ssh", SSH_TARGET, command],
             stdout=output,
@@ -197,7 +177,7 @@ def run_memory_case(output, operation, algorithm, parameter_value):
         if result.returncode != 0:
             raise RuntimeError(
                 f"Memory Benchmark Failed: "
-                f"{algorithm} {operation} {parameter_value}\n"
+                f"{algorithm} {operation} {payload_size}B\n"
                 f"{result.stderr}"
             )
 
@@ -208,41 +188,37 @@ def orchestrate_memory():
 
         run_memory_case(output, "MemoryBaseline", "Runtime", 0)
 
-        for attribute_count in ATTRIBUTE_COUNTS:
-            run_memory_case(output, "MemoryEncrypt", "CPABEAttributes", attribute_count)
-            run_memory_case(output, "MemoryDecrypt", "CPABEAttributes", attribute_count)
-
-        for subscriber_count in SUBSCRIBER_COUNTS:
-            run_memory_case(output, "MemoryEncrypt", "RSASubscribers", subscriber_count)
-
-        run_memory_case(
-            output,
-            "MemoryDecrypt",
-            "RSAKeyBits",
-            FIXED_RSA_KEY_BITS,
-        )
+        for payload_size in PAYLOAD_SIZES:
+            run_memory_case(output, "MemoryEncrypt", "PSKStandard", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "PSKStandard", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "PSKLightweight", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "PSKLightweight", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "RSAStandard", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "RSAStandard", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "RSALightweight", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "RSALightweight", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "CPABEStandard", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "CPABEStandard", payload_size)
+            run_memory_case(output, "MemoryEncrypt", "CPABELightweight", payload_size)
+            run_memory_case(output, "MemoryDecrypt", "CPABELightweight", payload_size)
 
     print(f"Finished: {MEMORY_RESULT_FILE}")
 
 
-def run_energy_case(meter, output, algorithm, operation, parameter_value):
+def run_energy_case(meter, output, algorithm, operation, payload_size):
 
-    print(f"Energy: {algorithm} {operation} {parameter_value}")
+    print(f"Energy: {algorithm} {operation} {payload_size}B")
     output.write(
-        f"\n[case "
-        f"algorithm={algorithm} "
-        f"operation={operation} "
-        f"parameter_value={parameter_value}]\n"
+        f"\n[case algorithm={algorithm} operation={operation} parameter_value={payload_size}]\n"
     )
 
     benchmark_case = (
-        f"^BenchmarkCPABERSAEnergy{operation}$/"
+        f"^BenchmarkFullSchemaEnergy{operation}$/"
         f"^{algorithm}$/"
-        f"^{parameter_value}$"
+        f"^{payload_size}B$"
     )
 
     command = (
-        f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
         f". {REMOTE_ENVIRONMENT_FILE} && "
         f"set +a && "
@@ -254,29 +230,35 @@ def run_energy_case(meter, output, algorithm, operation, parameter_value):
         f" -test.timeout=0"
     )
 
+    # Popen -> Ensures call is not blocking and returns control to python
+    # PIPE -> Ensures we can read stdout produced by binary
     process = subprocess.Popen(
-        ["ssh", SSH_TARGET, command], stdout=subprocess.PIPE, text=True, bufsize=1
+        ["ssh", SSH_TARGET, command],
+        stdout=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
 
     stress_sample_future = None
 
-    # Main thread: benchmark stdout
-    # Worker thread: UM24C samples
+    # Main thread: Reads benchmark stdout
+    # Worker thread: Reads power samples from the UM24C
     with ThreadPoolExecutor(max_workers=1) as executor:
 
+        # Read the output
         for line in process.stdout:
 
             if "ENRG-START" in line:
-
                 if stress_sample_future is not None:
                     raise RuntimeError(
                         "Received ENRG-START before previous run was completed"
                     )
 
                 stress_sample_future = executor.submit(
-                    read_um24c, meter, TOTAL_WORKLOAD_DURATION
+                    read_um24c,
+                    meter,
+                    TOTAL_WORKLOAD_DURATION,
                 )
-
                 continue
 
             if "ns/op" in line:
@@ -288,28 +270,32 @@ def run_energy_case(meter, output, algorithm, operation, parameter_value):
 
                 parts = line.split()
 
-                ns_per_op = parts[parts.index("ns/op") - 1]
+                ns_per_op = parts[
+                    parts.index("ns/op") - 1
+                ]  # Because value is directly before ns/op
 
-                throttled = parts[parts.index("throttled") - 1]
+                throttled = parts[parts.index("throttled") - 1]  # Same convention
 
+                # Obtain the samples belonging to this exact run
+                # If sampling is still finishing, this waits for it...
                 stress_samples = stress_sample_future.result()
 
                 output.write("\n[run]\n")
                 output.write(f"ns/op={ns_per_op}\n")
                 output.write(f"throttled={throttled}\n")
-
                 write_to_file(output, stress_samples)
 
                 stress_sample_future = None
 
     if process.wait() != 0:
         raise RuntimeError(
-            f"Energy Benchmark Failed: " f"{algorithm} {operation} {parameter_value}"
+            f"Benchmark Failed: " f"{algorithm} " f"{operation} " f"{payload_size}B"
         )
 
 
 def orchestrate_energy():
 
+    # Create the UM24C Instance & Ensure Auto Close in Case of Exception
     with closing(UM24C()) as um24c:
 
         print(f"Using UM24C at {UM24C.MAC_ADDRESS}")
@@ -324,118 +310,90 @@ def orchestrate_energy():
                 output.write("[baseline]\n")
                 write_to_file(output, read_um24c(um24c, BASELINE_DURATION))
 
-            # CP-ABE attribute scaling
-            for attribute_count in ATTRIBUTE_COUNTS:
-                run_energy_case(
-                    um24c, output, "CPABEAttributes", "Encrypt", attribute_count
-                )
-                run_energy_case(
-                    um24c, output, "CPABEAttributes", "Decrypt", attribute_count
-                )
+            for payload_size in PAYLOAD_SIZES:
 
-            # RSA subscriber scaling
-            for subscriber_count in SUBSCRIBER_COUNTS:
+                run_energy_case(um24c, output, "PSKStandard", "Encrypt", payload_size)
+                run_energy_case(um24c, output, "PSKStandard", "Decrypt", payload_size)
                 run_energy_case(
-                    um24c, output, "RSASubscribers", "Encrypt", subscriber_count
+                    um24c, output, "PSKLightweight", "Encrypt", payload_size
                 )
-
-            # Fixed RSA decrypt reference
-            run_energy_case(
-                um24c,
-                output,
-                "RSAKeyBits",
-                "Decrypt",
-                FIXED_RSA_KEY_BITS,
-            )
+                run_energy_case(
+                    um24c, output, "PSKLightweight", "Decrypt", payload_size
+                )
+                run_energy_case(um24c, output, "RSAStandard", "Encrypt", payload_size)
+                run_energy_case(um24c, output, "RSAStandard", "Decrypt", payload_size)
+                run_energy_case(
+                    um24c, output, "RSALightweight", "Encrypt", payload_size
+                )
+                run_energy_case(
+                    um24c, output, "RSALightweight", "Decrypt", payload_size
+                )
+                run_energy_case(um24c, output, "CPABEStandard", "Encrypt", payload_size)
+                run_energy_case(um24c, output, "CPABEStandard", "Decrypt", payload_size)
+                run_energy_case(
+                    um24c, output, "CPABELightweight", "Encrypt", payload_size
+                )
+                run_energy_case(
+                    um24c, output, "CPABELightweight", "Decrypt", payload_size
+                )
 
     print(f"Finished: {ENERGY_RESULT_FILE}")
 
 
-def run_timing_case(
-    output, algorithm, operation, parameter_value, benchmark_time, runs
-):
+def run_timing_case(output, algorithm, operation, payload_size):
 
-    print(f"Timing: {algorithm} {operation} {parameter_value}")
+    print(f"Timing: {algorithm} {operation} {payload_size}B")
     benchmark_case = (
-        f"^BenchmarkCPABERSA{operation}$/" f"^{algorithm}$/" f"^{parameter_value}$"
+        f"^BenchmarkFullSchema{operation}$/" f"^{algorithm}$/" f"^{payload_size}B$"
     )
 
     command = (
-        f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
         f". {REMOTE_ENVIRONMENT_FILE} && "
         f"set +a && "
         f"{REMOTE_BINARY}"
         f" -test.run=^$"
         f" -test.bench='{benchmark_case}'"
-        f" -test.benchtime={benchmark_time}"
-        f" -test.count={runs}"
+        f" -test.benchtime={TIMING_DURATION}s"
+        f" -test.count={RUNS}"
         f" -test.timeout=0"
     )
 
     result = subprocess.run(
-        ["ssh", SSH_TARGET, command], stdout=output, stderr=subprocess.PIPE, text=True
+        ["ssh", SSH_TARGET, command],
+        stdout=output,
+        stderr=subprocess.PIPE,
+        text=True,
     )
 
     if result.returncode != 0:
         raise RuntimeError(
-            f"Timing Benchmark Failed: "
-            f"{algorithm} {operation} {parameter_value}\n"
+            f"Benchmark Failed: {algorithm} {operation} {payload_size}B\n"
             f"{result.stderr}"
         )
 
 
 def orchestrate_timing():
 
-    with TIMING_RESULT_FILE.open("w", encoding="utf-8") as output:
+    with TIMING_RESULT_FILE.open("w", encoding="utf-8") as destination_file:
 
-        # CP-ABE attribute scaling
-        for attribute_count in ATTRIBUTE_COUNTS:
-            run_timing_case(
-                output,
-                "CPABEAttributes",
-                "Encrypt",
-                attribute_count,
-                f"{TIMING_DURATION}s",
-                RUNS,
-            )
-            run_timing_case(
-                output,
-                "CPABEAttributes",
-                "Decrypt",
-                attribute_count,
-                f"{TIMING_DURATION}s",
-                RUNS,
-            )
+        for payload_size in PAYLOAD_SIZES:
 
-        # RSA subscriber scaling
-        for subscriber_count in SUBSCRIBER_COUNTS:
+            run_timing_case(destination_file, "PSKStandard", "Encrypt", payload_size)
+            run_timing_case(destination_file, "PSKStandard", "Decrypt", payload_size)
+            run_timing_case(destination_file, "PSKLightweight", "Encrypt", payload_size)
+            run_timing_case(destination_file, "PSKLightweight", "Decrypt", payload_size)
+            run_timing_case(destination_file, "RSAStandard", "Encrypt", payload_size)
+            run_timing_case(destination_file, "RSAStandard", "Decrypt", payload_size)
+            run_timing_case(destination_file, "RSALightweight", "Encrypt", payload_size)
+            run_timing_case(destination_file, "RSALightweight", "Decrypt", payload_size)
+            run_timing_case(destination_file, "CPABEStandard", "Encrypt", payload_size)
+            run_timing_case(destination_file, "CPABEStandard", "Decrypt", payload_size)
             run_timing_case(
-                output,
-                "RSASubscribers",
-                "Encrypt",
-                subscriber_count,
-                f"{TIMING_DURATION}s",
-                RUNS,
-            )
-
-        # RSA key-size scaling
-        for rsa_key_bits in RSA_KEY_BITS:
-            run_timing_case(
-                output,
-                "RSAKeyBits",
-                "Encrypt",
-                rsa_key_bits,
-                f"{TIMING_DURATION}s",
-                RUNS,
+                destination_file, "CPABELightweight", "Encrypt", payload_size
             )
             run_timing_case(
-                output,
-                "RSAKeyBits",
-                "Decrypt",
-                rsa_key_bits,
-                f"{TIMING_DURATION}s",
-                RUNS,
+                destination_file, "CPABELightweight", "Decrypt", payload_size
             )
 
     print(f"Finished: {TIMING_RESULT_FILE}")
@@ -443,14 +401,10 @@ def orchestrate_timing():
 
 def generate_report():
 
-    print("Generating CP-ABE vs. RSA HTML Report...")
+    print("Generating Full Schema HTML Report...")
 
     subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "report.analysis.cpabe_rsa_report",
-        ],
+        [sys.executable, "-m", "report.analysis.full_schema_report"],
         cwd=PROJECT_ROOT,
         check=True,
     )
@@ -462,15 +416,12 @@ def main():
     load_environment_variables()
 
     # Create Result Directory Under Root
-    RESULT_DIRECTORY.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    RESULT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
     # Build Benchmark & Provision Binaries
     build_binaries()
 
-    # Provision Expensive Fixtures
+    # Provision Memory Fixtures
     orchestrate_provision()
 
     # Allow Device to Stabilize after Provisioning
