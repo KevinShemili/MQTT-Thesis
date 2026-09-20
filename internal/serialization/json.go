@@ -4,7 +4,7 @@ import "encoding/json"
 
 type JSONSerializer struct{}
 
-var _ ISerializer = JSONSerializer{}
+var _ Serializer = JSONSerializer{}
 
 func (JSONSerializer) Serialize(value any) ([]byte, error) {
 	return json.Marshal(value)

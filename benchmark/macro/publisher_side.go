@@ -12,8 +12,8 @@ import (
 )
 
 func ExecutePublishBenchmark(
-	client mqtt.IClient,
-	serializer serialization.ISerializer,
+	client mqtt.Client,
+	serializer serialization.Serializer,
 	config shared.ExperimentConfig,
 	output io.Writer,
 ) error {
