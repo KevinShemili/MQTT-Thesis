@@ -7,6 +7,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/google/uuid v1.6.0
+	github.com/joho/godotenv v1.5.1
 	repani.com v0.4.0
 )
 

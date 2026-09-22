@@ -71,8 +71,8 @@ func (pahoClient *PahoClient) Subscribe(topic string, handler func(MQTTDelivery)
 	return nil
 }
 
-func (pahoClient *PahoClient) Publish(topic string, payload []byte) {
-	pahoClient.pahoClient.Publish(topic, qos, false, payload)
+func (pahoClient *PahoClient) Publish(topic string, payload []byte) PublishToken {
+	return pahoClient.pahoClient.Publish(topic, qos, false, payload)
 }
 
 func (pahoClient *PahoClient) Disconnect() {
