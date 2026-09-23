@@ -23,12 +23,12 @@ type SubscriberResult struct {
 	Cycles       uint64
 }
 
-func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig, payloadSize int,
 	measurements []SubscriberMeasurement, isCPUMeasured bool, notifyReady func() error) (SubscriberResult, error) {
 
 	if isCPUMeasured == false {
 
-		measurements, err := consumeMessages(client, serializer, config, measurements, notifyReady)
+		measurements, err := consumeMessages(client, serializer, config, payloadSize, measurements, notifyReady)
 		if err != nil {
 			return SubscriberResult{}, err
 		}
@@ -41,7 +41,7 @@ func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializ
 		return SubscriberResult{}, err
 	}
 
-	measurements, workloadErr := consumeMessages(client, serializer, config, measurements, func() error {
+	measurements, workloadErr := consumeMessages(client, serializer, config, payloadSize, measurements, func() error {
 		if err := measurement.Enable(); err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializ
 	}, nil
 }
 
-func consumeMessages(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+func consumeMessages(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig, payloadSize int,
 	measurements []SubscriberMeasurement, notifyReady func() error) ([]SubscriberMeasurement, error) {
 
 	messageIndex := 0
@@ -80,7 +80,7 @@ func consumeMessages(client mqtt.Client, serializer serialization.Serializer, co
 
 		endTime := time.Now().UnixNano()
 
-		if err := message.ValidateMessage(msg, config.PayloadSize); err != nil {
+		if err := message.ValidateMessage(msg, payloadSize); err != nil {
 			benchmarkResult <- fmt.Errorf("validate message %s: %w", msg.ID, err)
 			return
 		}

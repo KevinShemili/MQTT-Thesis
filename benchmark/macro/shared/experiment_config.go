@@ -6,7 +6,7 @@ import (
 )
 
 type ExperimentConfig struct {
-	PayloadSize     int
+	PayloadSizes    []int
 	MessageCount    int
 	PublishInterval time.Duration
 	Topic           string
@@ -15,7 +15,7 @@ type ExperimentConfig struct {
 func NewExperimentConfig() ExperimentConfig {
 
 	return ExperimentConfig{
-		PayloadSize:  utility.ParseIntFromEnv("MACRO_PAYLOAD_SIZE"),
+		PayloadSizes: utility.ParseIntListFromEnv("MACRO_PAYLOAD_SIZES"),
 		MessageCount: utility.ParseIntFromEnv("MACRO_MESSAGE_COUNT"),
 		PublishInterval: time.Duration(
 			utility.ParseIntFromEnv("MACRO_PUBLISH_INTERVAL_MILLISECONDS"),

@@ -1784,3 +1784,61 @@ def plot_encrypt_decrypt_asymmetry(
 
     figure.tight_layout()
     save_figure(figure, output_path)
+
+
+# Render prepared E2E latency means and confidence intervals
+def plot_macro_latency(
+    payload_sizes: list[int],
+    means: list[float],
+    confidence_intervals: list[float],
+    output_path: str,
+) -> None:
+
+    figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
+    draw_summary(
+        axis,
+        payload_sizes,
+        means,
+        confidence_intervals,
+        "E2E latency",
+        VIOLET,
+        with_ci=True,
+    )
+    _configure_log2_payload_axis(axis, payload_sizes)
+    axis.set_title("E2E latency — mean and 95% CI")
+    axis.set_xlabel("Payload size")
+    axis.set_ylabel("Latency (µs)")
+    apply_value_grid(axis)
+    figure.tight_layout()
+    save_figure(figure, output_path)
+
+
+# Keep the two endpoints' fixed-workload cycle totals in separate panels
+def plot_macro_cpu_cycles(
+    payload_sizes: list[int],
+    results: dict[str, tuple[list[float], list[float]]],
+    output_path: str,
+) -> None:
+
+    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure.suptitle("CPU cycles per workload — mean and 95% CI", fontsize=13)
+
+    for axis, role, color in zip(axes, ("publisher", "subscriber"), (VIOLET, TEAL)):
+        means, confidence_intervals = results[role]
+        draw_summary(
+            axis,
+            payload_sizes,
+            means,
+            confidence_intervals,
+            role.title(),
+            color,
+            with_ci=True,
+        )
+        _configure_log2_payload_axis(axis, payload_sizes)
+        axis.set_title(role.title())
+        axis.set_xlabel("Payload size")
+        axis.set_ylabel("CPU cycles / workload")
+        apply_value_grid(axis)
+
+    figure.tight_layout()
+    save_figure(figure, output_path)

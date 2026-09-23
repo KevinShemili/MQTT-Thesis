@@ -24,9 +24,9 @@ type PublisherResult struct {
 }
 
 func RunPublishBenchmark(client mqtt.Client, serializer serialization.Serializer,
-	config shared.ExperimentConfig, measurements []PublisherMeasurement, isCPUMeasured bool) (PublisherResult, error) {
+	config shared.ExperimentConfig, payloadSize int, measurements []PublisherMeasurement, isCPUMeasured bool) (PublisherResult, error) {
 
-	messages := shared.BuildMessages(config.MessageCount, config.PayloadSize)
+	messages := shared.BuildMessages(config.MessageCount, payloadSize)
 
 	if isCPUMeasured == false {
 

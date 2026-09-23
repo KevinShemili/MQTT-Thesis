@@ -1,6 +1,9 @@
+import csv
 from pathlib import Path
 
 from report.model.benchmark_summary import BenchmarkSummary
+from report.model.macro.macro_aggregation import MacroAggregation
+from report.model.macro.macro_case import MacroCase
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     NS_PER_OP,
@@ -336,3 +339,51 @@ def _parse_energy_sample(line: str) -> EnergySample:
         current_a=float(fields["current_a"]),
         power_w=float(fields["power_w"]),
     )
+
+
+# Load the two endpoint CSVs, retaining raw timestamps and workload cycle totals
+def load_macro_summary(
+    publisher_filepath: str, subscriber_filepath: str
+) -> BenchmarkSummary:
+
+    summary = BenchmarkSummary()
+
+    with Path(publisher_filepath).open("r", encoding="utf-8", newline="") as file:
+
+        for row in csv.DictReader(file):
+
+            payload_size = int(row["payload_size"])
+            repetition = int(row["repetition"])
+            aggregation = summary.find_macro_aggregation("MQTT-TLS", payload_size)
+
+            if aggregation is None:
+                aggregation = MacroAggregation("MQTT-TLS", payload_size)
+                summary.macro_aggregations.append(aggregation)
+
+            case = aggregation.find_case(repetition)
+
+            if case is None:
+                case = MacroCase(repetition)
+                aggregation.cases.append(case)
+
+            case.publisher_cycles = int(row["publisher_cycles"])
+            case.publisher_timestamps[row["message_id"]] = int(
+                row["publisher_started_unix_ns"]
+            )
+
+    with Path(subscriber_filepath).open("r", encoding="utf-8", newline="") as file:
+
+        for row in csv.DictReader(file):
+
+            payload_size = int(row["payload_size"])
+            repetition = int(row["repetition"])
+
+            aggregation = summary.find_macro_aggregation("MQTT-TLS", payload_size)
+            case = aggregation.find_case(repetition)
+
+            case.subscriber_cycles = int(row["subscriber_cycles"])
+            case.subscriber_timestamps[row["message_id"]] = int(
+                row["subscriber_arrived_unix_ns"]
+            )
+
+    return summary

@@ -1,5 +1,6 @@
 from .energy.energy_aggregation import EnergyAggregation
 from .energy.energy_case import EnergyCase
+from .macro.macro_aggregation import MacroAggregation
 from .memory.memory_aggregation import MemoryAggregation
 from .memory.memory_case import MemoryCase
 from .timing.timing_aggregation import TimingAggregation
@@ -10,6 +11,7 @@ class BenchmarkSummary:
 
     def __init__(self):
         self.timing_aggregations: list[TimingAggregation] = []
+        self.macro_aggregations: list[MacroAggregation] = []
 
         self.memory_baseline_cases: list[MemoryCase] = []
         self.memory_aggregations: list[MemoryAggregation] = []
@@ -75,6 +77,23 @@ class BenchmarkSummary:
                 and aggregation.operation == operation
                 and aggregation.parameter == parameter
                 and aggregation.parameter_value == parameter_value
+            ):
+                return aggregation
+
+        return None
+
+    # Find a specific macrobenchmark aggregation
+    def find_macro_aggregation(
+        self,
+        algorithm: str,
+        payload_size: int,
+    ) -> MacroAggregation | None:
+
+        for aggregation in self.macro_aggregations:
+
+            if (
+                aggregation.algorithm == algorithm
+                and aggregation.payload_size == payload_size
             ):
                 return aggregation
 

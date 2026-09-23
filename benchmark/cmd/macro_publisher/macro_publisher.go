@@ -35,8 +35,8 @@ func main() {
 		TLSConfig: tlsConfig,
 	})
 
-	results := make([]baseline.PublisherResult, runs)
-	measurements := make([]baseline.PublisherMeasurement, runs*config.MessageCount)
+	results := make([]baseline.PublisherResult, len(config.PayloadSizes)*runs)
+	measurements := make([]baseline.PublisherMeasurement, len(config.PayloadSizes)*runs*config.MessageCount)
 	warmupMeasurements := make([]baseline.PublisherMeasurement, config.MessageCount)
 
 	// Touch memory once
@@ -59,47 +59,52 @@ func main() {
 	// Wait for GO signal from the orchestrator before starting the benchmark
 	startSignal := bufio.NewReader(os.Stdin)
 
-	for run := 0; run < warmupRuns+runs; run++ {
+	for payloadIndex, payloadSize := range config.PayloadSizes {
 
-		if err := readSignal(startSignal, "GO"); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-			os.Exit(1)
-		}
+		for run := 0; run < warmupRuns+runs; run++ {
 
-		isCPUMeasured := run >= warmupRuns
-
-		if isCPUMeasured {
-
-			results[run-warmupRuns], err = baseline.RunPublishBenchmark(
-				client,
-				serialization.JSONSerializer{},
-				config,
-				results[run-warmupRuns].Measurements,
-				true,
-			)
-			if err != nil {
+			if err := readSignal(startSignal, "GO"); err != nil {
 				fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
 				os.Exit(1)
 			}
 
-		} else {
+			isCPUMeasured := run >= warmupRuns
 
-			if _, err := baseline.RunPublishBenchmark(
-				client,
-				serialization.JSONSerializer{},
-				config,
-				warmupMeasurements,
-				false,
-			); err != nil {
+			if isCPUMeasured {
+
+				results[payloadIndex*runs+run-warmupRuns], err = baseline.RunPublishBenchmark(
+					client,
+					serialization.JSONSerializer{},
+					config,
+					payloadSize,
+					results[payloadIndex*runs+run-warmupRuns].Measurements,
+					true,
+				)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
+					os.Exit(1)
+				}
+
+			} else {
+
+				if _, err := baseline.RunPublishBenchmark(
+					client,
+					serialization.JSONSerializer{},
+					config,
+					payloadSize,
+					warmupMeasurements,
+					false,
+				); err != nil {
+					fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
+					os.Exit(1)
+				}
+			}
+
+			// Tell orchestrator that the benchmark is done
+			if _, err := fmt.Fprintln(os.Stdout, "DONE"); err != nil {
 				fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
 				os.Exit(1)
 			}
-		}
-
-		// Tell orchestrator that the benchmark is done
-		if _, err := fmt.Fprintln(os.Stdout, "DONE"); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-			os.Exit(1)
 		}
 	}
 
@@ -110,13 +115,13 @@ func main() {
 	}
 	client.Disconnect()
 
-	if err := writeResults(results); err != nil {
+	if err := writeResults(results, config.PayloadSizes, runs); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
 		os.Exit(1)
 	}
 }
 
-func writeResults(results []baseline.PublisherResult) error {
+func writeResults(results []baseline.PublisherResult, payloadSizes []int, runs int) error {
 	output, err := os.Create("publisher.csv")
 	if err != nil {
 		return err
@@ -126,19 +131,21 @@ func writeResults(results []baseline.PublisherResult) error {
 	writer := csv.NewWriter(output)
 
 	writer.Write([]string{
+		"payload_size",
 		"repetition",
 		"message_id",
 		"publisher_started_unix_ns",
 		"publisher_cycles",
 	})
 
-	for repetition, result := range results {
+	for resultIndex, result := range results {
 
 		for _, measurement := range result.Measurements {
 
 			writer.Write([]string{
 
-				strconv.Itoa(repetition + 1),
+				strconv.Itoa(payloadSizes[resultIndex/runs]),
+				strconv.Itoa(resultIndex%runs + 1),
 				measurement.MessageID.String(),
 				strconv.FormatInt(measurement.StartTime, 10),
 				strconv.FormatUint(result.Cycles, 10),

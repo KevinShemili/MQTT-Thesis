@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	payloadSizes        []int
 	runs                int
 	warmupRuns          int
 	resultDirectory     string
@@ -40,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := orchestrateMacro(publisherTarget, publisherDirectory, subscriberTarget, subscriberDirectory, warmupRuns+runs); err != nil {
+	if err := orchestrateMacro(publisherTarget, publisherDirectory, subscriberTarget, subscriberDirectory, len(payloadSizes)*(warmupRuns+runs)); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
 		os.Exit(1)
 	}
@@ -61,6 +62,11 @@ func main() {
 		resultDirectory,
 		"subscriber.csv",
 	); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+		os.Exit(1)
+	}
+
+	if err := generateReport(); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
 		os.Exit(1)
 	}
@@ -136,13 +142,12 @@ func loadEnvironmentVariables() {
 		panic(err)
 	}
 
+	payloadSizes = utility.ParseIntListFromEnv("MACRO_PAYLOAD_SIZES")
 	runs = utility.ParseIntFromEnv("MACRO_RUNS")
 	warmupRuns = utility.ParseIntFromEnv("MACRO_WARMUP_RUNS")
 	resultDirectory = utility.ParseStringFromEnv("MACRO_RESULT_DIR")
-
 	publisherTarget = utility.ParseStringFromEnv("MACRO_PUBLISHER_SSH_TARGET")
 	subscriberTarget = utility.ParseStringFromEnv("MACRO_SUBSCRIBER_SSH_TARGET")
-
 	publisherDirectory = utility.ParseStringFromEnv("MACRO_PUBLISHER_PROJECT_DIR")
 	subscriberDirectory = utility.ParseStringFromEnv("MACRO_SUBSCRIBER_PROJECT_DIR")
 }
@@ -244,4 +249,13 @@ func readSignal(reader *bufio.Reader, expected string) error {
 	}
 
 	return nil
+}
+
+func generateReport() error {
+
+	command := exec.Command("python", "-m", "report.analysis.macro_report")
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+
+	return command.Run()
 }

@@ -888,3 +888,54 @@ def write_cpabe_rsa_report(
         )
 
     build_html_report(template_path, report_path, placeholders)
+
+
+# Render the already-analyzed macrobenchmark data
+def write_macro_report(
+    report_data: dict[str, Any],
+    template_path: str,
+    report_path: str,
+) -> None:
+
+    payload_column = _byte_column(report_data["payload_sizes"])
+    publisher_means, publisher_cis = report_data["cycles"]["publisher"]
+    subscriber_means, subscriber_cis = report_data["cycles"]["subscriber"]
+
+    placeholders = {
+        "ConfidenceLevel": CONFIDENCE_LEVEL,
+        "LatencyPlot": report_data["plots"]["latency"],
+        "CpuCyclesPlot": report_data["plots"]["cpu_cycles"],
+        "SampleCountsTable": _build_data_table(
+            [
+                "Payload",
+                "Measured repetitions",
+                "Messages per repetition (in run order)",
+            ],
+            [
+                payload_column,
+                [str(count) for count in report_data["repetition_counts"]],
+                [
+                    ", ".join(str(count) for count in counts)
+                    for counts in report_data["message_counts"]
+                ],
+            ],
+        ),
+        "LatencyTable": _build_data_table(
+            ["Payload", "Mean E2E latency ± 95% CI (µs)"],
+            [
+                payload_column,
+                _mean_ci_column(
+                    report_data["latency_means"], report_data["latency_cis"]
+                ),
+            ],
+        ),
+        "CpuCyclesTable": _build_data_table(
+            ["Payload", "Publisher cycles ± 95% CI", "Subscriber cycles ± 95% CI"],
+            [
+                payload_column,
+                _mean_ci_column(publisher_means, publisher_cis),
+                _mean_ci_column(subscriber_means, subscriber_cis),
+            ],
+        ),
+    }
+    build_html_report(template_path, report_path, placeholders)

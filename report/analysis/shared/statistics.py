@@ -4,6 +4,7 @@ from scipy import stats
 
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import NS_PER_OP, EnergyCase
+from report.model.macro.macro_aggregation import MacroAggregation
 from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import MemoryCase
 from report.model.timing.timing_aggregation import TimingAggregation
@@ -156,3 +157,56 @@ def _joules_per_operation(
         values.append(energy_per_operation_joules)
 
     return values
+
+
+# Treat repetitions, rather than messages within a repetition, as the samples
+def macro_latency_statistics(
+    aggregations: list[MacroAggregation],
+) -> tuple[list[float], list[float]]:
+
+    means = []
+    confidence_intervals = []
+
+    for aggregation in aggregations:
+
+        values = [
+            fmean(
+                case.subscriber_timestamps[message_id] - started
+                for message_id, started in case.publisher_timestamps.items()
+            )
+            for case in aggregation.cases
+        ]
+        value_mean, confidence_interval = _mean_and_confidence_interval(values)
+        means.append(value_mean)
+        confidence_intervals.append(confidence_interval)
+
+    return means, confidence_intervals
+
+
+# CPU cycles are one total per endpoint per repetition of the fixed workload
+def macro_cycle_statistics(
+    aggregations: list[MacroAggregation],
+) -> dict[str, tuple[list[float], list[float]]]:
+
+    publisher_means = []
+    publisher_cis = []
+    subscriber_means = []
+    subscriber_cis = []
+
+    for aggregation in aggregations:
+
+        publisher_mean, publisher_ci = _mean_and_confidence_interval(
+            [case.publisher_cycles for case in aggregation.cases]
+        )
+        subscriber_mean, subscriber_ci = _mean_and_confidence_interval(
+            [case.subscriber_cycles for case in aggregation.cases]
+        )
+        publisher_means.append(publisher_mean)
+        publisher_cis.append(publisher_ci)
+        subscriber_means.append(subscriber_mean)
+        subscriber_cis.append(subscriber_ci)
+
+    return {
+        "publisher": (publisher_means, publisher_cis),
+        "subscriber": (subscriber_means, subscriber_cis),
+    }
