@@ -1,10 +1,8 @@
-package unit
+package message
 
 import (
 	"bytes"
 	"testing"
-
-	"thesis/internal/message"
 
 	"github.com/google/uuid"
 )
@@ -13,7 +11,7 @@ func TestNewMessage(t *testing.T) {
 
 	const payloadSize = 12
 
-	msg := message.NewMessage(payloadSize)
+	msg := NewMessage(payloadSize)
 
 	if msg.ID == uuid.Nil {
 		t.Fatal("message ID is nil")
@@ -28,11 +26,11 @@ func TestNewMessage(t *testing.T) {
 
 func TestValidateMessageAcceptsValidPayload(t *testing.T) {
 
-	msg := message.Message{
+	msg := Message{
 		Payload: []byte{0xAB, 0xAB},
 	}
 
-	err := message.ValidateMessage(msg, 2)
+	err := ValidateMessage(msg, 2)
 
 	if err != nil {
 		t.Fatalf("valid message was rejected: %v", err)
@@ -41,11 +39,11 @@ func TestValidateMessageAcceptsValidPayload(t *testing.T) {
 
 func TestValidateMessageRejectsWrongPayloadSize(t *testing.T) {
 
-	msg := message.Message{
+	msg := Message{
 		Payload: []byte{0xAB},
 	}
 
-	err := message.ValidateMessage(msg, 2)
+	err := ValidateMessage(msg, 2)
 
 	if err == nil {
 		t.Fatal("message with wrong payload size was accepted")
@@ -54,11 +52,11 @@ func TestValidateMessageRejectsWrongPayloadSize(t *testing.T) {
 
 func TestValidateMessageRejectsWrongPayloadContents(t *testing.T) {
 
-	msg := message.Message{
+	msg := Message{
 		Payload: []byte{0xAB, 0x00},
 	}
 
-	err := message.ValidateMessage(msg, 2)
+	err := ValidateMessage(msg, 2)
 
 	if err == nil {
 		t.Fatal("message with wrong payload contents was accepted")

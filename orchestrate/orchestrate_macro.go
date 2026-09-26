@@ -26,6 +26,9 @@ var (
 )
 
 const remoteGoExecutable = "/usr/local/go/bin/go"
+const SSH = "/usr/bin/ssh"
+const SCP = "/usr/bin/scp"
+const python3 = "/usr/bin/python3"
 
 func main() {
 
@@ -152,10 +155,10 @@ func loadEnvironmentVariables() {
 	subscriberDirectory = utility.ParseStringFromEnv("MACRO_SUBSCRIBER_PROJECT_DIR")
 }
 
-func buildBinary(target string, projectDirectory string, executable string) error {
+func buildBinary(target, projectDirectory, executable string) error {
 
 	command := exec.Command(
-		"ssh",
+		SSH,
 		target,
 		fmt.Sprintf(
 			"cd %s && %s build -o /tmp/mqtt-thesis-%s ./benchmark/cmd/%s",
@@ -172,10 +175,10 @@ func buildBinary(target string, projectDirectory string, executable string) erro
 	return command.Run()
 }
 
-func startBenchmark(target string, projectDirectory string, executable string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, error) {
+func startBenchmark(target, projectDirectory, executable string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, error) {
 
 	command := exec.Command(
-		"ssh",
+		SSH,
 		"-T",
 		target,
 		fmt.Sprintf(
@@ -205,13 +208,13 @@ func startBenchmark(target string, projectDirectory string, executable string) (
 	return command, input, bufio.NewReader(output), nil
 }
 
-func transferResult(target string, projectDirectory string, resultDirectory string, filename string) error {
+func transferResult(target, projectDirectory, resultDirectory, filename string) error {
 
 	remoteFile := path.Join(projectDirectory, filename)
 	localFile := filepath.Join(resultDirectory, filename)
 
 	copyCommand := exec.Command(
-		"scp",
+		SCP,
 		"-p",
 		target+":"+remoteFile,
 		localFile,
@@ -225,7 +228,7 @@ func transferResult(target string, projectDirectory string, resultDirectory stri
 	}
 
 	deleteCommand := exec.Command(
-		"ssh",
+		SSH,
 		target,
 		"rm",
 		remoteFile,
@@ -253,7 +256,7 @@ func readSignal(reader *bufio.Reader, expected string) error {
 
 func generateReport() error {
 
-	command := exec.Command("python", "-m", "report.analysis.macro_report")
+	command := exec.Command(python3, "-m", "report.analysis.macro_report")
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 

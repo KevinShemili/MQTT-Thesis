@@ -2,7 +2,7 @@ package shared
 
 import "thesis/internal/message"
 
-func BuildMessages(messageCount int, payloadSize int) []message.Message {
+func BuildMessages(messageCount, payloadSize int) []message.Message {
 
 	messages := make([]message.Message, messageCount)
 

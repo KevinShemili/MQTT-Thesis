@@ -1,11 +1,10 @@
-package unit
+package serialization
 
 import (
 	"bytes"
 	"testing"
 
 	"thesis/internal/message"
-	"thesis/internal/serialization"
 
 	"github.com/google/uuid"
 )
@@ -17,7 +16,7 @@ func TestJSONSerializerRoundTrip(t *testing.T) {
 		Payload: []byte("test payload"),
 	}
 
-	serializer := serialization.JSONSerializer{}
+	serializer := JSONSerializer{}
 
 	serialized, err := serializer.Serialize(original)
 	if err != nil {
@@ -46,7 +45,7 @@ func TestCBORSerializerRoundTrip(t *testing.T) {
 		Payload: []byte("test payload"),
 	}
 
-	serializer := serialization.CBORSerializer{}
+	serializer := CBORSerializer{}
 
 	serialized, err := serializer.Serialize(original)
 	if err != nil {
@@ -75,7 +74,7 @@ func TestIntegerKeyCBORSerializerRoundTrip(t *testing.T) {
 		Payload: []byte("test payload"),
 	}
 
-	serializer := serialization.CBORSerializer{}
+	serializer := CBORSerializer{}
 
 	serialized, err := serializer.Serialize(original)
 	if err != nil {

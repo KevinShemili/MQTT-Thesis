@@ -8,38 +8,47 @@ import (
 	"thesis/internal/cryptography/ascon"
 )
 
+type provisionDependencies struct {
+	generateRandomBytes func(int) []byte
+	store               func(string, []byte)
+}
+
 // The point of this program is to provide the fixture data for the AES/ASCON
 // memory benchmarks by populating the cache in an earlier process.
 func main() {
 
 	config := shared.NewAESASCONConfig()
 
-	aesKey := utility.GenerateRandomBytes(config.AESKeySize)
-	cache.Store(cache.AESKeyFileName, aesKey)
+	dependencies := provisionDependencies{
+		generateRandomBytes: utility.GenerateRandomBytes,
+		store:               cache.Store,
+	}
+
+	runProvision(config.PayloadSizes, config.AESKeySize, config.ASCONKeySize, dependencies)
+}
+
+func runProvision(payloadSizes []int, aesKeySize int, asconKeySize int, dependencies provisionDependencies) {
+
+	aesKey := dependencies.generateRandomBytes(aesKeySize)
+	dependencies.store(cache.AESKeyFileName, aesKey)
 	aesGCM := aes.NewAES(aesKey)
 
-	asconKey := utility.GenerateRandomBytes(config.ASCONKeySize)
-	cache.Store(cache.ASCONKeyFileName, asconKey)
+	asconKey := dependencies.generateRandomBytes(asconKeySize)
+	dependencies.store(cache.ASCONKeyFileName, asconKey)
 	asconCipher := ascon.NewASCON(asconKey)
 
-	aesNonce := utility.GenerateRandomBytes(aesGCM.NonceSize())
-	cache.Store(cache.AESGCMNonceFileName, aesNonce)
+	aesNonce := dependencies.generateRandomBytes(aesGCM.NonceSize())
+	dependencies.store(cache.AESGCMNonceFileName, aesNonce)
 
-	asconNonce := utility.GenerateRandomBytes(asconCipher.NonceSize())
-	cache.Store(cache.ASCONNonceFileName, asconNonce)
+	asconNonce := dependencies.generateRandomBytes(asconCipher.NonceSize())
+	dependencies.store(cache.ASCONNonceFileName, asconNonce)
 
-	for _, payloadSize := range config.PayloadSizes {
+	for _, payloadSize := range payloadSizes {
 
-		plaintext := utility.GenerateRandomBytes(payloadSize)
-		cache.Store(cache.CreateAESASCONPlaintextFileName(payloadSize), plaintext)
+		plaintext := dependencies.generateRandomBytes(payloadSize)
 
-		cache.Store(
-			cache.CreateAESGCMCiphertextFileName(payloadSize),
-			aesGCM.Encrypt(nil, aesNonce, plaintext),
-		)
-		cache.Store(
-			cache.CreateASCONCiphertextFileName(payloadSize),
-			asconCipher.Encrypt(nil, asconNonce, plaintext),
-		)
+		dependencies.store(cache.CreateAESASCONPlaintextFileName(payloadSize), plaintext)
+		dependencies.store(cache.CreateAESGCMCiphertextFileName(payloadSize), aesGCM.Encrypt(nil, aesNonce, plaintext))
+		dependencies.store(cache.CreateASCONCiphertextFileName(payloadSize), asconCipher.Encrypt(nil, asconNonce, plaintext))
 	}
 }

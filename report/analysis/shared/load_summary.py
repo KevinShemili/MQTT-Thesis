@@ -78,7 +78,7 @@ def _load_memory_results(
             if len(fields) < 2 or not fields[0].startswith(case_prefix):
                 continue
 
-            algorithm, operation, parameter_value = _parse_timing_case_name(
+            algorithm, operation, parameter_value = _parse_benchmark_case_name(
                 fields[0],
                 case_prefix,
                 parameter_suffix,
@@ -144,7 +144,7 @@ def _load_timing_results(
             if len(fields) < 2 or not fields[0].startswith(case_prefix):
                 continue
 
-            algorithm, operation, parameter_value = _parse_timing_case_name(
+            algorithm, operation, parameter_value = _parse_benchmark_case_name(
                 fields[0],
                 case_prefix,
                 parameter_suffix,
@@ -185,7 +185,7 @@ def _load_timing_results(
 
 
 # Extract algorithm, operation and parameter value from a Go benchmark name
-def _parse_timing_case_name(
+def _parse_benchmark_case_name(
     benchmark_name: str,
     case_prefix: str,
     parameter_suffix: str,
@@ -194,7 +194,7 @@ def _parse_timing_case_name(
     name_parts = benchmark_name[len(case_prefix) :].split("/")
 
     if len(name_parts) != 3:
-        raise ValueError(f"Invalid timing benchmark name: {benchmark_name}")
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
 
     operation, algorithm, parameter_value_string = name_parts
 
@@ -316,10 +316,11 @@ def _parse_energy_case_header(
     line: str,
 ) -> tuple[str, str, int]:
 
-    fields = dict(
-        field.split("=", 1)
+    fields = {
+        key: value
         for field in line.removeprefix("[case ").removesuffix("]").split()
-    )
+        for key, value in [field.split("=", 1)]
+    }
 
     return (
         fields["algorithm"],
@@ -331,7 +332,9 @@ def _parse_energy_case_header(
 # Parse one UM24C sample
 def _parse_energy_sample(line: str) -> EnergySample:
 
-    fields = dict(field.split("=", 1) for field in line.split())
+    fields = {
+        key: value for field in line.split() for key, value in [field.split("=", 1)]
+    }
 
     return EnergySample(
         elapsed_s=float(fields["elapsed_s"]),

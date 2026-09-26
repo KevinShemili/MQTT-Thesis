@@ -24,11 +24,11 @@ func NewAES(key []byte) AES {
 	return AES{aead: aeadCipher}
 }
 
-func (aes AES) Encrypt(destination []byte, nonce []byte, plaintext []byte) []byte {
+func (aes AES) Encrypt(destination, nonce, plaintext []byte) []byte {
 	return aes.aead.Seal(destination, nonce, plaintext, nil)
 }
 
-func (aes AES) Decrypt(destination []byte, nonce []byte, ciphertext []byte) []byte {
+func (aes AES) Decrypt(destination, nonce, ciphertext []byte) []byte {
 
 	plaintext, err := aes.aead.Open(destination, nonce, ciphertext, nil)
 	if err != nil {

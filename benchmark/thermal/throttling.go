@@ -46,7 +46,7 @@ func (watch ThrottleWatch) IsThrottled() bool {
 func readThrottleBits() string {
 
 	// Read vcgencmd get_throttled
-	output, err := exec.Command("vcgencmd", "get_throttled").Output()
+	output, err := exec.Command("/usr/bin/vcgencmd", "get_throttled").Output()
 	if err != nil {
 		return ""
 	}

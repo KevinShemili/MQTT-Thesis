@@ -6,7 +6,7 @@ import "thesis/internal/cryptography/rsa"
 var rsaKeyInMemoryCache = map[int][]rsa.RSA{}
 
 // Generate RSA keys & retain them for the lifetime of this process
-func LoadRSAKeysFromInMemoryCache(rsaKeyBits int, amount int) []rsa.RSA {
+func LoadRSAKeysFromInMemoryCache(rsaKeyBits, amount int) []rsa.RSA {
 
 	keySlice := rsaKeyInMemoryCache[rsaKeyBits]
 

@@ -23,8 +23,15 @@ type SubscriberResult struct {
 	Cycles       uint64
 }
 
-func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig, payloadSize int,
-	measurements []SubscriberMeasurement, isCPUMeasured bool, notifyReady func() error) (SubscriberResult, error) {
+func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+	payloadSize int, measurements []SubscriberMeasurement, isCPUMeasured bool, notifyReady func() error) (SubscriberResult, error) {
+
+	return runSubscribeBenchmark(client, serializer, config, payloadSize, measurements, isCPUMeasured, notifyReady, cpu.NewCPUPerf)
+}
+
+func runSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+	payloadSize int, measurements []SubscriberMeasurement, isCPUMeasured bool, notifyReady func() error,
+	newCPU func() (cpu.CPU, error)) (SubscriberResult, error) {
 
 	if isCPUMeasured == false {
 
@@ -36,7 +43,7 @@ func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializ
 		return SubscriberResult{Measurements: measurements}, nil
 	}
 
-	measurement, err := cpu.StartMeasurement()
+	measurement, err := newCPU()
 	if err != nil {
 		return SubscriberResult{}, err
 	}
@@ -63,8 +70,8 @@ func RunSubscribeBenchmark(client mqtt.Client, serializer serialization.Serializ
 	}, nil
 }
 
-func consumeMessages(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig, payloadSize int,
-	measurements []SubscriberMeasurement, notifyReady func() error) ([]SubscriberMeasurement, error) {
+func consumeMessages(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+	payloadSize int, measurements []SubscriberMeasurement, notifyReady func() error) ([]SubscriberMeasurement, error) {
 
 	messageIndex := 0
 	benchmarkResult := make(chan error, 1)
@@ -89,8 +96,8 @@ func consumeMessages(client mqtt.Client, serializer serialization.Serializer, co
 			MessageID: msg.ID,
 			EndTime:   endTime,
 		}
-		messageIndex++
 
+		messageIndex++
 		if messageIndex == config.MessageCount {
 			benchmarkResult <- nil
 		}

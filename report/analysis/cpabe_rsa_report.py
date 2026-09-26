@@ -13,7 +13,6 @@ from report.analysis.shared.statistics import (
     memory_statistics,
     timing_statistics,
 )
-from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
@@ -74,57 +73,6 @@ PARAMETER_BY_ALGORITHM = {
 }
 
 MICROJOULES_PER_JOULE = 1_000_000.0
-
-
-def collect_timing_aggregations(
-    summary: BenchmarkSummary,
-    algorithm: str,
-    operation: str,
-    parameter: str,
-    parameter_values: list[int],
-) -> list[TimingAggregation]:
-    matching = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.timing_aggregations
-        if aggregation.algorithm == algorithm
-        and aggregation.operation == operation
-        and aggregation.parameter == parameter
-    }
-    return [matching[parameter_value] for parameter_value in parameter_values]
-
-
-def collect_memory_aggregations(
-    summary: BenchmarkSummary,
-    algorithm: str,
-    operation: str,
-    parameter: str,
-    parameter_values: list[int],
-) -> list[MemoryAggregation]:
-    matching = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.memory_aggregations
-        if aggregation.algorithm == algorithm
-        and aggregation.operation == operation
-        and aggregation.parameter == parameter
-    }
-    return [matching[parameter_value] for parameter_value in parameter_values]
-
-
-def collect_energy_aggregations(
-    summary: BenchmarkSummary,
-    algorithm: str,
-    operation: str,
-    parameter: str,
-    parameter_values: list[int],
-) -> list[EnergyAggregation]:
-    matching = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.energy_aggregations
-        if aggregation.algorithm == algorithm
-        and aggregation.operation == operation
-        and aggregation.parameter == parameter
-    }
-    return [matching[parameter_value] for parameter_value in parameter_values]
 
 
 def collect_timing_throttle_flags(
@@ -248,13 +196,15 @@ def main() -> None:
     timing_results = {}
     for algorithm, operation in timing_order:
         parameter_values = timing_parameter_values[algorithm]
-        aggregations = collect_timing_aggregations(
-            summary,
-            algorithm,
-            operation,
-            PARAMETER_BY_ALGORITHM[algorithm],
-            parameter_values,
-        )
+        aggregations = [
+            summary.find_timing_aggregation(
+                algorithm,
+                operation,
+                PARAMETER_BY_ALGORITHM[algorithm],
+                parameter_value,
+            )
+            for parameter_value in parameter_values
+        ]
         result = analyze_timing_case(aggregations)
 
         if (algorithm, operation) in (
@@ -275,57 +225,52 @@ def main() -> None:
 
         timing_results[(algorithm, operation)] = result
 
-    energy_parameter_values = {
+    energy_memory_parameter_values = {
         CPABE_ATTRIBUTES: attribute_counts,
         RSA_SUBSCRIBERS: subscriber_counts,
         RSA_KEY_BITS: [fixed_rsa_key_bits],
     }
-    energy_order = (
+    energy_memory_order = (
         (CPABE_ATTRIBUTES, "Encrypt"),
         (CPABE_ATTRIBUTES, "Decrypt"),
         (RSA_SUBSCRIBERS, "Encrypt"),
         (RSA_KEY_BITS, "Decrypt"),
     )
     energy_results = {}
-    for algorithm, operation in energy_order:
-        aggregations = collect_energy_aggregations(
-            summary,
-            algorithm,
-            operation,
-            PARAMETER_BY_ALGORITHM[algorithm],
-            energy_parameter_values[algorithm],
-        )
+    memory_results = {}
+    for algorithm, operation in energy_memory_order:
+        parameter_values = energy_memory_parameter_values[algorithm]
+        energy_aggregations = [
+            summary.find_energy_aggregation(
+                algorithm,
+                operation,
+                PARAMETER_BY_ALGORITHM[algorithm],
+                parameter_value,
+            )
+            for parameter_value in parameter_values
+        ]
         energy_results[(algorithm, operation)] = analyze_energy_case(
-            aggregations,
+            energy_aggregations,
             summary.energy_baseline_cases,
+        )
+
+        memory_aggregations = [
+            summary.find_memory_aggregation(
+                algorithm,
+                f"Memory{operation}",
+                PARAMETER_BY_ALGORITHM[algorithm],
+                parameter_value,
+            )
+            for parameter_value in parameter_values
+        ]
+        memory_results[(algorithm, operation)] = analyze_memory_case(
+            memory_aggregations
         )
 
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
         summary.memory_baseline_cases,
         PEAK_RSS_BYTES,
     )
-
-    memory_parameter_values = {
-        CPABE_ATTRIBUTES: attribute_counts,
-        RSA_SUBSCRIBERS: subscriber_counts,
-        RSA_KEY_BITS: [fixed_rsa_key_bits],
-    }
-    memory_order = (
-        (CPABE_ATTRIBUTES, "Encrypt"),
-        (CPABE_ATTRIBUTES, "Decrypt"),
-        (RSA_SUBSCRIBERS, "Encrypt"),
-        (RSA_KEY_BITS, "Decrypt"),
-    )
-    memory_results = {}
-    for algorithm, operation in memory_order:
-        aggregations = collect_memory_aggregations(
-            summary,
-            algorithm,
-            f"Memory{operation}",
-            PARAMETER_BY_ALGORITHM[algorithm],
-            memory_parameter_values[algorithm],
-        )
-        memory_results[(algorithm, operation)] = analyze_memory_case(aggregations)
 
     fixed_rsa_index = rsa_key_bits.index(fixed_rsa_key_bits)
     fixed_rsa_decrypt_latency = timing_results[(RSA_KEY_BITS, "Decrypt")][
@@ -346,7 +291,6 @@ def main() -> None:
     fixed_rsa_decrypt_energy_throttled = energy_results[(RSA_KEY_BITS, "Decrypt")][
         "energy_throttled"
     ][0]
-    fixed_rsa_decrypt_attribute_counts = list(attribute_counts)
     fixed_rsa_decrypt_latency_means = [
         fixed_rsa_decrypt_latency for _ in attribute_counts
     ]
@@ -450,7 +394,7 @@ def main() -> None:
             "cpabe_means": cpabe_decrypt["latency_means"],
             "cpabe_cis": cpabe_decrypt["latency_cis"],
             "fixed_rsa_key_bits": fixed_rsa_key_bits,
-            "rsa_attribute_counts": fixed_rsa_decrypt_attribute_counts,
+            "rsa_attribute_counts": attribute_counts,
             "rsa_means": fixed_rsa_decrypt_latency_means,
             "rsa_cis": fixed_rsa_decrypt_latency_cis,
         },

@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func NewTLSConfig(caCertificatePath string, brokerURL string) (*tls.Config, error) {
+func NewTLSConfig(caCertificatePath, brokerURL string) (*tls.Config, error) {
 
 	// Read the CA certificate file
 	certificateBytes, err := os.ReadFile(caCertificatePath)

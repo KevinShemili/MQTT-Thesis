@@ -10,7 +10,6 @@ from report.analysis.shared.statistics import (
     energy_statistics,
     timing_statistics,
 )
-from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
@@ -58,42 +57,6 @@ ENERGY_PLOT = "energy.png"
 ENERGY_REDUCTION_PLOT = "energy_reduction.png"
 
 MICROJOULES_PER_JOULE = 1_000_000
-
-
-def collect_timing_aggregations(
-    summary: BenchmarkSummary,
-    format_name: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[TimingAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.timing_aggregations
-        if aggregation.algorithm == format_name
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
-
-
-def collect_energy_aggregations(
-    summary: BenchmarkSummary,
-    format_name: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[EnergyAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.energy_aggregations
-        if aggregation.algorithm == format_name
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
 def collect_timing_throttle_flags(
@@ -179,29 +142,47 @@ def main() -> None:
     )
 
     case_results = {}
+    size_results = {}
 
     for format_name in ("JSON", "CBOR", "CBORKeyAsInt"):
         for operation in ("Serialize", "Deserialize"):
 
-            timing_aggregations = collect_timing_aggregations(
-                summary,
-                format_name,
-                operation,
-                payload_sizes,
-            )
+            timing_aggregations = [
+                summary.find_timing_aggregation(
+                    format_name,
+                    operation,
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
 
-            energy_aggregations = collect_energy_aggregations(
-                summary,
-                format_name,
-                operation,
-                payload_sizes,
-            )
+            energy_aggregations = [
+                summary.find_energy_aggregation(
+                    format_name,
+                    operation,
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
 
             case_results[(format_name, operation)] = analyze_case(
                 timing_aggregations,
                 energy_aggregations,
                 summary.energy_baseline_cases,
             )
+
+            if operation == "Serialize":
+                size_results[format_name] = [
+                    int(aggregation.cases[0].measurements[SERIALIZED_BYTES])
+                    for aggregation in timing_aggregations
+                ]
+                if format_name == "JSON":
+                    raw_sizes = [
+                        int(aggregation.cases[0].measurements[RAW_BYTES])
+                        for aggregation in timing_aggregations
+                    ]
 
     latency_results = {
         case: (
@@ -210,29 +191,6 @@ def main() -> None:
         )
         for case, values in case_results.items()
     }
-
-    serialization_aggregations = {
-        format_name: collect_timing_aggregations(
-            summary,
-            format_name,
-            "Serialize",
-            payload_sizes,
-        )
-        for format_name in ("JSON", "CBOR", "CBORKeyAsInt")
-    }
-
-    size_results = {
-        format_name: [
-            int(aggregation.cases[0].measurements[SERIALIZED_BYTES])
-            for aggregation in aggregations
-        ]
-        for format_name, aggregations in serialization_aggregations.items()
-    }
-
-    raw_sizes = [
-        int(aggregation.cases[0].measurements[RAW_BYTES])
-        for aggregation in serialization_aggregations["JSON"]
-    ]
 
     wire_overheads = {
         format_name: [
@@ -368,7 +326,6 @@ def main() -> None:
         "payload_sizes": payload_sizes,
         "raw_sizes": raw_sizes,
         "sizes": size_results,
-        "wire_overheads": wire_overheads,
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,

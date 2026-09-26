@@ -23,8 +23,14 @@ type PublisherResult struct {
 	Cycles       uint64
 }
 
-func RunPublishBenchmark(client mqtt.Client, serializer serialization.Serializer,
-	config shared.ExperimentConfig, payloadSize int, measurements []PublisherMeasurement, isCPUMeasured bool) (PublisherResult, error) {
+func RunPublishBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+	payloadSize int, measurements []PublisherMeasurement, isCPUMeasured bool) (PublisherResult, error) {
+
+	return runPublishBenchmark(client, serializer, config, payloadSize, measurements, isCPUMeasured, cpu.NewCPUPerf)
+}
+
+func runPublishBenchmark(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+	payloadSize int, measurements []PublisherMeasurement, isCPUMeasured bool, newCPU func() (cpu.CPU, error)) (PublisherResult, error) {
 
 	messages := shared.BuildMessages(config.MessageCount, payloadSize)
 
@@ -38,10 +44,11 @@ func RunPublishBenchmark(client mqtt.Client, serializer serialization.Serializer
 		return PublisherResult{Measurements: measurements}, nil
 	}
 
-	measurement, err := cpu.StartMeasurement()
+	measurement, err := newCPU()
 	if err != nil {
 		return PublisherResult{}, err
 	}
+
 	if err := measurement.Enable(); err != nil {
 		measurement.Abort()
 		return PublisherResult{}, err
@@ -64,9 +71,8 @@ func RunPublishBenchmark(client mqtt.Client, serializer serialization.Serializer
 	}, nil
 }
 
-func publishMessages(client mqtt.Client, serializer serialization.Serializer,
-	config shared.ExperimentConfig, messages []message.Message,
-	measurements []PublisherMeasurement) ([]PublisherMeasurement, error) {
+func publishMessages(client mqtt.Client, serializer serialization.Serializer, config shared.ExperimentConfig,
+	messages []message.Message, measurements []PublisherMeasurement) ([]PublisherMeasurement, error) {
 
 	publishTokens := make([]mqtt.PublishToken, 0, config.MessageCount)
 

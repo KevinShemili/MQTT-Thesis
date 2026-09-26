@@ -2,31 +2,32 @@ import os
 import sys
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Project Root
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from shared.paths import (
+    ENVIRONMENT_FILE,
+    PROJECT_ROOT,
+    REMOTE_BENCHMARK_DIRECTORY,
+    REMOTE_CACHE_DIRECTORY,
+    REMOTE_ENVIRONMENT_FILE,
+    REMOTE_PROJECT_DIRECTORY,
+    SSH_TARGET,
+)
+
+from orchestrate.shared.energy import (
+    collect_energy_runs,
+    read_um24c,
+    write_to_file,
+)
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from um24c.um24c import UM24C
 
-# Environment File
-ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
-
-# Raspberry Pi - SSH
-SSH_TARGET = "pi"
-REMOTE_PROJECT_DIRECTORY = "/home/thesis/MQTT-Thesis"
-REMOTE_BENCHMARK_DIRECTORY = "/home/thesis/MQTT-Thesis/benchmark"
-REMOTE_ENVIRONMENT_FILE = "/home/thesis/MQTT-Thesis/environment/benchmark.env"
-REMOTE_CACHE_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/disk-cache"
-
 REMOTE_PACKAGE = "./micro/cpabe_rsa"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision_cpabe_rsa"
-
 REMOTE_BINARY = "/tmp/cpabe-rsa-benchmark"
 REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-provision"
 
@@ -88,35 +89,6 @@ def load_environment_variables():
     TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
 
 
-def read_um24c(um24c, duration):
-
-    samples = []
-
-    start = time.monotonic()
-    deadline = start + duration
-
-    while time.monotonic() < deadline:
-
-        voltage, current, power = um24c.read()
-
-        elapsed = time.monotonic() - start
-
-        samples.append((elapsed, voltage, current, power))
-
-    return samples
-
-
-def write_to_file(output, samples):
-
-    for elapsed, voltage, current, power in samples:
-        output.write(
-            f"elapsed_s={elapsed:.6f} "
-            f"voltage_v={voltage:.3f} "
-            f"current_a={current:.3f} "
-            f"power_w={power:.3f}\n"
-        )
-
-
 def build_binaries():
 
     command = (
@@ -167,9 +139,7 @@ def orchestrate_provision():
 def run_memory_case(output, operation, algorithm, parameter_value):
 
     print(f"Memory: {algorithm} {operation} {parameter_value}")
-    benchmark_case = (
-        f"^BenchmarkCPABERSA{operation}$/" f"^{algorithm}$/" f"^{parameter_value}$"
-    )
+    benchmark_case = f"^BenchmarkCPABERSA{operation}$/^{algorithm}$/^{parameter_value}$"
 
     command = (
         f"cd {REMOTE_PROJECT_DIRECTORY} && "
@@ -228,6 +198,7 @@ def orchestrate_memory():
 def run_energy_case(meter, output, algorithm, operation, parameter_value):
 
     print(f"Energy: {algorithm} {operation} {parameter_value}")
+
     output.write(
         f"\n[case "
         f"algorithm={algorithm} "
@@ -236,9 +207,7 @@ def run_energy_case(meter, output, algorithm, operation, parameter_value):
     )
 
     benchmark_case = (
-        f"^BenchmarkCPABERSAEnergy{operation}$/"
-        f"^{algorithm}$/"
-        f"^{parameter_value}$"
+        f"^BenchmarkCPABERSAEnergy{operation}$/^{algorithm}$/^{parameter_value}$"
     )
 
     command = (
@@ -255,56 +224,20 @@ def run_energy_case(meter, output, algorithm, operation, parameter_value):
     )
 
     process = subprocess.Popen(
-        ["ssh", SSH_TARGET, command], stdout=subprocess.PIPE, text=True, bufsize=1
+        ["ssh", SSH_TARGET, command],
+        stdout=subprocess.PIPE,
+        text=True,
+        bufsize=1,
     )
 
-    stress_sample_future = None
-
-    # Main thread: benchmark stdout
-    # Worker thread: UM24C samples
-    with ThreadPoolExecutor(max_workers=1) as executor:
-
-        for line in process.stdout:
-
-            if "ENRG-START" in line:
-
-                if stress_sample_future is not None:
-                    raise RuntimeError(
-                        "Received ENRG-START before previous run was completed"
-                    )
-
-                stress_sample_future = executor.submit(
-                    read_um24c, meter, TOTAL_WORKLOAD_DURATION
-                )
-
-                continue
-
-            if "ns/op" in line:
-
-                if stress_sample_future is None:
-                    raise RuntimeError(
-                        "Received benchmark result without corresponding power samples"
-                    )
-
-                parts = line.split()
-
-                ns_per_op = parts[parts.index("ns/op") - 1]
-
-                throttled = parts[parts.index("throttled") - 1]
-
-                stress_samples = stress_sample_future.result()
-
-                output.write("\n[run]\n")
-                output.write(f"ns/op={ns_per_op}\n")
-                output.write(f"throttled={throttled}\n")
-
-                write_to_file(output, stress_samples)
-
-                stress_sample_future = None
+    collect_energy_runs(process, meter, output, TOTAL_WORKLOAD_DURATION)
 
     if process.wait() != 0:
         raise RuntimeError(
-            f"Energy Benchmark Failed: " f"{algorithm} {operation} {parameter_value}"
+            f"Energy Benchmark Failed: "
+            f"{algorithm} "
+            f"{operation} "
+            f"{parameter_value}"
         )
 
 
@@ -356,9 +289,7 @@ def run_timing_case(
 ):
 
     print(f"Timing: {algorithm} {operation} {parameter_value}")
-    benchmark_case = (
-        f"^BenchmarkCPABERSA{operation}$/" f"^{algorithm}$/" f"^{parameter_value}$"
-    )
+    benchmark_case = f"^BenchmarkCPABERSA{operation}$/^{algorithm}$/^{parameter_value}$"
 
     command = (
         f"cd {REMOTE_PROJECT_DIRECTORY} && "

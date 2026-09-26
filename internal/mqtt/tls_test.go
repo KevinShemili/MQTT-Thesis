@@ -1,4 +1,4 @@
-package unit
+package mqtt
 
 import (
 	"crypto/ecdsa"
@@ -12,15 +12,13 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"thesis/internal/mqtt"
 )
 
 func TestNewTLSConfig(t *testing.T) {
 
 	certificatePath, certificatePEM := createTestCACertificate(t)
 
-	config, err := mqtt.NewTLSConfig(
+	config, err := NewTLSConfig(
 		certificatePath,
 		"ssl://mqtt-broker.example:8883",
 	)
@@ -52,7 +50,7 @@ func TestNewTLSConfigRejectsNonSSLURL(t *testing.T) {
 
 	certificatePath, _ := createTestCACertificate(t)
 
-	_, err := mqtt.NewTLSConfig(
+	_, err := NewTLSConfig(
 		certificatePath,
 		"tcp://mqtt-broker.example:1883",
 	)

@@ -14,7 +14,24 @@ import (
 	"thesis/internal/serialization"
 )
 
+type publisherDependencies struct {
+	connect      func() error
+	disconnect   func()
+	readSignal   func(string) error
+	writeSignal  func(string) error
+	runBenchmark func(payloadIndex int, payloadSize int, run int, isCPUMeasured bool) error
+	writeResults func() error
+}
+
 func main() {
+
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 
 	config := shared.NewExperimentConfig()
 	mqttConfig := shared.NewMQTTConfig()
@@ -23,8 +40,7 @@ func main() {
 
 	tlsConfig, err := mqtt.NewTLSConfig(mqttConfig.CACertificate, mqttConfig.BrokerURL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	client := mqtt.NewClient(mqtt.ClientConfig{
@@ -44,84 +60,88 @@ func main() {
 
 	// Assign the pre-allocated memory to results
 	for run := range results {
-
 		start := run * config.MessageCount
 		end := start + config.MessageCount
-
 		results[run].Measurements = measurements[start:end]
 	}
 
-	if err := client.Connect(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-		os.Exit(1)
-	}
-
-	// Wait for GO signal from the orchestrator before starting the benchmark
 	startSignal := bufio.NewReader(os.Stdin)
 
-	for payloadIndex, payloadSize := range config.PayloadSizes {
+	dependencies := publisherDependencies{
+		connect:    client.Connect,
+		disconnect: client.Disconnect,
+		readSignal: func(expected string) error {
+			return utility.ReadSignal(startSignal, expected)
+		},
+		writeSignal: func(signal string) error {
+			return utility.WriteSignal(os.Stdout, signal)
+		},
+		runBenchmark: func(payloadIndex int, payloadSize int, run int, isCPUMeasured bool) error {
+
+			if isCPUMeasured {
+
+				resultIndex := payloadIndex*runs + run - warmupRuns
+
+				result, err := baseline.RunPublishBenchmark(client, serialization.JSONSerializer{}, config,
+					payloadSize, results[resultIndex].Measurements, true)
+				if err != nil {
+					return err
+				}
+
+				results[resultIndex] = result
+
+				return nil
+			}
+
+			_, err := baseline.RunPublishBenchmark(client, serialization.JSONSerializer{}, config,
+				payloadSize, warmupMeasurements, false)
+			return err
+		},
+
+		writeResults: func() error {
+			return writeResults(results, config.PayloadSizes, runs)
+		},
+	}
+
+	return runPublisher(config.PayloadSizes, runs, warmupRuns, dependencies)
+}
+
+func runPublisher(payloadSizes []int, runs int, warmupRuns int, dependencies publisherDependencies) error {
+
+	if err := dependencies.connect(); err != nil {
+		return err
+	}
+
+	for payloadIndex, payloadSize := range payloadSizes {
 
 		for run := 0; run < warmupRuns+runs; run++ {
 
-			if err := readSignal(startSignal, "GO"); err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-				os.Exit(1)
+			if err := dependencies.readSignal("GO"); err != nil {
+				return err
 			}
 
 			isCPUMeasured := run >= warmupRuns
 
-			if isCPUMeasured {
-
-				results[payloadIndex*runs+run-warmupRuns], err = baseline.RunPublishBenchmark(
-					client,
-					serialization.JSONSerializer{},
-					config,
-					payloadSize,
-					results[payloadIndex*runs+run-warmupRuns].Measurements,
-					true,
-				)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-					os.Exit(1)
-				}
-
-			} else {
-
-				if _, err := baseline.RunPublishBenchmark(
-					client,
-					serialization.JSONSerializer{},
-					config,
-					payloadSize,
-					warmupMeasurements,
-					false,
-				); err != nil {
-					fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-					os.Exit(1)
-				}
+			if err := dependencies.runBenchmark(payloadIndex, payloadSize, run, isCPUMeasured); err != nil {
+				return err
 			}
 
-			// Tell orchestrator that the benchmark is done
-			if _, err := fmt.Fprintln(os.Stdout, "DONE"); err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-				os.Exit(1)
+			if err := dependencies.writeSignal("DONE"); err != nil {
+				return err
 			}
 		}
 	}
 
-	// The peer must also finish measuring before disconnect or persistence.
-	if err := readSignal(startSignal, "FINISH"); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-		os.Exit(1)
+	if err := dependencies.readSignal("FINISH"); err != nil {
+		return err
 	}
-	client.Disconnect()
 
-	if err := writeResults(results, config.PayloadSizes, runs); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=publisher error=%q\n", err)
-		os.Exit(1)
-	}
+	dependencies.disconnect()
+	return dependencies.writeResults()
 }
 
 func writeResults(results []baseline.PublisherResult, payloadSizes []int, runs int) error {
+
 	output, err := os.Create("publisher.csv")
 	if err != nil {
 		return err
@@ -143,7 +163,6 @@ func writeResults(results []baseline.PublisherResult, payloadSizes []int, runs i
 		for _, measurement := range result.Measurements {
 
 			writer.Write([]string{
-
 				strconv.Itoa(payloadSizes[resultIndex/runs]),
 				strconv.Itoa(resultIndex%runs + 1),
 				measurement.MessageID.String(),
@@ -154,24 +173,13 @@ func writeResults(results []baseline.PublisherResult, payloadSizes []int, runs i
 	}
 
 	writer.Flush()
+
 	return writer.Error()
 }
 
 func touchMemory(measurements []baseline.PublisherMeasurement) {
+
 	for index := range measurements {
 		measurements[index].StartTime = -1
 	}
-}
-
-func readSignal(reader *bufio.Reader, expected string) error {
-	signal, err := reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-
-	if signal != expected+"\n" {
-		return fmt.Errorf("expected %s, got %q", expected, signal)
-	}
-
-	return nil
 }

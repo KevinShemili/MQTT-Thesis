@@ -12,78 +12,70 @@ import (
 	"thesis/internal/serialization"
 )
 
+type provisionDependencies struct {
+	generateRandomBytes func(int) []byte
+	store               func(string, []byte)
+}
+
 // The point of this program is to provide the fixture data for the Full Schema
 // memory benchmarks by populating the cache in an earlier process.
 func main() {
 
 	config := shared.LoadFullSchemaConfig()
+
+	dependencies := provisionDependencies{
+		generateRandomBytes: utility.GenerateRandomBytes,
+		store:               cache.Store,
+	}
+
+	runProvision(config.PayloadSizes, config.SymmetricKeySize, config.RSAKeyBits, config.AttributeCount, dependencies)
+}
+
+func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
+	attributeCount int, dependencies provisionDependencies) {
+
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
 
-	standardSymmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
-	cache.Store(
-		cache.AESKeyFileName,
-		standardSymmetricKey,
-	)
+	standardSymmetricKey := dependencies.generateRandomBytes(symmetricKeySize)
+	dependencies.store(cache.AESKeyFileName, standardSymmetricKey)
 	standardCipher := aes.NewAES(standardSymmetricKey)
-	standardNonce := utility.GenerateRandomBytes(standardCipher.NonceSize())
+	standardNonce := dependencies.generateRandomBytes(standardCipher.NonceSize())
 
-	lightweightSymmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
-	cache.Store(
-		cache.ASCONKeyFileName,
-		lightweightSymmetricKey,
-	)
+	lightweightSymmetricKey := dependencies.generateRandomBytes(symmetricKeySize)
+	dependencies.store(cache.ASCONKeyFileName, lightweightSymmetricKey)
 	lightweightCipher := ascon.NewASCON(lightweightSymmetricKey)
-	lightweightNonce := utility.GenerateRandomBytes(lightweightCipher.NonceSize())
+	lightweightNonce := dependencies.generateRandomBytes(lightweightCipher.NonceSize())
 
-	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
-	cache.Store(
-		cache.RSAPrivateKeyFileName,
-		rsaScheme.PrivateKeyBytes(),
-	)
-	cache.Store(
-		cache.RSAPublicKeyFileName,
-		rsaScheme.PublicKeyBytes(),
-	)
+	rsaScheme := rsa.NewRSA(rsaKeyBits)
+	dependencies.store(cache.RSAPrivateKeyFileName, rsaScheme.PrivateKeyBytes())
+	dependencies.store(cache.RSAPublicKeyFileName, rsaScheme.PublicKeyBytes())
 	standardRSACiphertext := rsaScheme.Encrypt(standardSymmetricKey)
 	lightweightRSACiphertext := rsaScheme.Encrypt(lightweightSymmetricKey)
 
 	authority := cpabe.NewAuthority()
-	cache.Store(
-		cache.CPABEPublicKeyFileName,
-		authority.PublicKeyBytes(),
-	)
 
-	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
-	cache.Store(
-		cache.CPABEPolicyFileName,
-		[]byte(policy.String()),
-	)
-	cache.Store(
-		cache.CPABEPrivateKeyFileName,
-		authority.IssuePrivateKey(attributes).Bytes(),
-	)
+	dependencies.store(cache.CPABEPublicKeyFileName, authority.PublicKeyBytes())
+
+	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
+
+	dependencies.store(cache.CPABEPolicyFileName, []byte(policy.String()))
+
+	dependencies.store(cache.CPABEPrivateKeyFileName, authority.IssuePrivateKey(attributes).Bytes())
+
 	standardCPABECiphertext := authority.Encrypt(policy, standardSymmetricKey)
+
 	lightweightCPABECiphertext := authority.Encrypt(policy, lightweightSymmetricKey)
 
-	for _, payloadSize := range config.PayloadSizes {
+	for _, payloadSize := range payloadSizes {
 
-		plaintext := utility.GenerateRandomBytes(payloadSize)
-		cache.Store(
-			cache.CreateFullSchemaPlaintextFileName(payloadSize),
-			plaintext,
-		)
+		plaintext := dependencies.generateRandomBytes(payloadSize)
 
-		standardSymmetricCiphertext := standardCipher.Encrypt(
-			nil,
-			standardNonce,
-			plaintext,
-		)
-		lightweightSymmetricCiphertext := lightweightCipher.Encrypt(
-			nil,
-			lightweightNonce,
-			plaintext,
-		)
+		dependencies.store(cache.CreateFullSchemaPlaintextFileName(payloadSize), plaintext)
+
+		standardSymmetricCiphertext := standardCipher.Encrypt(nil, standardNonce, plaintext)
+
+		lightweightSymmetricCiphertext := lightweightCipher.Encrypt(nil, lightweightNonce, plaintext)
 
 		pskStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
 			Nonce:               standardNonce,
@@ -92,10 +84,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.Store(
-			cache.CreateFullSchemaEnvelopeFileName("psk", "standard", payloadSize),
-			pskStandardEnvelope,
-		)
+
+		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("psk", "standard", payloadSize), pskStandardEnvelope)
 
 		pskLightweightEnvelope, err := cborSerializer.Serialize(envelope.Envelope{
 			Nonce:               lightweightNonce,
@@ -104,10 +94,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.Store(
-			cache.CreateFullSchemaEnvelopeFileName("psk", "lightweight", payloadSize),
-			pskLightweightEnvelope,
-		)
+
+		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("psk", "lightweight", payloadSize), pskLightweightEnvelope)
 
 		rsaStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
 			AsymmetricCiphertext: standardRSACiphertext,
@@ -117,10 +105,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.Store(
-			cache.CreateFullSchemaEnvelopeFileName("rsa", "standard", payloadSize),
-			rsaStandardEnvelope,
-		)
+
+		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("rsa", "standard", payloadSize), rsaStandardEnvelope)
 
 		rsaLightweightEnvelope, err := cborSerializer.Serialize(envelope.Envelope{
 			AsymmetricCiphertext: lightweightRSACiphertext,
@@ -130,10 +116,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.Store(
-			cache.CreateFullSchemaEnvelopeFileName("rsa", "lightweight", payloadSize),
-			rsaLightweightEnvelope,
-		)
+
+		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("rsa", "lightweight", payloadSize), rsaLightweightEnvelope)
 
 		cpabeStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
 			AsymmetricCiphertext: standardCPABECiphertext,
@@ -143,10 +127,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.Store(
-			cache.CreateFullSchemaEnvelopeFileName("cpabe", "standard", payloadSize),
-			cpabeStandardEnvelope,
-		)
+
+		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("cpabe", "standard", payloadSize), cpabeStandardEnvelope)
 
 		cpabeLightweightEnvelope, err := cborSerializer.Serialize(envelope.Envelope{
 			AsymmetricCiphertext: lightweightCPABECiphertext,
@@ -156,9 +138,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cache.Store(
-			cache.CreateFullSchemaEnvelopeFileName("cpabe", "lightweight", payloadSize),
-			cpabeLightweightEnvelope,
-		)
+
+		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("cpabe", "lightweight", payloadSize), cpabeLightweightEnvelope)
 	}
 }

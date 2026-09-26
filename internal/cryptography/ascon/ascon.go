@@ -20,11 +20,11 @@ func NewASCON(key []byte) ASCON {
 	return ASCON{aead: aeadCipher}
 }
 
-func (ascon ASCON) Encrypt(destination []byte, nonce []byte, plaintext []byte) []byte {
+func (ascon ASCON) Encrypt(destination, nonce, plaintext []byte) []byte {
 	return ascon.aead.Seal(destination, nonce, plaintext, nil)
 }
 
-func (ascon ASCON) Decrypt(destination []byte, nonce []byte, ciphertext []byte) []byte {
+func (ascon ASCON) Decrypt(destination, nonce, ciphertext []byte) []byte {
 
 	plaintext, err := ascon.aead.Open(destination, nonce, ciphertext, nil)
 	if err != nil {

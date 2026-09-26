@@ -79,9 +79,10 @@ def memory_statistics(
 
     for aggregation in aggregations:
 
-        values = [case.measurements[measurement] for case in aggregation.cases]
-
-        value_mean, confidence_interval = _mean_and_confidence_interval(values)
+        value_mean, confidence_interval = memory_case_statistics(
+            aggregation.cases,
+            measurement,
+        )
 
         means.append(value_mean)
         confidence_intervals.append(confidence_interval)

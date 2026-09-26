@@ -12,7 +12,6 @@ from report.analysis.shared.statistics import (
     memory_statistics,
     timing_statistics,
 )
-from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
@@ -22,7 +21,6 @@ from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import PEAK_RSS_BYTES
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
-    MB_PER_SECOND,
     NS_PER_OP,
     SERIALIZED_BYTES,
     THROTTLED as TIMING_THROTTLED,
@@ -50,7 +48,7 @@ CONFIGURATIONS = (
     "CPABEStandard",
     "CPABELightweight",
 )
-PARAMETER_BY_ALGORITHM = {configuration: PARAMETER for configuration in CONFIGURATIONS}
+PARAMETER_BY_ALGORITHM = dict.fromkeys(CONFIGURATIONS, PARAMETER)
 PARAMETER_SUFFIX = "B"
 
 TIMING_RESULT_NAME = "timing.txt"
@@ -63,68 +61,8 @@ LATENCY_OVERVIEW_PLOT = "latency_overview.png"
 SERIALIZED_ENVELOPE_SIZE_PLOT = "serialized_envelope_size.png"
 ENERGY_PLOT = "energy.png"
 MEMORY_PLOT = "memory.png"
-OBSOLETE_PLOTS = (
-    "latency_overhead_share.png",
-    "additional_energy.png",
-    "throughput.png",
-    "wire_overhead.png",
-)
 
 MICROJOULES_PER_JOULE = 1_000_000
-
-
-def collect_timing_aggregations(
-    summary: BenchmarkSummary,
-    configuration: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[TimingAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.timing_aggregations
-        if aggregation.algorithm == configuration
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
-
-
-def collect_energy_aggregations(
-    summary: BenchmarkSummary,
-    configuration: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[EnergyAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.energy_aggregations
-        if aggregation.algorithm == configuration
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
-
-
-def collect_memory_aggregations(
-    summary: BenchmarkSummary,
-    configuration: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[MemoryAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.memory_aggregations
-        if aggregation.algorithm == configuration
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
 def collect_envelope_sizes(
@@ -180,11 +118,6 @@ def analyze_case(
         NS_PER_OP,
     )
 
-    throughput_means, throughput_cis = timing_statistics(
-        timing_aggregations,
-        MB_PER_SECOND,
-    )
-
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
         energy_baseline_cases,
@@ -193,8 +126,6 @@ def analyze_case(
     return {
         "latency_means": to_microseconds(latency_means),
         "latency_cis": to_microseconds(latency_cis),
-        "throughput_means": throughput_means,
-        "throughput_cis": throughput_cis,
         "energy_means": to_microjoules(energy_means),
         "energy_cis": to_microjoules(energy_cis),
         "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
@@ -223,8 +154,6 @@ def main() -> None:
 
     runs = parse_int_env("FULL_SCHEMA_RUNS")
     payload_sizes = parse_int_list_env("FULL_SCHEMA_PAYLOAD_SIZES")
-    attribute_count = parse_int_env("FULL_SCHEMA_ATTRIBUTE_COUNT")
-    rsa_key_bits = parse_int_env("FULL_SCHEMA_RSA_KEY_BITS")
     warmup_duration = parse_int_env("WARMUP_DURATION")
     measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
@@ -234,9 +163,6 @@ def main() -> None:
     energy_result_file = result_directory / ENERGY_RESULT_NAME
     template_path = TEMPLATE_DIR / REPORT_TEMPLATE_NAME
     report_path = result_directory / REPORT_NAME
-
-    for plot_name in OBSOLETE_PLOTS:
-        (result_directory / plot_name).unlink(missing_ok=True)
 
     summary = load_summary(
         timing_filepath=str(timing_result_file),
@@ -250,24 +176,31 @@ def main() -> None:
     )
 
     case_results = {}
+    memory_results = {}
     envelope_sizes = {}
 
     for configuration in CONFIGURATIONS:
         for operation in ("Encrypt", "Decrypt"):
 
-            timing_aggregations = collect_timing_aggregations(
-                summary,
-                configuration,
-                operation,
-                payload_sizes,
-            )
+            timing_aggregations = [
+                summary.find_timing_aggregation(
+                    configuration,
+                    operation,
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
 
-            energy_aggregations = collect_energy_aggregations(
-                summary,
-                configuration,
-                operation,
-                payload_sizes,
-            )
+            energy_aggregations = [
+                summary.find_energy_aggregation(
+                    configuration,
+                    operation,
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
 
             case_results[(configuration, operation)] = analyze_case(
                 timing_aggregations,
@@ -280,23 +213,23 @@ def main() -> None:
                     timing_aggregations
                 )
 
+            memory_aggregations = [
+                summary.find_memory_aggregation(
+                    configuration,
+                    f"Memory{operation}",
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
+            memory_results[(configuration, operation)] = analyze_memory_case(
+                memory_aggregations
+            )
+
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
         summary.memory_baseline_cases,
         PEAK_RSS_BYTES,
     )
-
-    memory_results = {}
-    for configuration in CONFIGURATIONS:
-        for operation in ("Encrypt", "Decrypt"):
-            memory_aggregations = collect_memory_aggregations(
-                summary,
-                configuration,
-                f"Memory{operation}",
-                payload_sizes,
-            )
-            memory_results[(configuration, operation)] = analyze_memory_case(
-                memory_aggregations
-            )
 
     latency_results = {
         case: (
@@ -353,10 +286,6 @@ def main() -> None:
     report_data = {
         "runs": runs,
         "payload_sizes": payload_sizes,
-        "attribute_count": attribute_count,
-        "rsa_key_bits": rsa_key_bits,
-        "energy_window_start": warmup_duration,
-        "energy_window_end": warmup_duration + measurement_duration,
         "cases": case_results,
         "envelope_sizes": envelope_sizes,
         "memory": memory_results,

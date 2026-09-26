@@ -12,7 +12,6 @@ from report.analysis.shared.statistics import (
     memory_statistics,
     timing_statistics,
 )
-from report.model.benchmark_summary import BenchmarkSummary
 from report.model.energy.energy_aggregation import EnergyAggregation
 from report.model.energy.energy_case import (
     THROTTLED as ENERGY_THROTTLED,
@@ -68,63 +67,6 @@ MEMORY_PLOT = "memory.png"
 
 # Unit Conversion
 MICROJOULES_PER_JOULE = 1_000_000
-
-
-# Collect timing aggregations in payload-size order
-def collect_timing_aggregations(
-    summary: BenchmarkSummary,
-    algorithm: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[TimingAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.timing_aggregations
-        if aggregation.algorithm == algorithm
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
-
-
-# Collect energy aggregations in payload-size order
-def collect_energy_aggregations(
-    summary: BenchmarkSummary,
-    algorithm: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[EnergyAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.energy_aggregations
-        if aggregation.algorithm == algorithm
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
-
-
-# Collect memory aggregations in payload-size order
-def collect_memory_aggregations(
-    summary: BenchmarkSummary,
-    algorithm: str,
-    operation: str,
-    payload_sizes: list[int],
-) -> list[MemoryAggregation]:
-
-    matching_aggregations = {
-        aggregation.parameter_value: aggregation
-        for aggregation in summary.memory_aggregations
-        if aggregation.algorithm == algorithm
-        and aggregation.operation == operation
-        and aggregation.parameter == PARAMETER
-    }
-
-    return [matching_aggregations[payload_size] for payload_size in payload_sizes]
 
 
 # Check whether each timing aggregation experienced throttling
@@ -259,23 +201,30 @@ def main():
 
     # Analyze Benchmark Cases
     case_results = {}
+    memory_results = {}
 
     for algorithm in ("AES-GCM", "ASCON"):
         for operation in ("Encrypt", "Decrypt"):
 
-            timing_aggregations = collect_timing_aggregations(
-                summary,
-                algorithm,
-                operation,
-                payload_sizes,
-            )
+            timing_aggregations = [
+                summary.find_timing_aggregation(
+                    algorithm,
+                    operation,
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
 
-            energy_aggregations = collect_energy_aggregations(
-                summary,
-                algorithm,
-                operation,
-                payload_sizes,
-            )
+            energy_aggregations = [
+                summary.find_energy_aggregation(
+                    algorithm,
+                    operation,
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
 
             case_results[(algorithm, operation)] = analyze_case(
                 timing_aggregations,
@@ -283,23 +232,23 @@ def main():
                 summary.energy_baseline_cases,
             )
 
+            memory_aggregations = [
+                summary.find_memory_aggregation(
+                    algorithm,
+                    f"Memory{operation}",
+                    PARAMETER,
+                    payload_size,
+                )
+                for payload_size in payload_sizes
+            ]
+            memory_results[(algorithm, operation)] = analyze_memory_case(
+                memory_aggregations
+            )
+
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
         summary.memory_baseline_cases,
         PEAK_RSS_BYTES,
     )
-
-    memory_results = {}
-    for algorithm in ("AES-GCM", "ASCON"):
-        for operation in ("Encrypt", "Decrypt"):
-            memory_aggregations = collect_memory_aggregations(
-                summary,
-                algorithm,
-                f"Memory{operation}",
-                payload_sizes,
-            )
-            memory_results[(algorithm, operation)] = analyze_memory_case(
-                memory_aggregations
-            )
 
     # Prepare Latency Chart Data
     latency_results = {
