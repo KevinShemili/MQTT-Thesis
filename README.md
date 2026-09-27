@@ -1,50 +1,63 @@
-# MQTT Security Microbenchmarks
-
-This repository evaluates security and serialization trade-offs for MQTT messaging using two devices: a laptop and a Raspberry Pi. The Raspberry Pi executes the measured Go workloads. The laptop coordinates the Pi over SSH, reads the UM24C power meter, stores the raw results, and runs the Python analysis that produces charts and HTML reports.
+# MQTT Security Benchmarks
 
 ## Microbenchmarks
 
-### 1. AES vs. ASCON
+### AES vs. ASCON
 
-Shows how AES-GCM and ASCON authenticated encryption compare as message payloads grow.
+Compares AES-GCM and ASCON encryption and decryption across payload sizes.
 
-- **Sweep:** payload size: 16 B, 64 B, 256 B, 1 KiB, 4 KiB, 16 KiB, 64 KiB, 256 KiB, and 1 MiB.
-- **Variables:** AES-GCM or ASCON; Encrypt or Decrypt.
-- **Metrics:** latency, throughput, energy per operation, peak RSS, ASCON speedup and energy reduction relative to AES-GCM, timing iterations, 95% confidence intervals, and separate timing/energy throttling observations.
+Metrics: operation latency, throughput, energy per operation, and peak resident memory (RSS). Reports also compare speed and energy consumption.
 
-### 2. JSON vs. CBOR
+### JSON vs. CBOR
 
-Shows the processing and wire-size cost of serializing the same encrypted envelope in JSON, CBOR with string keys, and CBOR with integer keys.
+Compares serialization and deserialization using JSON, CBOR with string keys, and CBOR with integer keys across payload sizes.
 
-- **Sweep:** payload size: 16 B, 64 B, 256 B, 1 KiB, 4 KiB, 16 KiB, 64 KiB, 256 KiB, and 1 MiB.
-- **Variables:** JSON, CBOR, or CBOR with integer keys; Serialize or Deserialize.
-- **Metrics:** latency, encoded envelope size, raw binary size, wire overhead, energy per operation, speedup and energy reduction relative to JSON, timing iterations, 95% confidence intervals, and separate timing/energy throttling observations.
+Metrics: operation latency, energy per operation, raw and serialized message sizes, and wire overhead. Reports also compare speed and energy consumption.
 
-### 3. CP-ABE vs. RSA
+### CP-ABE vs. RSA
 
-Shows how policy-based CP-ABE compares with encrypting a symmetric key separately for every RSA subscriber.
+Compares CP-ABE and RSA for encrypting and decrypting a symmetric key. Varies CP-ABE policy attribute counts and RSA subscriber counts, with a separate RSA key-size timing sweep.
 
-- **Primary sweeps:** CP-ABE policy attributes: 1, 2, 4, 8, 16, and 32; RSA subscribers: 1, 2, 4, 8, 16, 32, and 64.
-- **Secondary timing sweep:** RSA key size: 2048, 3072, and 4096 bits.
-- **Variables:** CP-ABE or RSA; Encrypt or Decrypt; policy size, subscriber count, and RSA key size as applicable.
-- **Metrics:** latency, energy per operation, peak RSS, ciphertext size, CP-ABE stored-key size, total RSA fan-out size, scaling slopes, crossovers, encrypt/decrypt asymmetry, timing iterations, 95% confidence intervals, and separate timing/energy throttling observations.
+Metrics: operation latency, energy per operation, peak RSS, ciphertext size, CP-ABE private-key size, and total RSA ciphertext size across subscribers. Reports also compare scaling, crossover points, and encryption/decryption cost.
 
-## Run
+### Full schema
 
-On the laptop, create and activate a Python environment, then install the dependencies:
+Compares six combinations of key handling, payload encryption, and serialization: pre-shared keys (PSK), RSA, or CP-ABE, each paired with either AES-GCM and JSON or ASCON and CBOR. Measures encryption plus serialization and deserialization plus decryption across payload sizes.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
+Metrics: combined operation latency, energy per operation, peak RSS, and serialized envelope size.
 
-Make sure the configured Raspberry Pi is reachable over SSH and the UM24C is available to the laptop. From the repository root, run one scenario at a time:
+All four microbenchmarks record timing iteration counts and separate timing/energy throttling observations. Reports include 95% confidence intervals for repeated measurements.
 
-```sh
+## Macrobenchmark: MQTT-over-TLS baseline
+
+Measures JSON messages sent from a publisher through a broker to a subscriber over MQTT 3.1.1, QoS 0, and TLS 1.3, across payload sizes. Payloads have no additional application-level encryption.
+
+Metrics: one-way end-to-end latency, from before publisher serialization to after subscriber deserialization, and separate publisher/subscriber CPU cycle totals per repetition. Reports include means and 95% confidence intervals.
+
+## Run benchmarks
+
+Run from the repository root on the laptop, with the benchmark environment configured in `environment/benchmark.env`. Choose the corresponding orchestrator:
+
+```bash
 python orchestrate/orchestrate_aes_ascon.py
 python orchestrate/orchestrate_json_cbor.py
 python orchestrate/orchestrate_cpabe_rsa.py
+python orchestrate/orchestrate_full_schema.py
+go run ./orchestrate/orchestrate_macro.go
 ```
 
-Each command runs its complete benchmark and reporting pipeline. Raw measurements, charts, and `report.html` are written under the scenario's directory in `results/`.
+Each orchestrator runs the benchmark and generates its report.
+
+## Generate reports from existing results
+
+With the result CSVs present in the directories configured in `environment/benchmark.env`, run the corresponding command from the repository root:
+
+```bash
+python -m report.analysis.aes_ascon_report
+python -m report.analysis.json_cbor_report
+python -m report.analysis.cpabe_rsa_report
+python -m report.analysis.full_schema_report
+python -m report.analysis.macro_report
+```
+
+Charts and `report.html` are written alongside the results.
