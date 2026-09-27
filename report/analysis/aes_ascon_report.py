@@ -12,18 +12,22 @@ from report.analysis.shared.statistics import (
     memory_statistics,
     timing_statistics,
 )
-from report.model.energy.energy_aggregation import EnergyAggregation
-from report.model.energy.energy_case import (
-    THROTTLED as ENERGY_THROTTLED,
-    EnergyCase,
+from report.analysis.shared.metrics import (
+    MEGABYTE,
+    collect_energy_throttle_flags,
+    collect_timing_throttle_flags,
+    to_megabytes,
+    to_microjoules,
+    to_microseconds,
 )
+from report.model.energy.energy_aggregation import EnergyAggregation
+from report.model.energy.energy_case import EnergyCase
 from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import PEAK_RSS_BYTES
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
     MB_PER_SECOND,
     NS_PER_OP,
-    THROTTLED as TIMING_THROTTLED,
 )
 from report.render.chart import (
     plot_aes_ascon_energy,
@@ -33,7 +37,6 @@ from report.render.chart import (
     plot_aes_ascon_memory,
     plot_aes_ascon_throughput,
 )
-from report.render.formatting import MEGABYTE, NS_PER_MICROSECOND
 from report.render.html import write_aes_ascon_report
 
 # Project Root
@@ -64,55 +67,6 @@ THROUGHPUT_PLOT = "throughput.png"
 ENERGY_PLOT = "energy.png"
 ENERGY_REDUCTION_PLOT = "energy_reduction.png"
 MEMORY_PLOT = "memory.png"
-
-# Unit Conversion
-MICROJOULES_PER_JOULE = 1_000_000
-
-
-# Check whether each timing aggregation experienced throttling
-def collect_timing_throttle_flags(
-    aggregations: list[TimingAggregation],
-) -> list[bool]:
-
-    return [
-        any(case.measurements[TIMING_THROTTLED] > 0 for case in aggregation.cases)
-        for aggregation in aggregations
-    ]
-
-
-# Check whether each energy aggregation experienced throttling
-def collect_energy_throttle_flags(
-    aggregations: list[EnergyAggregation],
-) -> list[bool]:
-
-    return [
-        any(case.measurements[ENERGY_THROTTLED] > 0 for case in aggregation.cases)
-        for aggregation in aggregations
-    ]
-
-
-# Convert nanoseconds to microseconds
-def to_microseconds(
-    values: list[float],
-) -> list[float]:
-
-    return [value / NS_PER_MICROSECOND for value in values]
-
-
-# Convert joules to microjoules
-def to_microjoules(
-    values: list[float],
-) -> list[float]:
-
-    return [value * MICROJOULES_PER_JOULE for value in values]
-
-
-# Convert bytes to megabytes
-def to_megabytes(
-    values: list[float],
-) -> list[float]:
-
-    return [value / MEGABYTE for value in values]
 
 
 # Analyze one algorithm and operation combination

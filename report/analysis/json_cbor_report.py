@@ -10,17 +10,19 @@ from report.analysis.shared.statistics import (
     energy_statistics,
     timing_statistics,
 )
-from report.model.energy.energy_aggregation import EnergyAggregation
-from report.model.energy.energy_case import (
-    THROTTLED as ENERGY_THROTTLED,
-    EnergyCase,
+from report.analysis.shared.metrics import (
+    collect_energy_throttle_flags,
+    collect_timing_throttle_flags,
+    to_microjoules,
+    to_microseconds,
 )
+from report.model.energy.energy_aggregation import EnergyAggregation
+from report.model.energy.energy_case import EnergyCase
 from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import (
     NS_PER_OP,
     RAW_BYTES,
     SERIALIZED_BYTES,
-    THROTTLED as TIMING_THROTTLED,
 )
 from report.render.chart import (
     plot_json_cbor_energy,
@@ -30,7 +32,6 @@ from report.render.chart import (
     plot_json_cbor_size,
     plot_json_cbor_wire_overhead,
 )
-from report.render.formatting import NS_PER_MICROSECOND
 from report.render.html import write_json_cbor_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -55,36 +56,6 @@ SIZE_PLOT = "size.png"
 WIRE_OVERHEAD_PLOT = "wire_overhead.png"
 ENERGY_PLOT = "energy.png"
 ENERGY_REDUCTION_PLOT = "energy_reduction.png"
-
-MICROJOULES_PER_JOULE = 1_000_000
-
-
-def collect_timing_throttle_flags(
-    aggregations: list[TimingAggregation],
-) -> list[bool]:
-
-    return [
-        any(case.measurements[TIMING_THROTTLED] > 0 for case in aggregation.cases)
-        for aggregation in aggregations
-    ]
-
-
-def collect_energy_throttle_flags(
-    aggregations: list[EnergyAggregation],
-) -> list[bool]:
-
-    return [
-        any(case.measurements[ENERGY_THROTTLED] > 0 for case in aggregation.cases)
-        for aggregation in aggregations
-    ]
-
-
-def to_microseconds(values: list[float]) -> list[float]:
-    return [value / NS_PER_MICROSECOND for value in values]
-
-
-def to_microjoules(values: list[float]) -> list[float]:
-    return [value * MICROJOULES_PER_JOULE for value in values]
 
 
 def analyze_case(
