@@ -1,30 +1,33 @@
-import report.analysis.aes_ascon_report as sut
+import report.analysis.json_cbor_report as sut
 
 
 def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     # Arrange
     calls = []
-    charts = []
+    render_calls = []
+
+    class FakeTimingCase:
+        measurements = {
+            sut.SERIALIZED_BYTES: 2,
+            sut.RAW_BYTES: 1,
+        }
+
+    class FakeTimingAggregation:
+        cases = [FakeTimingCase()]
 
     class FakeSummary:
         energy_baseline_cases = []
-        memory_baseline_cases = []
 
         def find_timing_aggregation(
-            self, algorithm, operation, parameter, parameter_value
+            self, format_name, operation, parameter, parameter_value
         ):
-            return "timing"
+            return FakeTimingAggregation()
 
         def find_energy_aggregation(
-            self, algorithm, operation, parameter, parameter_value
+            self, format_name, operation, parameter, parameter_value
         ):
             return "energy"
-
-        def find_memory_aggregation(
-            self, algorithm, operation, parameter, parameter_value
-        ):
-            return "memory"
 
     def fake_load_summary(*args, **kwargs):
         calls.append("load summary")
@@ -35,36 +38,30 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
             calls.append("analyze cases")
 
         return {
-            "latency_means": [1.0],
-            "latency_cis": [1.0],
-            "throughput_means": [1.0],
-            "throughput_cis": [1.0],
-            "energy_means": [1.0],
-            "energy_cis": [1.0],
-            "memory_means": [1.0],
-            "memory_cis": [1.0],
+            "latency_means": [2.0],
+            "latency_cis": [0.1],
+            "energy_means": [2.0],
+            "energy_cis": [0.1],
             "timing_throttled": [False],
             "energy_throttled": [False],
         }
-
-    def fake_memory_case_statistics(*args):
-        calls.append("analyze baseline memory")
-        return sut.MEGABYTE, sut.MEGABYTE
 
     def fake_chart(name):
         def chart(*args):
             if "generate charts" not in calls:
                 calls.append("generate charts")
-            charts.append(name)
+
+            render_calls.append(name)
 
         return chart
 
     def fake_write_report(*args):
         calls.append("write html")
+        render_calls.append("html")
 
     monkeypatch.setattr(sut, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sut, "TEMPLATE_DIR", tmp_path)
-    monkeypatch.setenv("AES_ASCON_RESULT_DIR", "results")
+    monkeypatch.setenv("JSON_CBOR_RESULT_DIR", "results")
 
     monkeypatch.setattr(sut, "load_dotenv", lambda *args, **kwargs: None)
     monkeypatch.setattr(sut, "parse_int_env", lambda name: 1)
@@ -72,52 +69,46 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sut, "load_summary", fake_load_summary)
     monkeypatch.setattr(sut, "analyze_case", fake_analyze_case)
-    monkeypatch.setattr(
-        sut,
-        "memory_case_statistics",
-        fake_memory_case_statistics,
-    )
 
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_latency",
+        "plot_json_cbor_latency",
         fake_chart("latency"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_latency_speedup",
+        "plot_json_cbor_latency_speedup",
         fake_chart("latency speedup"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_throughput",
-        fake_chart("throughput"),
+        "plot_json_cbor_size",
+        fake_chart("size"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_energy",
+        "plot_json_cbor_wire_overhead",
+        fake_chart("wire overhead"),
+    )
+    monkeypatch.setattr(
+        sut,
+        "plot_json_cbor_energy",
         fake_chart("energy"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_energy_reduction",
+        "plot_json_cbor_energy_reduction",
         fake_chart("energy reduction"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_memory",
-        fake_chart("memory"),
-    )
-    monkeypatch.setattr(
-        sut,
-        "write_aes_ascon_report",
+        "write_json_cbor_report",
         fake_write_report,
     )
 
     expected_calls = [
         "load summary",
         "analyze cases",
-        "analyze baseline memory",
         "generate charts",
         "write html",
     ]
@@ -125,10 +116,10 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
     expected_charts = {
         "latency",
         "latency speedup",
-        "throughput",
+        "size",
+        "wire overhead",
         "energy",
         "energy reduction",
-        "memory",
     }
 
     # Act
@@ -136,7 +127,8 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     # Assert
     assert calls == expected_calls
-    assert set(charts) == expected_charts
+    assert set(render_calls[:-1]) == expected_charts
+    assert render_calls[-1] == "html"
 
 
 def test_analyze_case_calls_expected_analysis_functions(monkeypatch):
@@ -160,32 +152,21 @@ def test_analyze_case_calls_expected_analysis_functions(monkeypatch):
             ([1.0], [1.0]),
         )[1],
     )
-    monkeypatch.setattr(
-        sut,
-        "memory_statistics",
-        lambda *args: (
-            calls.append("memory statistics"),
-            ([1.0], [1.0]),
-        )[1],
-    )
 
     monkeypatch.setattr(sut, "to_microseconds", lambda values: values)
     monkeypatch.setattr(sut, "to_microjoules", lambda values: values)
-    monkeypatch.setattr(sut, "to_megabytes", lambda values: values)
     monkeypatch.setattr(sut, "collect_timing_throttle_flags", lambda values: [])
     monkeypatch.setattr(sut, "collect_energy_throttle_flags", lambda values: [])
 
     expected = {
         "timing statistics",
         "energy statistics",
-        "memory statistics",
     }
 
     # Act
     sut.analyze_case(
         ["timing"],
         ["energy"],
-        ["memory"],
         ["energy baseline"],
     )
 

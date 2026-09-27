@@ -1,28 +1,28 @@
-import report.analysis.aes_ascon_report as sut
+import report.analysis.full_schema_report as sut
 
 
 def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     # Arrange
     calls = []
-    charts = []
+    render_calls = []
 
     class FakeSummary:
         energy_baseline_cases = []
         memory_baseline_cases = []
 
         def find_timing_aggregation(
-            self, algorithm, operation, parameter, parameter_value
+            self, configuration, operation, parameter, parameter_value
         ):
             return "timing"
 
         def find_energy_aggregation(
-            self, algorithm, operation, parameter, parameter_value
+            self, configuration, operation, parameter, parameter_value
         ):
             return "energy"
 
         def find_memory_aggregation(
-            self, algorithm, operation, parameter, parameter_value
+            self, configuration, operation, parameter, parameter_value
         ):
             return "memory"
 
@@ -37,8 +37,6 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
         return {
             "latency_means": [1.0],
             "latency_cis": [1.0],
-            "throughput_means": [1.0],
-            "throughput_cis": [1.0],
             "energy_means": [1.0],
             "energy_cis": [1.0],
             "memory_means": [1.0],
@@ -55,16 +53,18 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
         def chart(*args):
             if "generate charts" not in calls:
                 calls.append("generate charts")
-            charts.append(name)
+
+            render_calls.append(name)
 
         return chart
 
     def fake_write_report(*args):
         calls.append("write html")
+        render_calls.append("html")
 
     monkeypatch.setattr(sut, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sut, "TEMPLATE_DIR", tmp_path)
-    monkeypatch.setenv("AES_ASCON_RESULT_DIR", "results")
+    monkeypatch.setenv("FULL_SCHEMA_RESULT_DIR", "results")
 
     monkeypatch.setattr(sut, "load_dotenv", lambda *args, **kwargs: None)
     monkeypatch.setattr(sut, "parse_int_env", lambda name: 1)
@@ -74,43 +74,43 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
     monkeypatch.setattr(sut, "analyze_case", fake_analyze_case)
     monkeypatch.setattr(
         sut,
+        "collect_envelope_sizes",
+        lambda aggregations: [1.0],
+    )
+    monkeypatch.setattr(
+        sut,
         "memory_case_statistics",
         fake_memory_case_statistics,
     )
 
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_latency",
+        "plot_full_schema_latency",
         fake_chart("latency"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_latency_speedup",
-        fake_chart("latency speedup"),
+        "plot_full_schema_latency_overview",
+        fake_chart("latency overview"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_throughput",
-        fake_chart("throughput"),
+        "plot_full_schema_serialized_envelope_size",
+        fake_chart("serialized envelope size"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_energy",
+        "plot_full_schema_energy",
         fake_chart("energy"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_energy_reduction",
-        fake_chart("energy reduction"),
-    )
-    monkeypatch.setattr(
-        sut,
-        "plot_aes_ascon_memory",
+        "plot_full_schema_memory",
         fake_chart("memory"),
     )
     monkeypatch.setattr(
         sut,
-        "write_aes_ascon_report",
+        "write_full_schema_report",
         fake_write_report,
     )
 
@@ -124,10 +124,9 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     expected_charts = {
         "latency",
-        "latency speedup",
-        "throughput",
+        "latency overview",
+        "serialized envelope size",
         "energy",
-        "energy reduction",
         "memory",
     }
 
@@ -136,7 +135,8 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     # Assert
     assert calls == expected_calls
-    assert set(charts) == expected_charts
+    assert set(render_calls[:-1]) == expected_charts
+    assert render_calls[-1] == "html"
 
 
 def test_analyze_case_calls_expected_analysis_functions(monkeypatch):

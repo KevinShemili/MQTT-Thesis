@@ -166,15 +166,15 @@ def _build_aes_ascon_measurement_table(
 
 def _build_aes_ascon_memory_tables(
     payload_sizes: list[int],
-    memory: dict[tuple[str, str], dict[str, Any]],
+    cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
     return {
         f"{operation}MemoryTable": _build_aes_ascon_measurement_table(
             payload_sizes,
-            memory,
+            cases,
             operation,
-            "means",
-            "cis",
+            "memory_means",
+            "memory_cis",
         )
         for operation in ("Encrypt", "Decrypt")
     }
@@ -220,7 +220,7 @@ def write_aes_ascon_report(
         "ConfidenceLevel": CONFIDENCE_LEVEL,
         **_build_aes_ascon_timing_tables(payload_sizes, cases),
         **_build_aes_ascon_energy_tables(payload_sizes, cases),
-        **_build_aes_ascon_memory_tables(payload_sizes, report_data["memory"]),
+        **_build_aes_ascon_memory_tables(payload_sizes, cases),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "BaselineRss": f'{format_mean_with_ci(report_data["baseline_memory_mean"], report_data["baseline_memory_ci"])} MB',
@@ -341,15 +341,15 @@ def _build_full_schema_energy_tables(
 
 def _build_full_schema_memory_tables(
     payload_sizes: list[int],
-    memory: dict[tuple[str, str], dict[str, Any]],
+    cases: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, str]:
     return {
         f"{operation}MemoryTable": _build_full_schema_measurement_table(
             payload_sizes,
-            memory,
+            cases,
             operation,
-            "means",
-            "cis",
+            "memory_means",
+            "memory_cis",
         )
         for operation in ("Encrypt", "Decrypt")
     }
@@ -380,7 +380,7 @@ def write_full_schema_report(
             report_data["envelope_sizes"],
         ),
         **_build_full_schema_energy_tables(payload_sizes, cases),
-        **_build_full_schema_memory_tables(payload_sizes, report_data["memory"]),
+        **_build_full_schema_memory_tables(payload_sizes, cases),
         "TimingThermalLegend": build_thermal_legend(timing_throttled),
         "EnergyThermalLegend": build_thermal_legend(energy_throttled),
         "LatencyOverviewPlot": plots["latency_overview"],
@@ -587,15 +587,15 @@ def format_slope(
 def _build_cpabe_rsa_timing_report_tables(
     report_data: dict[str, Any],
 ) -> dict[str, str]:
-    timing = report_data["timing"]
+    cases = report_data["cases"]
     attributes = report_data["attribute_counts"]
     subscribers = report_data["subscriber_counts"]
     rsa_key_bits = report_data["rsa_key_bits"]
-    cpabe_encrypt = timing[("CPABEAttributes", "Encrypt")]
-    cpabe_decrypt = timing[("CPABEAttributes", "Decrypt")]
-    subscriber_encrypt = timing[("RSASubscribers", "Encrypt")]
-    rsa_encrypt = timing[("RSAKeyBits", "Encrypt")]
-    rsa_decrypt = timing[("RSAKeyBits", "Decrypt")]
+    cpabe_encrypt = cases[("CPABEAttributes", "Encrypt")]
+    cpabe_decrypt = cases[("CPABEAttributes", "Decrypt")]
+    subscriber_encrypt = cases[("RSASubscribers", "Encrypt")]
+    rsa_encrypt = cases[("RSAKeyBits", "Encrypt")]
+    rsa_decrypt = cases[("RSAKeyBits", "Decrypt")]
 
     return {
         "CpabePolicyScalingTable": _build_data_table(
@@ -692,10 +692,10 @@ def _build_cpabe_rsa_timing_report_tables(
 
 
 def _build_cpabe_rsa_energy_tables(report_data: dict[str, Any]) -> dict[str, str]:
-    energy = report_data["energy"]
-    cpabe_encrypt = energy[("CPABEAttributes", "Encrypt")]
-    cpabe_decrypt = energy[("CPABEAttributes", "Decrypt")]
-    subscriber_encrypt = energy[("RSASubscribers", "Encrypt")]
+    cases = report_data["cases"]
+    cpabe_encrypt = cases[("CPABEAttributes", "Encrypt")]
+    cpabe_decrypt = cases[("CPABEAttributes", "Decrypt")]
+    subscriber_encrypt = cases[("RSASubscribers", "Encrypt")]
 
     return {
         "CpabeEnergyTable": _build_data_table(
@@ -739,10 +739,10 @@ def _build_cpabe_rsa_energy_tables(report_data: dict[str, Any]) -> dict[str, str
 def _build_cpabe_rsa_memory_report_tables(
     report_data: dict[str, Any],
 ) -> dict[str, str]:
-    memory = report_data["memory"]
-    cpabe_encrypt = memory[("CPABEAttributes", "Encrypt")]
-    cpabe_decrypt = memory[("CPABEAttributes", "Decrypt")]
-    subscriber_encrypt = memory[("RSASubscribers", "Encrypt")]
+    cases = report_data["cases"]
+    cpabe_encrypt = cases[("CPABEAttributes", "Encrypt")]
+    cpabe_decrypt = cases[("CPABEAttributes", "Decrypt")]
+    subscriber_encrypt = cases[("RSASubscribers", "Encrypt")]
 
     return {
         "CpabePeakMemoryTable": _build_data_table(
@@ -753,15 +753,21 @@ def _build_cpabe_rsa_memory_report_tables(
             ],
             [
                 [str(value) for value in report_data["attribute_counts"]],
-                _mean_ci_column(cpabe_encrypt["means"], cpabe_encrypt["cis"]),
-                _mean_ci_column(cpabe_decrypt["means"], cpabe_decrypt["cis"]),
+                _mean_ci_column(
+                    cpabe_encrypt["memory_means"], cpabe_encrypt["memory_cis"]
+                ),
+                _mean_ci_column(
+                    cpabe_decrypt["memory_means"], cpabe_decrypt["memory_cis"]
+                ),
             ],
         ),
         "RsaSubscriberPeakMemoryTable": _build_data_table(
             ["Subscribers", "Encrypt"],
             [
                 [str(value) for value in report_data["subscriber_counts"]],
-                _mean_ci_column(subscriber_encrypt["means"], subscriber_encrypt["cis"]),
+                _mean_ci_column(
+                    subscriber_encrypt["memory_means"], subscriber_encrypt["memory_cis"]
+                ),
             ],
         ),
     }
@@ -819,18 +825,18 @@ def write_cpabe_rsa_report(
     subscribers = report_data["subscriber_counts"]
     timing_throttled = [
         flag
-        for values in report_data["timing"].values()
+        for values in report_data["cases"].values()
         for flag in values["timing_throttled"]
     ]
     energy_throttled = [
         flag
-        for values in report_data["energy"].values()
-        for flag in values["energy_throttled"]
+        for values in report_data["cases"].values()
+        for flag in values.get("energy_throttled", [])
     ]
 
     fanout = build_rsa_circle_visualization(
         comparisons["bytes_per_subscriber"],
-        report_data["timing"][("RSASubscribers", "Encrypt")]["total_ciphertext_means"][
+        report_data["cases"][("RSASubscribers", "Encrypt")]["total_ciphertext_means"][
             -1
         ],
         subscribers[-1],

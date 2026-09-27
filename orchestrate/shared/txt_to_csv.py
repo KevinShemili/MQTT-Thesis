@@ -44,6 +44,11 @@ def _read_benchmark_results(txt_filepath, scenario):
 
             baseline = algorithm == "Runtime" and operation == "MemoryBaseline"
 
+            if operation == "MemoryEncrypt":
+                operation = "Encrypt"
+            elif operation == "MemoryDecrypt":
+                operation = "Decrypt"
+
             if baseline:
                 parameter = ""
             elif scenario == "cpabe_rsa":

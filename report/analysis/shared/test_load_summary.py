@@ -142,7 +142,7 @@ def test_load_memory_results_separates_baseline_and_groups_workload_cases(tmp_pa
                 "scenario": "aes_ascon",
                 "row_type": "workload",
                 "algorithm": "AES-GCM",
-                "operation": "MemoryEncrypt",
+                "operation": "Encrypt",
                 "parameter": "payload_size",
                 "parameter_value": 256,
                 "run": 1,
@@ -152,7 +152,7 @@ def test_load_memory_results_separates_baseline_and_groups_workload_cases(tmp_pa
                 "scenario": "aes_ascon",
                 "row_type": "workload",
                 "algorithm": "AES-GCM",
-                "operation": "MemoryEncrypt",
+                "operation": "Encrypt",
                 "parameter": "payload_size",
                 "parameter_value": 256,
                 "run": 2,
@@ -174,7 +174,7 @@ def test_load_memory_results_separates_baseline_and_groups_workload_cases(tmp_pa
     assert len(summary.memory_aggregations) == 1
 
     aggregation = summary.find_memory_aggregation(
-        "AES-GCM", "MemoryEncrypt", "payload_size", 256
+        "AES-GCM", "Encrypt", "payload_size", 256
     )
 
     assert aggregation is not None

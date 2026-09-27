@@ -67,6 +67,7 @@ MEMORY_PLOT = "memory.png"
 def analyze_case(
     timing_aggregations: list[TimingAggregation],
     energy_aggregations: list[EnergyAggregation],
+    memory_aggregations: list[MemoryAggregation],
     energy_baseline_cases: list[EnergyCase],
 ):
 
@@ -86,6 +87,8 @@ def analyze_case(
         timing_aggregations,
     )
 
+    memory_means, memory_cis = memory_statistics(memory_aggregations, PEAK_RSS_BYTES)
+
     return {
         "latency_means": to_microseconds(latency_means),
         "latency_cis": to_microseconds(latency_cis),
@@ -93,20 +96,10 @@ def analyze_case(
         "throughput_cis": throughput_cis,
         "energy_means": to_microjoules(energy_means),
         "energy_cis": to_microjoules(energy_cis),
+        "memory_means": to_megabytes(memory_means),
+        "memory_cis": to_megabytes(memory_cis),
         "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
         "energy_throttled": collect_energy_throttle_flags(energy_aggregations),
-    }
-
-
-def analyze_memory_case(
-    aggregations: list[MemoryAggregation],
-) -> dict:
-
-    means, confidence_intervals = memory_statistics(aggregations, PEAK_RSS_BYTES)
-
-    return {
-        "means": to_megabytes(means),
-        "cis": to_megabytes(confidence_intervals),
     }
 
 
@@ -145,7 +138,6 @@ def main():
 
     # Analyze Benchmark Cases
     case_results = {}
-    memory_results = {}
 
     for algorithm in ("AES-GCM", "ASCON"):
         for operation in ("Encrypt", "Decrypt"):
@@ -170,23 +162,20 @@ def main():
                 for payload_size in payload_sizes
             ]
 
-            case_results[(algorithm, operation)] = analyze_case(
-                timing_aggregations,
-                energy_aggregations,
-                summary.energy_baseline_cases,
-            )
-
             memory_aggregations = [
                 summary.find_memory_aggregation(
                     algorithm,
-                    f"Memory{operation}",
+                    operation,
                     PARAMETER,
                     payload_size,
                 )
                 for payload_size in payload_sizes
             ]
-            memory_results[(algorithm, operation)] = analyze_memory_case(
-                memory_aggregations
+            case_results[(algorithm, operation)] = analyze_case(
+                timing_aggregations,
+                energy_aggregations,
+                memory_aggregations,
+                summary.energy_baseline_cases,
             )
 
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
@@ -261,8 +250,8 @@ def main():
     }
 
     memory_plot_results = {
-        case: (values["means"], values["cis"])
-        for case, values in memory_results.items()
+        case: (values["memory_means"], values["memory_cis"])
+        for case, values in case_results.items()
     }
 
     # Generate Charts
@@ -311,7 +300,6 @@ def main():
         "energy_window_end": (warmup_duration + measurement_duration),
         "cases": case_results,
         "interpretations": interpretations,
-        "memory": memory_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "plots": {

@@ -29,17 +29,15 @@ def test_benchmark_summary_finds_memory_aggregation():
     # Arrange
     summary = BenchmarkSummary()
 
-    expected = MemoryAggregation("AES-GCM", "MemoryEncrypt", "payload_size", 16)
+    expected = MemoryAggregation("AES-GCM", "Encrypt", "payload_size", 16)
 
     summary.memory_aggregations = [
-        MemoryAggregation("ASCON", "MemoryEncrypt", "payload_size", 16),
+        MemoryAggregation("ASCON", "Encrypt", "payload_size", 16),
         expected,
     ]
 
     # Act
-    result = summary.find_memory_aggregation(
-        "AES-GCM", "MemoryEncrypt", "payload_size", 16
-    )
+    result = summary.find_memory_aggregation("AES-GCM", "Encrypt", "payload_size", 16)
 
     # Assert
     assert result is expected

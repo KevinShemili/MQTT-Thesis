@@ -1,4 +1,4 @@
-import report.analysis.aes_ascon_report as sut
+import report.analysis.cpabe_rsa_report as sut
 
 
 def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
@@ -14,47 +14,61 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
         def find_timing_aggregation(
             self, algorithm, operation, parameter, parameter_value
         ):
-            return "timing"
+            return algorithm, operation
 
         def find_energy_aggregation(
             self, algorithm, operation, parameter, parameter_value
         ):
-            return "energy"
+            return algorithm, operation
 
         def find_memory_aggregation(
             self, algorithm, operation, parameter, parameter_value
         ):
-            return "memory"
+            return algorithm, operation
 
     def fake_load_summary(*args, **kwargs):
         calls.append("load summary")
         return FakeSummary()
 
-    def fake_analyze_case(*args):
+    def fake_analyze_case(
+        timing_aggregations,
+        energy_aggregations,
+        memory_aggregations,
+        energy_baseline_cases,
+    ):
         if "analyze cases" not in calls:
             calls.append("analyze cases")
 
         return {
-            "latency_means": [1.0],
-            "latency_cis": [1.0],
-            "throughput_means": [1.0],
-            "throughput_cis": [1.0],
-            "energy_means": [1.0],
-            "energy_cis": [1.0],
-            "memory_means": [1.0],
-            "memory_cis": [1.0],
+            "latency_means": [2.0],
+            "latency_cis": [0.1],
             "timing_throttled": [False],
+            "energy_means": [2.0],
+            "energy_cis": [0.1],
             "energy_throttled": [False],
+            "memory_means": [2.0],
+            "memory_cis": [0.1],
         }
+
+    def fake_add_timing_measurement(result, aggregations, measurement, name):
+        result[f"{name}_means"] = [2.0]
+        result[f"{name}_cis"] = [0.1]
 
     def fake_memory_case_statistics(*args):
         calls.append("analyze baseline memory")
         return sut.MEGABYTE, sut.MEGABYTE
 
+    def fake_linear_regression_statistics(*args):
+        if "run regressions" not in calls:
+            calls.append("run regressions")
+
+        return 1.0, 1.0, 1.0, 1.0
+
     def fake_chart(name):
         def chart(*args):
             if "generate charts" not in calls:
                 calls.append("generate charts")
+
             charts.append(name)
 
         return chart
@@ -64,53 +78,91 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sut, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sut, "TEMPLATE_DIR", tmp_path)
-    monkeypatch.setenv("AES_ASCON_RESULT_DIR", "results")
+    monkeypatch.setenv("CPABE_RSA_RESULT_DIR", "results")
 
     monkeypatch.setattr(sut, "load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setattr(sut, "parse_int_env", lambda name: 1)
-    monkeypatch.setattr(sut, "parse_int_list_env", lambda name: [256])
+    monkeypatch.setattr(
+        sut,
+        "parse_int_env",
+        lambda name: {
+            "CPABE_RSA_RUNS": 1,
+            "CPABE_RSA_FIXED_RSA_KEY_SIZE": 1,
+            "WARMUP_DURATION": 1,
+            "MEASUREMENT_DURATION": 1,
+        }[name],
+    )
+    monkeypatch.setattr(
+        sut,
+        "parse_int_list_env",
+        lambda name: [1],
+    )
 
     monkeypatch.setattr(sut, "load_summary", fake_load_summary)
     monkeypatch.setattr(sut, "analyze_case", fake_analyze_case)
     monkeypatch.setattr(
         sut,
+        "add_timing_measurement",
+        fake_add_timing_measurement,
+    )
+    monkeypatch.setattr(
+        sut,
         "memory_case_statistics",
         fake_memory_case_statistics,
+    )
+    monkeypatch.setattr(
+        sut,
+        "linear_regression_statistics",
+        fake_linear_regression_statistics,
     )
 
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_latency",
-        fake_chart("latency"),
+        "plot_cpabe_attributes",
+        fake_chart("cpabe attributes"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_latency_speedup",
-        fake_chart("latency speedup"),
+        "plot_rsa_subscribers",
+        fake_chart("rsa subscribers"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_throughput",
-        fake_chart("throughput"),
+        "plot_rsa_key_size_sensitivity",
+        fake_chart("rsa key size sensitivity"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_energy",
+        "plot_cpabe_rsa_energy",
         fake_chart("energy"),
     )
     monkeypatch.setattr(
         sut,
-        "plot_aes_ascon_energy_reduction",
-        fake_chart("energy reduction"),
-    )
-    monkeypatch.setattr(
-        sut,
-        "plot_aes_ascon_memory",
+        "plot_cpabe_rsa_memory",
         fake_chart("memory"),
     )
     monkeypatch.setattr(
         sut,
-        "write_aes_ascon_report",
+        "plot_ciphertext_size_crossover",
+        fake_chart("ciphertext crossover"),
+    )
+    monkeypatch.setattr(
+        sut,
+        "plot_encrypt_latency_crossover",
+        fake_chart("encrypt crossover"),
+    )
+    monkeypatch.setattr(
+        sut,
+        "plot_decrypt_latency_comparison",
+        fake_chart("decrypt comparison"),
+    )
+    monkeypatch.setattr(
+        sut,
+        "plot_encrypt_decrypt_asymmetry",
+        fake_chart("asymmetry"),
+    )
+    monkeypatch.setattr(
+        sut,
+        "write_cpabe_rsa_report",
         fake_write_report,
     )
 
@@ -118,17 +170,21 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
         "load summary",
         "analyze cases",
         "analyze baseline memory",
+        "run regressions",
         "generate charts",
         "write html",
     ]
 
     expected_charts = {
-        "latency",
-        "latency speedup",
-        "throughput",
+        "cpabe attributes",
+        "rsa subscribers",
+        "rsa key size sensitivity",
         "energy",
-        "energy reduction",
         "memory",
+        "ciphertext crossover",
+        "encrypt crossover",
+        "decrypt comparison",
+        "asymmetry",
     }
 
     # Act

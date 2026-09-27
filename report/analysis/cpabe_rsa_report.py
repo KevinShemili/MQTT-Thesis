@@ -85,38 +85,37 @@ def add_timing_measurement(
     result[f"{name}_cis"] = confidence_intervals
 
 
-def analyze_timing_case(aggregations: list[TimingAggregation]) -> dict:
-    latency_means, latency_cis = timing_statistics(aggregations, NS_PER_OP)
-    return {
+def analyze_case(
+    timing_aggregations: list[TimingAggregation],
+    energy_aggregations: list[EnergyAggregation],
+    memory_aggregations: list[MemoryAggregation],
+    energy_baseline_cases: list[EnergyCase],
+) -> dict:
+    latency_means, latency_cis = timing_statistics(timing_aggregations, NS_PER_OP)
+    result = {
         "latency_means": to_microseconds(latency_means),
         "latency_cis": to_microseconds(latency_cis),
-        "timing_throttled": collect_timing_throttle_flags(aggregations),
+        "timing_throttled": collect_timing_throttle_flags(timing_aggregations),
     }
 
+    if energy_aggregations:
+        energy_means, energy_cis = energy_statistics(
+            energy_aggregations,
+            energy_baseline_cases,
+            timing_aggregations,
+        )
+        result["energy_means"] = to_microjoules(energy_means)
+        result["energy_cis"] = to_microjoules(energy_cis)
+        result["energy_throttled"] = collect_energy_throttle_flags(energy_aggregations)
 
-def analyze_energy_case(
-    aggregations: list[EnergyAggregation],
-    energy_baseline_cases: list[EnergyCase],
-    timing_aggregations: list[TimingAggregation],
-) -> dict:
-    energy_means, energy_cis = energy_statistics(
-        aggregations,
-        energy_baseline_cases,
-        timing_aggregations,
-    )
-    return {
-        "energy_means": to_microjoules(energy_means),
-        "energy_cis": to_microjoules(energy_cis),
-        "energy_throttled": collect_energy_throttle_flags(aggregations),
-    }
+    if memory_aggregations:
+        memory_means, memory_cis = memory_statistics(
+            memory_aggregations, PEAK_RSS_BYTES
+        )
+        result["memory_means"] = to_megabytes(memory_means)
+        result["memory_cis"] = to_megabytes(memory_cis)
 
-
-def analyze_memory_case(aggregations: list[MemoryAggregation]) -> dict:
-    means, confidence_intervals = memory_statistics(aggregations, PEAK_RSS_BYTES)
-    return {
-        "means": to_megabytes(means),
-        "cis": to_megabytes(confidence_intervals),
-    }
+    return result
 
 
 def slower_operation(
@@ -153,17 +152,17 @@ def main() -> None:
         RSA_SUBSCRIBERS: subscriber_counts,
         RSA_KEY_BITS: rsa_key_bits,
     }
-    timing_order = (
+    case_order = (
         (CPABE_ATTRIBUTES, "Encrypt"),
         (CPABE_ATTRIBUTES, "Decrypt"),
         (RSA_SUBSCRIBERS, "Encrypt"),
         (RSA_KEY_BITS, "Encrypt"),
         (RSA_KEY_BITS, "Decrypt"),
     )
-    timing_results = {}
-    for algorithm, operation in timing_order:
+    case_results = {}
+    for algorithm, operation in case_order:
         parameter_values = timing_parameter_values[algorithm]
-        aggregations = [
+        timing_aggregations = [
             summary.find_timing_aggregation(
                 algorithm,
                 operation,
@@ -172,41 +171,14 @@ def main() -> None:
             )
             for parameter_value in parameter_values
         ]
-        result = analyze_timing_case(aggregations)
-
-        if (algorithm, operation) in (
-            (CPABE_ATTRIBUTES, "Encrypt"),
-            (RSA_SUBSCRIBERS, "Encrypt"),
-            (RSA_KEY_BITS, "Encrypt"),
-        ):
-            add_timing_measurement(result, aggregations, CIPHERTEXT_BYTES, "ciphertext")
-        if (algorithm, operation) == (RSA_SUBSCRIBERS, "Encrypt"):
-            add_timing_measurement(
-                result,
-                aggregations,
-                TOTAL_CIPHERTEXT_BYTES,
-                "total_ciphertext",
+        # Energy and memory use only the fixed RSA decrypt reference.
+        if algorithm == RSA_KEY_BITS:
+            energy_memory_values = (
+                [fixed_rsa_key_bits] if operation == "Decrypt" else []
             )
-        if (algorithm, operation) == (CPABE_ATTRIBUTES, "Decrypt"):
-            add_timing_measurement(result, aggregations, STORED_KEY_BYTES, "stored_key")
+        else:
+            energy_memory_values = parameter_values
 
-        timing_results[(algorithm, operation)] = result
-
-    energy_memory_parameter_values = {
-        CPABE_ATTRIBUTES: attribute_counts,
-        RSA_SUBSCRIBERS: subscriber_counts,
-        RSA_KEY_BITS: [fixed_rsa_key_bits],
-    }
-    energy_memory_order = (
-        (CPABE_ATTRIBUTES, "Encrypt"),
-        (CPABE_ATTRIBUTES, "Decrypt"),
-        (RSA_SUBSCRIBERS, "Encrypt"),
-        (RSA_KEY_BITS, "Decrypt"),
-    )
-    energy_results = {}
-    memory_results = {}
-    for algorithm, operation in energy_memory_order:
-        parameter_values = energy_memory_parameter_values[algorithm]
         energy_aggregations = [
             summary.find_energy_aggregation(
                 algorithm,
@@ -214,26 +186,45 @@ def main() -> None:
                 PARAMETER_BY_ALGORITHM[algorithm],
                 parameter_value,
             )
-            for parameter_value in parameter_values
+            for parameter_value in energy_memory_values
         ]
-        energy_results[(algorithm, operation)] = analyze_energy_case(
-            energy_aggregations,
-            summary.energy_baseline_cases,
-            summary.timing_aggregations,
-        )
-
         memory_aggregations = [
             summary.find_memory_aggregation(
                 algorithm,
-                f"Memory{operation}",
+                operation,
                 PARAMETER_BY_ALGORITHM[algorithm],
                 parameter_value,
             )
-            for parameter_value in parameter_values
+            for parameter_value in energy_memory_values
         ]
-        memory_results[(algorithm, operation)] = analyze_memory_case(
-            memory_aggregations
+        result = analyze_case(
+            timing_aggregations,
+            energy_aggregations,
+            memory_aggregations,
+            summary.energy_baseline_cases,
         )
+
+        if (algorithm, operation) in (
+            (CPABE_ATTRIBUTES, "Encrypt"),
+            (RSA_SUBSCRIBERS, "Encrypt"),
+            (RSA_KEY_BITS, "Encrypt"),
+        ):
+            add_timing_measurement(
+                result, timing_aggregations, CIPHERTEXT_BYTES, "ciphertext"
+            )
+        if (algorithm, operation) == (RSA_SUBSCRIBERS, "Encrypt"):
+            add_timing_measurement(
+                result,
+                timing_aggregations,
+                TOTAL_CIPHERTEXT_BYTES,
+                "total_ciphertext",
+            )
+        if (algorithm, operation) == (CPABE_ATTRIBUTES, "Decrypt"):
+            add_timing_measurement(
+                result, timing_aggregations, STORED_KEY_BYTES, "stored_key"
+            )
+
+        case_results[(algorithm, operation)] = result
 
     baseline_memory_mean, baseline_memory_ci = memory_case_statistics(
         summary.memory_baseline_cases,
@@ -241,22 +232,22 @@ def main() -> None:
     )
 
     fixed_rsa_index = rsa_key_bits.index(fixed_rsa_key_bits)
-    fixed_rsa_decrypt_latency = timing_results[(RSA_KEY_BITS, "Decrypt")][
+    fixed_rsa_decrypt_latency = case_results[(RSA_KEY_BITS, "Decrypt")][
         "latency_means"
     ][fixed_rsa_index]
-    fixed_rsa_decrypt_latency_ci = timing_results[(RSA_KEY_BITS, "Decrypt")][
+    fixed_rsa_decrypt_latency_ci = case_results[(RSA_KEY_BITS, "Decrypt")][
         "latency_cis"
     ][fixed_rsa_index]
-    fixed_rsa_decrypt_timing_throttled = timing_results[(RSA_KEY_BITS, "Decrypt")][
+    fixed_rsa_decrypt_timing_throttled = case_results[(RSA_KEY_BITS, "Decrypt")][
         "timing_throttled"
     ][fixed_rsa_index]
-    fixed_rsa_decrypt_energy = energy_results[(RSA_KEY_BITS, "Decrypt")][
-        "energy_means"
-    ][0]
-    fixed_rsa_decrypt_energy_ci = energy_results[(RSA_KEY_BITS, "Decrypt")][
-        "energy_cis"
-    ][0]
-    fixed_rsa_decrypt_energy_throttled = energy_results[(RSA_KEY_BITS, "Decrypt")][
+    fixed_rsa_decrypt_energy = case_results[(RSA_KEY_BITS, "Decrypt")]["energy_means"][
+        0
+    ]
+    fixed_rsa_decrypt_energy_ci = case_results[(RSA_KEY_BITS, "Decrypt")]["energy_cis"][
+        0
+    ]
+    fixed_rsa_decrypt_energy_throttled = case_results[(RSA_KEY_BITS, "Decrypt")][
         "energy_throttled"
     ][0]
     fixed_rsa_decrypt_latency_means = [
@@ -265,37 +256,41 @@ def main() -> None:
     fixed_rsa_decrypt_latency_cis = [
         fixed_rsa_decrypt_latency_ci for _ in attribute_counts
     ]
-    fixed_rsa_decrypt_memory = memory_results[(RSA_KEY_BITS, "Decrypt")]["means"][0]
-    fixed_rsa_decrypt_memory_ci = memory_results[(RSA_KEY_BITS, "Decrypt")]["cis"][0]
+    fixed_rsa_decrypt_memory = case_results[(RSA_KEY_BITS, "Decrypt")]["memory_means"][
+        0
+    ]
+    fixed_rsa_decrypt_memory_ci = case_results[(RSA_KEY_BITS, "Decrypt")]["memory_cis"][
+        0
+    ]
 
     regressions = {
         "cpabe_encrypt": linear_regression_statistics(
             attribute_counts,
-            timing_results[(CPABE_ATTRIBUTES, "Encrypt")]["latency_means"],
+            case_results[(CPABE_ATTRIBUTES, "Encrypt")]["latency_means"],
         ),
         "cpabe_decrypt": linear_regression_statistics(
             attribute_counts,
-            timing_results[(CPABE_ATTRIBUTES, "Decrypt")]["latency_means"],
+            case_results[(CPABE_ATTRIBUTES, "Decrypt")]["latency_means"],
         ),
         "cpabe_ciphertext": linear_regression_statistics(
             attribute_counts,
-            timing_results[(CPABE_ATTRIBUTES, "Encrypt")]["ciphertext_means"],
+            case_results[(CPABE_ATTRIBUTES, "Encrypt")]["ciphertext_means"],
         ),
         "cpabe_stored_key": linear_regression_statistics(
             attribute_counts,
-            timing_results[(CPABE_ATTRIBUTES, "Decrypt")]["stored_key_means"],
+            case_results[(CPABE_ATTRIBUTES, "Decrypt")]["stored_key_means"],
         ),
         "subscriber_encrypt": linear_regression_statistics(
             subscriber_counts,
-            timing_results[(RSA_SUBSCRIBERS, "Encrypt")]["latency_means"],
+            case_results[(RSA_SUBSCRIBERS, "Encrypt")]["latency_means"],
         ),
     }
 
-    cpabe_encrypt = timing_results[(CPABE_ATTRIBUTES, "Encrypt")]
-    cpabe_decrypt = timing_results[(CPABE_ATTRIBUTES, "Decrypt")]
-    subscriber_encrypt = timing_results[(RSA_SUBSCRIBERS, "Encrypt")]
-    rsa_encrypt = timing_results[(RSA_KEY_BITS, "Encrypt")]
-    rsa_decrypt = timing_results[(RSA_KEY_BITS, "Decrypt")]
+    cpabe_encrypt = case_results[(CPABE_ATTRIBUTES, "Encrypt")]
+    cpabe_decrypt = case_results[(CPABE_ATTRIBUTES, "Decrypt")]
+    subscriber_encrypt = case_results[(RSA_SUBSCRIBERS, "Encrypt")]
+    rsa_encrypt = case_results[(RSA_KEY_BITS, "Encrypt")]
+    rsa_decrypt = case_results[(RSA_KEY_BITS, "Decrypt")]
 
     bytes_per_subscriber = subscriber_encrypt["ciphertext_means"][0]
     bytes_crossover_low = cpabe_encrypt["ciphertext_means"][0] / bytes_per_subscriber
@@ -444,7 +439,8 @@ def main() -> None:
         },
         {
             key: (value["energy_means"], value["energy_cis"])
-            for key, value in energy_results.items()
+            for key, value in case_results.items()
+            if "energy_means" in value
         },
         fixed_rsa_key_bits,
         str(result_directory / ENERGY_PLOT),
@@ -455,9 +451,9 @@ def main() -> None:
             RSA_SUBSCRIBERS: subscriber_counts,
         },
         {
-            key: (value["means"], value["cis"])
-            for key, value in memory_results.items()
-            if key != (RSA_KEY_BITS, "Decrypt")
+            key: (value["memory_means"], value["memory_cis"])
+            for key, value in case_results.items()
+            if key[0] != RSA_KEY_BITS
         },
         baseline_memory_mean / MEGABYTE,
         str(result_directory / PEAK_MEMORY_PLOT),
@@ -490,9 +486,7 @@ def main() -> None:
         "fixed_rsa_key_bits": fixed_rsa_key_bits,
         "energy_window_start": warmup_duration,
         "energy_window_end": warmup_duration + measurement_duration,
-        "timing": timing_results,
-        "energy": energy_results,
-        "memory": memory_results,
+        "cases": case_results,
         "baseline_memory_mean": baseline_memory_mean / MEGABYTE,
         "baseline_memory_ci": baseline_memory_ci / MEGABYTE,
         "fixed_rsa_decrypt_latency": fixed_rsa_decrypt_latency,
