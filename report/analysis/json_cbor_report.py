@@ -37,17 +37,10 @@ from report.render.html import write_json_cbor_report
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-BENCHMARK_PREFIX = "BenchmarkMessage"
 PARAMETER = "payload_size"
-PARAMETER_BY_ALGORITHM = {
-    "JSON": PARAMETER,
-    "CBOR": PARAMETER,
-    "CBORKeyAsInt": PARAMETER,
-}
-PARAMETER_SUFFIX = "B"
 
-TIMING_RESULT_NAME = "timing.txt"
-ENERGY_RESULT_NAME = "energy.txt"
+TIMING_RESULT_NAME = "timing.csv"
+ENERGY_RESULT_NAME = "energy.csv"
 REPORT_TEMPLATE_NAME = "json_cbor_template.html"
 
 LATENCY_PLOT = "latency.png"
@@ -72,6 +65,7 @@ def analyze_case(
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
         energy_baseline_cases,
+        timing_aggregations,
     )
 
     return {
@@ -105,11 +99,6 @@ def main() -> None:
     summary = load_summary(
         timing_filepath=str(timing_result_file),
         energy_filepath=str(energy_result_file),
-        case_prefix=BENCHMARK_PREFIX,
-        parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
-        warmup_duration=warmup_duration,
-        measurement_duration=measurement_duration,
-        parameter_suffix=PARAMETER_SUFFIX,
     )
 
     case_results = {}

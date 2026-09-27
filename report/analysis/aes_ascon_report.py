@@ -46,18 +46,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
 # Benchmark
-BENCHMARK_PREFIX = "BenchmarkAESASCON"
 PARAMETER = "payload_size"
-PARAMETER_BY_ALGORITHM = {
-    "AES-GCM": PARAMETER,
-    "ASCON": PARAMETER,
-}
-PARAMETER_SUFFIX = "B"
 
 # Results
-TIMING_RESULT_NAME = "timing.txt"
-MEMORY_RESULT_NAME = "memory.txt"
-ENERGY_RESULT_NAME = "energy.txt"
+TIMING_RESULT_NAME = "timing.csv"
+MEMORY_RESULT_NAME = "memory.csv"
+ENERGY_RESULT_NAME = "energy.csv"
 REPORT_TEMPLATE_NAME = "aes_ascon_template.html"
 
 # Plots
@@ -89,6 +83,7 @@ def analyze_case(
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
         energy_baseline_cases,
+        timing_aggregations,
     )
 
     return {
@@ -146,11 +141,6 @@ def main():
         timing_filepath=str(timing_result_file),
         memory_filepath=str(memory_result_file),
         energy_filepath=str(energy_result_file),
-        case_prefix=BENCHMARK_PREFIX,
-        parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
-        warmup_duration=warmup_duration,
-        measurement_duration=measurement_duration,
-        parameter_suffix=PARAMETER_SUFFIX,
     )
 
     # Analyze Benchmark Cases

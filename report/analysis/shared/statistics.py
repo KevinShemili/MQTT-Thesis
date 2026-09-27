@@ -3,11 +3,12 @@ from statistics import fmean
 from scipy import stats
 
 from report.model.energy.energy_aggregation import EnergyAggregation
-from report.model.energy.energy_case import NS_PER_OP, EnergyCase
+from report.model.energy.energy_case import EnergyCase
 from report.model.macro.macro_aggregation import MacroAggregation
 from report.model.memory.memory_aggregation import MemoryAggregation
 from report.model.memory.memory_case import MemoryCase
 from report.model.timing.timing_aggregation import TimingAggregation
+from report.model.timing.timing_case import NS_PER_OP
 
 NS_PER_SECOND = 1_000_000_000
 
@@ -37,6 +38,7 @@ def timing_statistics(
 def energy_statistics(
     aggregations: list[EnergyAggregation],
     baseline_cases: list[EnergyCase],
+    timing_aggregations: list[TimingAggregation],
 ) -> tuple[list[float], list[float]]:
 
     means = []
@@ -47,7 +49,22 @@ def energy_statistics(
 
     for aggregation in aggregations:
 
-        values = _joules_per_operation(aggregation, idle_power_w)
+        timing_aggregation = next(
+            timing
+            for timing in timing_aggregations
+            if timing.algorithm == aggregation.algorithm
+            and timing.operation == aggregation.operation
+            and timing.parameter == aggregation.parameter
+            and timing.parameter_value == aggregation.parameter_value
+        )
+        mean_latency_s = (
+            fmean(case.measurements[NS_PER_OP] for case in timing_aggregation.cases)
+            / NS_PER_SECOND
+        )
+
+        # Timing and energy runs are independent. Hold the timing mean fixed;
+        # the confidence interval reflects variation across energy repetitions.
+        values = _joules_per_operation(aggregation, idle_power_w, mean_latency_s)
 
         value_mean, confidence_interval = _mean_and_confidence_interval(values)
 
@@ -131,29 +148,20 @@ def _mean_and_confidence_interval(
     return value_mean, confidence_interval
 
 
-# Calculate energy per operation for every independent energy run
+# Calculate energy per operation using the matching case's mean timing latency
 def _joules_per_operation(
     aggregation: EnergyAggregation,
     idle_power_w: float,
+    mean_latency_s: float,
 ) -> list[float]:
-
-    measurement_end = aggregation.warmup_duration + aggregation.measurement_duration
 
     values = []
 
     for case in aggregation.cases:
 
-        load_power_w = fmean(
-            sample.power_w
-            for sample in case.samples
-            if aggregation.warmup_duration <= sample.elapsed_s < measurement_end
-        )
-
-        operation_time_seconds = case.measurements[NS_PER_OP] / NS_PER_SECOND
-
-        energy_per_operation_joules = (
-            load_power_w - idle_power_w
-        ) * operation_time_seconds
+        # CSV samples already contain only the UM24C measurement window.
+        load_power_w = fmean(sample.power_w for sample in case.samples)
+        energy_per_operation_joules = (load_power_w - idle_power_w) * mean_latency_s
 
         values.append(energy_per_operation_joules)
 

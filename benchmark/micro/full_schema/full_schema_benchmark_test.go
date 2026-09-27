@@ -38,8 +38,6 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 				})
 			serializedSize := len(serializedEnvelope)
 
-			b.SetBytes(int64(payloadSize))
-
 			thermal.WaitForCooldown()
 
 			throttle := thermal.NewThrottleWatch()
@@ -89,8 +87,6 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 					SymmetricCiphertext:  make([]byte, payloadSize+cipher.Overhead()),
 				})
 			serializedSize := len(serializedEnvelope)
-
-			b.SetBytes(int64(payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -149,8 +145,6 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 				})
 			serializedSize := len(serializedEnvelope)
 
-			b.SetBytes(int64(payloadSize))
-
 			thermal.WaitForCooldown()
 
 			throttle := thermal.NewThrottleWatch()
@@ -196,8 +190,6 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 				SymmetricCiphertext: make([]byte, payloadSize+cipher.Overhead()),
 			})
 			serializedSize := len(serializedEnvelope)
-
-			b.SetBytes(int64(payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -246,8 +238,6 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 				SymmetricCiphertext:  make([]byte, payloadSize+cipher.Overhead()),
 			})
 			serializedSize := len(serializedEnvelope)
-
-			b.SetBytes(int64(payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -304,8 +294,6 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 				SymmetricCiphertext:  make([]byte, payloadSize+cipher.Overhead()),
 			})
 			serializedSize := len(serializedEnvelope)
-
-			b.SetBytes(int64(payloadSize))
 
 			// Let device cool off before starting timed loop, to avoid thermal throttling affecting results
 			thermal.WaitForCooldown()
@@ -366,8 +354,6 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
 
-			b.SetBytes(int64(payloadSize))
-
 			thermal.WaitForCooldown()
 
 			throttle := thermal.NewThrottleWatch()
@@ -409,8 +395,6 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
-
-			b.SetBytes(int64(payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -459,8 +443,6 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
 
-			b.SetBytes(int64(payloadSize))
-
 			thermal.WaitForCooldown()
 
 			throttle := thermal.NewThrottleWatch()
@@ -503,8 +485,6 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
 
-			b.SetBytes(int64(payloadSize))
-
 			thermal.WaitForCooldown()
 
 			throttle := thermal.NewThrottleWatch()
@@ -546,8 +526,6 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
-
-			b.SetBytes(int64(payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -595,8 +573,6 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 			})
 
 			decryptedPlaintext := make([]byte, 0, payloadSize)
-
-			b.SetBytes(int64(payloadSize))
 
 			thermal.WaitForCooldown()
 

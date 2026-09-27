@@ -68,6 +68,16 @@ def test_orchestrate_memory_runs_cases_in_expected_order(monkeypatch, tmp_path):
         ),
     )
 
+    def fake_convert_memory_results(filepath, scenario):
+        calls.append(("convert memory results", filepath, scenario))
+        return tmp_path / "memory.csv"
+
+    monkeypatch.setattr(
+        sut,
+        "convert_memory_results",
+        fake_convert_memory_results,
+    )
+
     expected = [
         ("MemoryBaseline", "Runtime", 0),
         ("MemoryEncrypt", "PSKStandard", 256),
@@ -82,6 +92,7 @@ def test_orchestrate_memory_runs_cases_in_expected_order(monkeypatch, tmp_path):
         ("MemoryDecrypt", "CPABEStandard", 256),
         ("MemoryEncrypt", "CPABELightweight", 256),
         ("MemoryDecrypt", "CPABELightweight", 256),
+        ("convert memory results", tmp_path / "memory.txt", "full_schema"),
     ]
 
     # Act
@@ -106,10 +117,10 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
         calls.append("read baseline")
         return []
 
-    def fake_write_to_file(output, samples):
+    def fake_write_samples(writer, samples, metadata):
         calls.append("write baseline")
 
-    def fake_run_energy_case(meter, output, algorithm, operation, payload_size):
+    def fake_run_energy_case(meter, writer, algorithm, operation, payload_size):
         calls.append((algorithm, operation, payload_size))
 
     monkeypatch.setattr(sut, "UM24C", FakeUM24C)
@@ -120,7 +131,7 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(sut, "BASELINE_DURATION", 5, raising=False)
     monkeypatch.setattr(sut, "PAYLOAD_SIZES", [256], raising=False)
     monkeypatch.setattr(sut, "read_um24c", fake_read_um24c)
-    monkeypatch.setattr(sut, "write_to_file", fake_write_to_file)
+    monkeypatch.setattr(sut, "write_samples", fake_write_samples)
     monkeypatch.setattr(sut, "run_energy_case", fake_run_energy_case)
 
     expected = [
@@ -164,6 +175,16 @@ def test_orchestrate_timing_runs_cases_in_expected_order(monkeypatch, tmp_path):
         ),
     )
 
+    def fake_convert_timing_results(filepath, scenario):
+        calls.append(("convert timing results", filepath, scenario))
+        return tmp_path / "timing.csv"
+
+    monkeypatch.setattr(
+        sut,
+        "convert_timing_results",
+        fake_convert_timing_results,
+    )
+
     expected = [
         ("PSKStandard", "Encrypt", 256),
         ("PSKStandard", "Decrypt", 256),
@@ -177,6 +198,7 @@ def test_orchestrate_timing_runs_cases_in_expected_order(monkeypatch, tmp_path):
         ("CPABEStandard", "Decrypt", 256),
         ("CPABELightweight", "Encrypt", 256),
         ("CPABELightweight", "Decrypt", 256),
+        ("convert timing results", tmp_path / "timing.txt", "full_schema"),
     ]
 
     # Act

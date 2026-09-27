@@ -21,11 +21,7 @@ class BenchmarkSummary:
 
     # Find a specific timing aggregation
     def find_timing_aggregation(
-        self,
-        algorithm: str,
-        operation: str,
-        parameter: str,
-        parameter_value: int,
+        self, algorithm: str, operation: str, parameter: str, parameter_value: int
     ) -> TimingAggregation | None:
 
         for aggregation in self.timing_aggregations:
@@ -42,11 +38,7 @@ class BenchmarkSummary:
 
     # Find a specific memory aggregation
     def find_memory_aggregation(
-        self,
-        algorithm: str,
-        operation: str,
-        parameter: str,
-        parameter_value: int,
+        self, algorithm: str, operation: str, parameter: str, parameter_value: int
     ) -> MemoryAggregation | None:
 
         for aggregation in self.memory_aggregations:
@@ -63,11 +55,7 @@ class BenchmarkSummary:
 
     # Find a specific energy aggregation
     def find_energy_aggregation(
-        self,
-        algorithm: str,
-        operation: str,
-        parameter: str,
-        parameter_value: int,
+        self, algorithm: str, operation: str, parameter: str, parameter_value: int
     ) -> EnergyAggregation | None:
 
         for aggregation in self.energy_aggregations:
@@ -84,9 +72,7 @@ class BenchmarkSummary:
 
     # Find a specific macrobenchmark aggregation
     def find_macro_aggregation(
-        self,
-        algorithm: str,
-        payload_size: int,
+        self, algorithm: str, payload_size: int
     ) -> MacroAggregation | None:
 
         for aggregation in self.macro_aggregations:

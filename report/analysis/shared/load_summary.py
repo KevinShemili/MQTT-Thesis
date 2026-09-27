@@ -5,105 +5,64 @@ from report.model.benchmark_summary import BenchmarkSummary
 from report.model.macro.macro_aggregation import MacroAggregation
 from report.model.macro.macro_case import MacroCase
 from report.model.energy.energy_aggregation import EnergyAggregation
-from report.model.energy.energy_case import (
-    NS_PER_OP,
-    THROTTLED,
-    EnergyCase,
-    EnergySample,
-)
+from report.model.energy.energy_case import THROTTLED as ENERGY_THROTTLED
+from report.model.energy.energy_case import EnergyCase, EnergySample
 from report.model.memory.memory_aggregation import MemoryAggregation
-from report.model.memory.memory_case import MemoryCase
+from report.model.memory.memory_case import PEAK_RSS_BYTES, MemoryCase
 from report.model.timing.timing_aggregation import TimingAggregation
-from report.model.timing.timing_case import TimingCase
+from report.model.timing.timing_case import (
+    CIPHERTEXT_BYTES,
+    MB_PER_SECOND,
+    NS_PER_OP,
+    RAW_BYTES,
+    SERIALIZED_BYTES,
+    STORED_KEY_BYTES,
+    THROTTLED as TIMING_THROTTLED,
+    TOTAL_CIPHERTEXT_BYTES,
+    TimingCase,
+)
 
 
-# Load timing, optional memory, and energy results into a BenchmarkSummary
+# Load timing, optional memory, and energy CSVs into a BenchmarkSummary
 def load_summary(
     timing_filepath: str,
     energy_filepath: str,
-    case_prefix: str,
-    parameter_by_algorithm: dict[str, str],
-    warmup_duration: float,
-    measurement_duration: float,
-    parameter_suffix: str = "",
     memory_filepath: str | None = None,
 ) -> BenchmarkSummary:
 
     summary = BenchmarkSummary()
 
-    _load_timing_results(
-        summary,
-        timing_filepath,
-        case_prefix,
-        parameter_by_algorithm,
-        parameter_suffix,
-    )
+    _load_timing_results(summary, timing_filepath)
 
     if memory_filepath is not None:
-        _load_memory_results(
-            summary,
-            memory_filepath,
-            case_prefix,
-            parameter_by_algorithm,
-            parameter_suffix,
-        )
+        _load_memory_results(summary, memory_filepath)
 
-    _load_energy_results(
-        summary,
-        energy_filepath,
-        parameter_by_algorithm,
-        warmup_duration,
-        measurement_duration,
-    )
+    _load_energy_results(summary, energy_filepath)
 
     return summary
 
 
-# Load Go memory benchmark results
+# Load independent memory runs and runtime baselines
 def _load_memory_results(
     summary: BenchmarkSummary,
     filepath: str,
-    case_prefix: str,
-    parameter_by_algorithm: dict[str, str],
-    parameter_suffix: str,
 ) -> None:
 
-    with Path(filepath).open("r", encoding="utf-8") as file:
+    with Path(filepath).open("r", encoding="utf-8", newline="") as file:
 
-        for line in file:
+        for row in csv.DictReader(file):
 
-            fields = line.split()
+            case = MemoryCase(run=int(row["run"]))
+            case.add_measurement(PEAK_RSS_BYTES, float(row["peak_rss_bytes"]))
 
-            # Ignore non-benchmark output
-            if len(fields) < 2 or not fields[0].startswith(case_prefix):
-                continue
-
-            algorithm, operation, parameter_value = _parse_benchmark_case_name(
-                fields[0],
-                case_prefix,
-                parameter_suffix,
-            )
-
-            case = MemoryCase(
-                iterations=int(fields[1]),
-            )
-
-            for index in range(2, len(fields) - 1, 2):
-
-                case.add_measurement(
-                    fields[index + 1],
-                    float(fields[index]),
-                )
-
-            if (
-                algorithm == "Runtime"
-                and operation == "MemoryBaseline"
-                and parameter_value == 0
-            ):
+            if row["row_type"] == "baseline":
                 summary.memory_baseline_cases.append(case)
                 continue
 
-            parameter = parameter_by_algorithm[algorithm]
+            algorithm = row["algorithm"]
+            operation = row["operation"]
+            parameter = row["parameter"]
+            parameter_value = int(row["parameter_value"])
 
             aggregation = summary.find_memory_aggregation(
                 algorithm,
@@ -120,37 +79,25 @@ def _load_memory_results(
                     parameter,
                     parameter_value,
                 )
-
                 summary.memory_aggregations.append(aggregation)
+
             aggregation.cases.append(case)
 
 
-# Load Go timing benchmark results
+# Load timing runs and their scenario-specific measurements
 def _load_timing_results(
     summary: BenchmarkSummary,
     filepath: str,
-    case_prefix: str,
-    parameter_by_algorithm: dict[str, str],
-    parameter_suffix: str,
 ) -> None:
 
-    with Path(filepath).open("r", encoding="utf-8") as file:
+    with Path(filepath).open("r", encoding="utf-8", newline="") as file:
 
-        for line in file:
+        for row in csv.DictReader(file):
 
-            fields = line.split()
-
-            # Ignore non-benchmark output
-            if len(fields) < 2 or not fields[0].startswith(case_prefix):
-                continue
-
-            algorithm, operation, parameter_value = _parse_benchmark_case_name(
-                fields[0],
-                case_prefix,
-                parameter_suffix,
-            )
-
-            parameter = parameter_by_algorithm[algorithm]
+            algorithm = row["algorithm"]
+            operation = row["operation"]
+            parameter = row["parameter"]
+            parameter_value = int(row["parameter_value"])
 
             aggregation = summary.find_timing_aggregation(
                 algorithm,
@@ -167,181 +114,87 @@ def _load_timing_results(
                     parameter,
                     parameter_value,
                 )
-
                 summary.timing_aggregations.append(aggregation)
 
-            case = TimingCase(
-                iterations=int(fields[1]),
-            )
+            case = TimingCase(run=int(row["run"]))
+            case.add_measurement(NS_PER_OP, float(row["ns_per_op"]))
+            case.add_measurement(TIMING_THROTTLED, float(row["throttled"]))
 
-            for index in range(2, len(fields) - 1, 2):
-
-                case.add_measurement(
-                    fields[index + 1],
-                    float(fields[index]),
-                )
+            for column, measurement in (
+                ("mb_per_s", MB_PER_SECOND),
+                ("serialized_bytes", SERIALIZED_BYTES),
+                ("raw_bytes", RAW_BYTES),
+                ("ciphertext_bytes", CIPHERTEXT_BYTES),
+                ("total_ciphertext_bytes", TOTAL_CIPHERTEXT_BYTES),
+                ("stored_key_bytes", STORED_KEY_BYTES),
+            ):
+                if row.get(column):
+                    case.add_measurement(measurement, float(row[column]))
 
             aggregation.cases.append(case)
 
 
-# Extract algorithm, operation and parameter value from a Go benchmark name
-def _parse_benchmark_case_name(
-    benchmark_name: str,
-    case_prefix: str,
-    parameter_suffix: str,
-) -> tuple[str, str, int]:
-
-    name_parts = benchmark_name[len(case_prefix) :].split("/")
-
-    if len(name_parts) != 3:
-        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
-
-    operation, algorithm, parameter_value_string = name_parts
-
-    # Remove Go CPU suffix (-4, -8, etc.) and benchmark value suffix (B, etc.)
-    parameter_value_string = parameter_value_string.split("-", 1)[0].removesuffix(
-        parameter_suffix
-    )
-
-    return algorithm, operation, int(parameter_value_string)
-
-
-# Load energy benchmark results
+# Group measurement-window samples by workload identity and repetition
 def _load_energy_results(
     summary: BenchmarkSummary,
     filepath: str,
-    parameter_by_algorithm: dict[str, str],
-    warmup_duration: float,
-    measurement_duration: float,
 ) -> None:
 
-    current_aggregation = None
-    current_case = None
-    current_baseline_case = None
+    with Path(filepath).open("r", encoding="utf-8", newline="") as file:
 
-    with Path(filepath).open("r", encoding="utf-8") as file:
+        for row in csv.DictReader(file):
 
-        for raw_line in file:
+            run = int(row["run"])
+            sample = EnergySample(
+                elapsed_s=float(row["elapsed_s"]),
+                voltage_v=float(row["voltage_v"]),
+                current_a=float(row["current_a"]),
+                power_w=float(row["power_w"]),
+            )
 
-            line = raw_line.strip()
+            if row["row_type"] == "baseline":
 
-            if not line:
-                continue
-
-            if line == "[baseline]":
-
-                current_baseline_case = EnergyCase()
-                summary.energy_baseline_cases.append(current_baseline_case)
-                current_aggregation = None
-                current_case = None
-
-                continue
-
-            if line.startswith("[case "):
-
-                algorithm, operation, parameter_value = _parse_energy_case_header(line)
-                parameter = parameter_by_algorithm[algorithm]
-
-                current_aggregation = EnergyAggregation(
-                    algorithm=algorithm,
-                    operation=operation,
-                    parameter=parameter,
-                    parameter_value=parameter_value,
-                    warmup_duration=warmup_duration,
-                    measurement_duration=measurement_duration,
+                case = next(
+                    (case for case in summary.energy_baseline_cases if case.run == run),
+                    None,
                 )
+                if case is None:
+                    case = EnergyCase(run)
+                    summary.energy_baseline_cases.append(case)
 
-                summary.energy_aggregations.append(current_aggregation)
-
-                current_baseline_case = None
-                current_case = None
-
+                case.add_sample(sample)
                 continue
 
-            if line == "[run]":
+            algorithm = row["algorithm"]
+            operation = row["operation"]
+            parameter = row["parameter"]
+            parameter_value = int(row["parameter_value"])
 
-                if current_aggregation is None:
-                    raise ValueError("Energy run found outside an energy case")
+            aggregation = summary.find_energy_aggregation(
+                algorithm,
+                operation,
+                parameter,
+                parameter_value,
+            )
 
-                current_case = EnergyCase()
+            if aggregation is None:
 
-                current_aggregation.cases.append(current_case)
-
-                continue
-
-            if line.startswith(f"{NS_PER_OP}="):
-
-                if current_case is None:
-                    raise ValueError("ns/op found outside an energy run")
-
-                current_case.add_measurement(
-                    NS_PER_OP,
-                    float(line.removeprefix(f"{NS_PER_OP}=")),
+                aggregation = EnergyAggregation(
+                    algorithm,
+                    operation,
+                    parameter,
+                    parameter_value,
                 )
+                summary.energy_aggregations.append(aggregation)
 
-                continue
+            case = aggregation.find_case(run)
 
-            if line.startswith(f"{THROTTLED}="):
+            if case is None:
+                case = EnergyCase(run)
+                case.add_measurement(ENERGY_THROTTLED, float(row["throttled"]))
+                aggregation.cases.append(case)
 
-                if current_case is None:
-                    raise ValueError("throttled found outside an energy run")
-
-                current_case.add_measurement(
-                    THROTTLED,
-                    float(line.removeprefix(f"{THROTTLED}=")),
-                )
-
-                continue
-
-            if line.startswith("elapsed_s="):
-
-                sample = _parse_energy_sample(line)
-
-                if current_baseline_case is not None:
-                    current_baseline_case.add_sample(sample)
-
-                elif current_case is not None:
-                    current_case.add_sample(sample)
-
-                else:
-                    raise ValueError("Energy sample found outside an energy run")
-
-                continue
-
-            raise ValueError(f"Unexpected energy result: {line}")
-
-
-# Extract algorithm, operation and parameter value from an energy case header
-def _parse_energy_case_header(
-    line: str,
-) -> tuple[str, str, int]:
-
-    fields = {
-        key: value
-        for field in line.removeprefix("[case ").removesuffix("]").split()
-        for key, value in [field.split("=", 1)]
-    }
-
-    return (
-        fields["algorithm"],
-        fields["operation"],
-        int(fields["parameter_value"]),
-    )
-
-
-# Parse one UM24C sample
-def _parse_energy_sample(line: str) -> EnergySample:
-
-    fields = {
-        key: value for field in line.split() for key, value in [field.split("=", 1)]
-    }
-
-    return EnergySample(
-        elapsed_s=float(fields["elapsed_s"]),
-        voltage_v=float(fields["voltage_v"]),
-        current_a=float(fields["current_a"]),
-        power_w=float(fields["power_w"]),
-    )
+            case.add_sample(sample)
 
 
 # Load the two endpoint CSVs, retaining raw timestamps and workload cycle totals

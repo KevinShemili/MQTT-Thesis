@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 import subprocess
@@ -16,10 +17,15 @@ from shared.paths import (
     SSH_TARGET,
 )
 
-from orchestrate.shared.energy import (
-    collect_energy_runs,
+from shared.txt_to_csv import (
+    convert_memory_results,
+    convert_timing_results,
+)
+
+from shared.energy import (
+    ENERGY_FIELDS,
     read_um24c,
-    write_to_file,
+    write_samples,
 )
 
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -29,6 +35,8 @@ from um24c.um24c import UM24C
 REMOTE_PACKAGE = "./micro/cpabe_rsa"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision_cpabe_rsa"
 REMOTE_BINARY = "/tmp/cpabe-rsa-benchmark"
+REMOTE_ENERGY_PACKAGE = "./cmd/energy_cpabe_rsa"
+REMOTE_ENERGY_BINARY = "/tmp/cpabe-rsa-energy"
 REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-provision"
 
 
@@ -85,7 +93,7 @@ def load_environment_variables():
     RESULT_DIRECTORY = PROJECT_ROOT / os.environ["CPABE_RSA_RESULT_DIR"]
 
     MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
-    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
+    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.csv"
     TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
 
 
@@ -98,7 +106,10 @@ def build_binaries():
         f"{REMOTE_PACKAGE} && "
         f"/usr/local/go/bin/go build "
         f"-o {REMOTE_PROVISION_BINARY} "
-        f"{REMOTE_PROVISION_PACKAGE}"
+        f"{REMOTE_PROVISION_PACKAGE} && "
+        f"/usr/local/go/bin/go build "
+        f"-o {REMOTE_ENERGY_BINARY} "
+        f"{REMOTE_ENERGY_PACKAGE}"
     )
 
     subprocess.run(["ssh", SSH_TARGET, command], check=True)
@@ -192,53 +203,67 @@ def orchestrate_memory():
             FIXED_RSA_KEY_BITS,
         )
 
-    print(f"Finished: {MEMORY_RESULT_FILE}")
+    csv_filepath = convert_memory_results(MEMORY_RESULT_FILE, "cpabe_rsa")
+    print(f"Finished: {csv_filepath}")
 
 
-def run_energy_case(meter, output, algorithm, operation, parameter_value):
+def run_energy_case(meter, writer, algorithm, operation, parameter_value):
 
     print(f"Energy: {algorithm} {operation} {parameter_value}")
 
-    output.write(
-        f"\n[case "
-        f"algorithm={algorithm} "
-        f"operation={operation} "
-        f"parameter_value={parameter_value}]\n"
-    )
-
-    benchmark_case = (
-        f"^BenchmarkCPABERSAEnergy{operation}$/^{algorithm}$/^{parameter_value}$"
-    )
+    if algorithm == "CPABEAttributes":
+        parameter = "attribute_count"
+        case_arguments = f" -attribute-count={parameter_value}"
+    elif algorithm == "RSASubscribers":
+        parameter = "subscriber_count"
+        case_arguments = f" -subscriber-count={parameter_value}"
+    else:
+        parameter = "rsa_key_bits"
+        case_arguments = ""
 
     command = (
         f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
         f". {REMOTE_ENVIRONMENT_FILE} && "
         f"set +a && "
-        f"{REMOTE_BINARY}"
-        f" -test.run=^$"
-        f" -test.bench='{benchmark_case}'"
-        f" -test.benchtime={MEASUREMENT_DURATION}s"
-        f" -test.count={RUNS}"
-        f" -test.timeout=0"
+        f"{REMOTE_ENERGY_BINARY}"
+        f" -algorithm={algorithm}"
+        f" -operation={operation}"
+        f"{case_arguments}"
+        f" -duration={TOTAL_WORKLOAD_DURATION}s"
     )
 
-    process = subprocess.Popen(
-        ["ssh", SSH_TARGET, command],
-        stdout=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-    )
+    for run in range(1, RUNS + 1):
 
-    collect_energy_runs(process, meter, output, TOTAL_WORKLOAD_DURATION)
+        process = subprocess.Popen(["ssh", SSH_TARGET, command])
 
-    if process.wait() != 0:
-        raise RuntimeError(
-            f"Energy Benchmark Failed: "
-            f"{algorithm} "
-            f"{operation} "
-            f"{parameter_value}"
+        time.sleep(WARMUP_DURATION)
+        samples = read_um24c(meter, MEASUREMENT_DURATION)
+
+        returncode = process.wait()
+
+        if returncode not in (0, 3):
+            raise RuntimeError(
+                f"Energy Workload Failed: {algorithm} {operation} {parameter_value}"
+            )
+
+        write_samples(
+            writer,
+            samples,
+            {
+                "scenario": "cpabe_rsa",
+                "row_type": "workload",
+                "algorithm": algorithm,
+                "operation": operation,
+                "parameter": parameter,
+                "parameter_value": parameter_value,
+                "run": run,
+                "throttled": int(returncode == 3),
+            },
         )
+
+        # Leave the device idle between independent workload processes.
+        time.sleep(4)
 
 
 def orchestrate_energy():
@@ -251,31 +276,37 @@ def orchestrate_energy():
             f"for {BASELINE_DURATION}s each..."
         )
 
-        with ENERGY_RESULT_FILE.open("w", encoding="utf-8") as output:
+        with ENERGY_RESULT_FILE.open("w", encoding="utf-8", newline="") as output:
 
-            for _ in range(RUNS):
-                output.write("[baseline]\n")
-                write_to_file(output, read_um24c(um24c, BASELINE_DURATION))
+            writer = csv.DictWriter(output, fieldnames=ENERGY_FIELDS)
+            writer.writeheader()
+
+            for run in range(1, RUNS + 1):
+                write_samples(
+                    writer,
+                    read_um24c(um24c, BASELINE_DURATION),
+                    {"scenario": "cpabe_rsa", "row_type": "baseline", "run": run},
+                )
 
             # CP-ABE attribute scaling
             for attribute_count in ATTRIBUTE_COUNTS:
                 run_energy_case(
-                    um24c, output, "CPABEAttributes", "Encrypt", attribute_count
+                    um24c, writer, "CPABEAttributes", "Encrypt", attribute_count
                 )
                 run_energy_case(
-                    um24c, output, "CPABEAttributes", "Decrypt", attribute_count
+                    um24c, writer, "CPABEAttributes", "Decrypt", attribute_count
                 )
 
             # RSA subscriber scaling
             for subscriber_count in SUBSCRIBER_COUNTS:
                 run_energy_case(
-                    um24c, output, "RSASubscribers", "Encrypt", subscriber_count
+                    um24c, writer, "RSASubscribers", "Encrypt", subscriber_count
                 )
 
             # Fixed RSA decrypt reference
             run_energy_case(
                 um24c,
-                output,
+                writer,
                 "RSAKeyBits",
                 "Decrypt",
                 FIXED_RSA_KEY_BITS,
@@ -369,7 +400,8 @@ def orchestrate_timing():
                 RUNS,
             )
 
-    print(f"Finished: {TIMING_RESULT_FILE}")
+    csv_filepath = convert_timing_results(TIMING_RESULT_FILE, "cpabe_rsa")
+    print(f"Finished: {csv_filepath}")
 
 
 def generate_report():

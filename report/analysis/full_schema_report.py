@@ -41,7 +41,6 @@ from report.render.html import write_full_schema_report
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-BENCHMARK_PREFIX = "BenchmarkFullSchema"
 PARAMETER = "payload_size"
 CONFIGURATIONS = (
     "PSKStandard",
@@ -51,12 +50,10 @@ CONFIGURATIONS = (
     "CPABEStandard",
     "CPABELightweight",
 )
-PARAMETER_BY_ALGORITHM = dict.fromkeys(CONFIGURATIONS, PARAMETER)
-PARAMETER_SUFFIX = "B"
 
-TIMING_RESULT_NAME = "timing.txt"
-MEMORY_RESULT_NAME = "memory.txt"
-ENERGY_RESULT_NAME = "energy.txt"
+TIMING_RESULT_NAME = "timing.csv"
+MEMORY_RESULT_NAME = "memory.csv"
+ENERGY_RESULT_NAME = "energy.csv"
 REPORT_TEMPLATE_NAME = "full_schema_template.html"
 
 LATENCY_PLOT = "latency.png"
@@ -90,6 +87,7 @@ def analyze_case(
     energy_means, energy_cis = energy_statistics(
         energy_aggregations,
         energy_baseline_cases,
+        timing_aggregations,
     )
 
     return {
@@ -123,8 +121,6 @@ def main() -> None:
 
     runs = parse_int_env("FULL_SCHEMA_RUNS")
     payload_sizes = parse_int_list_env("FULL_SCHEMA_PAYLOAD_SIZES")
-    warmup_duration = parse_int_env("WARMUP_DURATION")
-    measurement_duration = parse_int_env("MEASUREMENT_DURATION")
 
     result_directory = PROJECT_ROOT / os.environ["FULL_SCHEMA_RESULT_DIR"]
     timing_result_file = result_directory / TIMING_RESULT_NAME
@@ -137,11 +133,6 @@ def main() -> None:
         timing_filepath=str(timing_result_file),
         memory_filepath=str(memory_result_file),
         energy_filepath=str(energy_result_file),
-        case_prefix=BENCHMARK_PREFIX,
-        parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
-        warmup_duration=warmup_duration,
-        measurement_duration=measurement_duration,
-        parameter_suffix=PARAMETER_SUFFIX,
     )
 
     case_results = {}

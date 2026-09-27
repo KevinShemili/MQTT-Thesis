@@ -63,21 +63,21 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
         calls.append("read baseline")
         return []
 
-    def fake_write_to_file(output, samples):
+    def fake_write_samples(writer, samples, metadata):
         calls.append("write baseline")
 
-    def fake_run_energy_case(meter, output, algorithm, operation, payload_size):
+    def fake_run_energy_case(meter, writer, algorithm, operation, payload_size):
         calls.append((algorithm, operation, payload_size))
 
     monkeypatch.setattr(sut, "UM24C", FakeUM24C)
     monkeypatch.setattr(
-        sut, "ENERGY_RESULT_FILE", tmp_path / "energy.txt", raising=False
+        sut, "ENERGY_RESULT_FILE", tmp_path / "energy.csv", raising=False
     )
     monkeypatch.setattr(sut, "RUNS", 1, raising=False)
     monkeypatch.setattr(sut, "BASELINE_DURATION", 5, raising=False)
     monkeypatch.setattr(sut, "PAYLOAD_SIZES", [256], raising=False)
     monkeypatch.setattr(sut, "read_um24c", fake_read_um24c)
-    monkeypatch.setattr(sut, "write_to_file", fake_write_to_file)
+    monkeypatch.setattr(sut, "write_samples", fake_write_samples)
     monkeypatch.setattr(sut, "run_energy_case", fake_run_energy_case)
 
     expected = [
@@ -103,6 +103,10 @@ def test_orchestrate_timing_runs_cases_in_expected_order(monkeypatch, tmp_path):
     # Arrange
     calls = []
 
+    def fake_convert_timing_results(filepath, scenario):
+        calls.append("convert timing results")
+        return tmp_path / "timing.csv"
+
     monkeypatch.setattr(
         sut, "TIMING_RESULT_FILE", tmp_path / "timing.txt", raising=False
     )
@@ -114,6 +118,7 @@ def test_orchestrate_timing_runs_cases_in_expected_order(monkeypatch, tmp_path):
             (algorithm, operation, payload_size)
         ),
     )
+    monkeypatch.setattr(sut, "convert_timing_results", fake_convert_timing_results)
 
     expected = [
         ("JSON", "Serialize", 256),
@@ -122,6 +127,7 @@ def test_orchestrate_timing_runs_cases_in_expected_order(monkeypatch, tmp_path):
         ("CBOR", "Deserialize", 256),
         ("CBORKeyAsInt", "Serialize", 256),
         ("CBORKeyAsInt", "Deserialize", 256),
+        "convert timing results",
     ]
 
     # Act

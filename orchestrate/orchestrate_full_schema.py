@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 import subprocess
@@ -16,10 +17,15 @@ from shared.paths import (
     SSH_TARGET,
 )
 
-from orchestrate.shared.energy import (
-    collect_energy_runs,
+from shared.txt_to_csv import (
+    convert_memory_results,
+    convert_timing_results,
+)
+
+from shared.energy import (
+    ENERGY_FIELDS,
     read_um24c,
-    write_to_file,
+    write_samples,
 )
 
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -29,6 +35,8 @@ from um24c.um24c import UM24C
 REMOTE_PACKAGE = "./micro/full_schema"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision_full_schema"
 REMOTE_BINARY = "/tmp/full-schema-benchmark"
+REMOTE_ENERGY_PACKAGE = "./cmd/energy_full_schema"
+REMOTE_ENERGY_BINARY = "/tmp/full-schema-energy"
 REMOTE_PROVISION_BINARY = "/tmp/full-schema-provision"
 
 
@@ -70,7 +78,7 @@ def load_environment_variables():
     RESULT_DIRECTORY = PROJECT_ROOT / os.environ["FULL_SCHEMA_RESULT_DIR"]
     MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
     TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
-    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.txt"
+    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.csv"
 
 
 def build_binaries():
@@ -82,7 +90,10 @@ def build_binaries():
         f"{REMOTE_PACKAGE} && "
         f"/usr/local/go/bin/go build "
         f"-o {REMOTE_PROVISION_BINARY} "
-        f"{REMOTE_PROVISION_PACKAGE}"
+        f"{REMOTE_PROVISION_PACKAGE} && "
+        f"/usr/local/go/bin/go build "
+        f"-o {REMOTE_ENERGY_BINARY} "
+        f"{REMOTE_ENERGY_PACKAGE}"
     )
 
     subprocess.run(
@@ -174,46 +185,57 @@ def orchestrate_memory():
             run_memory_case(output, "MemoryEncrypt", "CPABELightweight", payload_size)
             run_memory_case(output, "MemoryDecrypt", "CPABELightweight", payload_size)
 
-    print(f"Finished: {MEMORY_RESULT_FILE}")
+    csv_filepath = convert_memory_results(MEMORY_RESULT_FILE, "full_schema")
+    print(f"Finished: {csv_filepath}")
 
 
-def run_energy_case(meter, output, algorithm, operation, payload_size):
+def run_energy_case(meter, writer, algorithm, operation, payload_size):
 
-    print(f"Energy: {algorithm} {operation} {payload_size}B")
-
-    output.write(
-        f"\n[case algorithm={algorithm} operation={operation} parameter_value={payload_size}]\n"
-    )
-
-    benchmark_case = (
-        f"^BenchmarkFullSchemaEnergy{operation}$/"
-        f"^{algorithm}$/"
-        f"^{payload_size}B$"
-    )
+    print(f"Energy: {algorithm} {operation} {payload_size}")
 
     command = (
+        f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
         f". {REMOTE_ENVIRONMENT_FILE} && "
         f"set +a && "
-        f"{REMOTE_BINARY}"
-        f" -test.run=^$"
-        f" -test.bench='{benchmark_case}'"
-        f" -test.benchtime={MEASUREMENT_DURATION}s"
-        f" -test.count={RUNS}"
-        f" -test.timeout=0"
+        f"{REMOTE_ENERGY_BINARY}"
+        f" -algorithm={algorithm}"
+        f" -operation={operation}"
+        f" -payload-size={payload_size}"
+        f" -duration={TOTAL_WORKLOAD_DURATION}s"
     )
 
-    process = subprocess.Popen(
-        ["ssh", SSH_TARGET, command],
-        stdout=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-    )
+    for run in range(1, RUNS + 1):
 
-    collect_energy_runs(process, meter, output, TOTAL_WORKLOAD_DURATION)
+        process = subprocess.Popen(["ssh", SSH_TARGET, command])
 
-    if process.wait() != 0:
-        raise RuntimeError(f"Benchmark Failed: {algorithm} {operation} {payload_size}B")
+        time.sleep(WARMUP_DURATION)
+        samples = read_um24c(meter, MEASUREMENT_DURATION)
+
+        returncode = process.wait()
+
+        if returncode not in (0, 3):
+            raise RuntimeError(
+                f"Energy Workload Failed: {algorithm} {operation} {payload_size}"
+            )
+
+        write_samples(
+            writer,
+            samples,
+            {
+                "scenario": "full_schema",
+                "row_type": "workload",
+                "algorithm": algorithm,
+                "operation": operation,
+                "parameter": "payload_size",
+                "parameter_value": payload_size,
+                "run": run,
+                "throttled": int(returncode == 3),
+            },
+        )
+
+        # Leave the device idle between independent workload processes.
+        time.sleep(4)
 
 
 def orchestrate_energy():
@@ -227,37 +249,43 @@ def orchestrate_energy():
             f"for {BASELINE_DURATION}s each..."
         )
 
-        with ENERGY_RESULT_FILE.open("w", encoding="utf-8") as output:
+        with ENERGY_RESULT_FILE.open("w", encoding="utf-8", newline="") as output:
 
-            for _ in range(RUNS):
-                output.write("[baseline]\n")
-                write_to_file(output, read_um24c(um24c, BASELINE_DURATION))
+            writer = csv.DictWriter(output, fieldnames=ENERGY_FIELDS)
+            writer.writeheader()
+
+            for run in range(1, RUNS + 1):
+                write_samples(
+                    writer,
+                    read_um24c(um24c, BASELINE_DURATION),
+                    {"scenario": "full_schema", "row_type": "baseline", "run": run},
+                )
 
             for payload_size in PAYLOAD_SIZES:
 
-                run_energy_case(um24c, output, "PSKStandard", "Encrypt", payload_size)
-                run_energy_case(um24c, output, "PSKStandard", "Decrypt", payload_size)
+                run_energy_case(um24c, writer, "PSKStandard", "Encrypt", payload_size)
+                run_energy_case(um24c, writer, "PSKStandard", "Decrypt", payload_size)
                 run_energy_case(
-                    um24c, output, "PSKLightweight", "Encrypt", payload_size
+                    um24c, writer, "PSKLightweight", "Encrypt", payload_size
                 )
                 run_energy_case(
-                    um24c, output, "PSKLightweight", "Decrypt", payload_size
+                    um24c, writer, "PSKLightweight", "Decrypt", payload_size
                 )
-                run_energy_case(um24c, output, "RSAStandard", "Encrypt", payload_size)
-                run_energy_case(um24c, output, "RSAStandard", "Decrypt", payload_size)
+                run_energy_case(um24c, writer, "RSAStandard", "Encrypt", payload_size)
+                run_energy_case(um24c, writer, "RSAStandard", "Decrypt", payload_size)
                 run_energy_case(
-                    um24c, output, "RSALightweight", "Encrypt", payload_size
-                )
-                run_energy_case(
-                    um24c, output, "RSALightweight", "Decrypt", payload_size
-                )
-                run_energy_case(um24c, output, "CPABEStandard", "Encrypt", payload_size)
-                run_energy_case(um24c, output, "CPABEStandard", "Decrypt", payload_size)
-                run_energy_case(
-                    um24c, output, "CPABELightweight", "Encrypt", payload_size
+                    um24c, writer, "RSALightweight", "Encrypt", payload_size
                 )
                 run_energy_case(
-                    um24c, output, "CPABELightweight", "Decrypt", payload_size
+                    um24c, writer, "RSALightweight", "Decrypt", payload_size
+                )
+                run_energy_case(um24c, writer, "CPABEStandard", "Encrypt", payload_size)
+                run_energy_case(um24c, writer, "CPABEStandard", "Decrypt", payload_size)
+                run_energy_case(
+                    um24c, writer, "CPABELightweight", "Encrypt", payload_size
+                )
+                run_energy_case(
+                    um24c, writer, "CPABELightweight", "Decrypt", payload_size
                 )
 
     print(f"Finished: {ENERGY_RESULT_FILE}")
@@ -317,7 +345,8 @@ def orchestrate_timing():
                 destination_file, "CPABELightweight", "Decrypt", payload_size
             )
 
-    print(f"Finished: {TIMING_RESULT_FILE}")
+    csv_filepath = convert_timing_results(TIMING_RESULT_FILE, "full_schema")
+    print(f"Finished: {csv_filepath}")
 
 
 def generate_report():

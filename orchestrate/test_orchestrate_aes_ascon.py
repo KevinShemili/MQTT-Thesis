@@ -62,6 +62,14 @@ def test_orchestrate_memory_runs_cases_in_expected_order(monkeypatch, tmp_path):
             (operation, algorithm, payload_size)
         ),
     )
+    monkeypatch.setattr(
+        sut,
+        "convert_memory_results",
+        lambda filepath, scenario: (
+            calls.append("convert memory results"),
+            tmp_path / "memory.csv",
+        )[1],
+    )
 
     expected = [
         ("MemoryBaseline", "Runtime", 0),
@@ -69,6 +77,7 @@ def test_orchestrate_memory_runs_cases_in_expected_order(monkeypatch, tmp_path):
         ("MemoryDecrypt", "AES-GCM", 256),
         ("MemoryEncrypt", "ASCON", 256),
         ("MemoryDecrypt", "ASCON", 256),
+        "convert memory results",
     ]
 
     # Act
@@ -93,10 +102,10 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
         calls.append("read baseline")
         return []
 
-    def fake_write_to_file(output, samples):
+    def fake_write_samples(writer, samples, metadata):
         calls.append("write baseline")
 
-    def fake_run_energy_case(meter, output, algorithm, operation, payload_size):
+    def fake_run_energy_case(meter, writer, algorithm, operation, payload_size):
         calls.append((algorithm, operation, payload_size))
 
     monkeypatch.setattr(sut, "UM24C", FakeUM24C)
@@ -107,7 +116,7 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(sut, "BASELINE_DURATION", 5, raising=False)
     monkeypatch.setattr(sut, "PAYLOAD_SIZES", [256], raising=False)
     monkeypatch.setattr(sut, "read_um24c", fake_read_um24c)
-    monkeypatch.setattr(sut, "write_to_file", fake_write_to_file)
+    monkeypatch.setattr(sut, "write_samples", fake_write_samples)
     monkeypatch.setattr(sut, "run_energy_case", fake_run_energy_case)
 
     expected = [
@@ -142,12 +151,21 @@ def test_orchestrate_timing_runs_cases_in_expected_order(monkeypatch, tmp_path):
             (algorithm, operation, payload_size)
         ),
     )
+    monkeypatch.setattr(
+        sut,
+        "convert_timing_results",
+        lambda filepath, scenario: (
+            calls.append("convert timing results"),
+            tmp_path / "timing.csv",
+        )[1],
+    )
 
     expected = [
         ("AES-GCM", "Encrypt", 256),
         ("AES-GCM", "Decrypt", 256),
         ("ASCON", "Encrypt", 256),
         ("ASCON", "Decrypt", 256),
+        "convert timing results",
     ]
 
     # Act

@@ -1,4 +1,3 @@
-NS_PER_OP = "ns/op"
 THROTTLED = "throttled"
 
 
@@ -18,10 +17,11 @@ class EnergySample:
         self.power_w = power_w
 
 
-# Single repetition (1 out of N in -test.count = N)
+# Single independent energy workload repetition
 class EnergyCase:
 
-    def __init__(self):
+    def __init__(self, run: int):
+        self.run = run
         self.measurements: dict[str, float] = {}
         self.samples: list[EnergySample] = []
 

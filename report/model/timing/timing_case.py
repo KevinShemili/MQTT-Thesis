@@ -12,8 +12,8 @@ THROTTLED = "throttled"
 # Single repetition (1 out of N in -test.count = N)
 class TimingCase:
 
-    def __init__(self, iterations: int):
-        self.iterations = iterations
+    def __init__(self, run: int):
+        self.run = run
         self.measurements: dict[str, float] = {}
 
     # Add a measured value to this case

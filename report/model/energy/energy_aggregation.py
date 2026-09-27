@@ -10,13 +10,18 @@ class EnergyAggregation:
         operation: str,
         parameter: str,
         parameter_value: int,
-        warmup_duration: float,
-        measurement_duration: float,
     ):
         self.algorithm = algorithm
         self.operation = operation
         self.parameter = parameter
         self.parameter_value = parameter_value
-        self.warmup_duration = warmup_duration
-        self.measurement_duration = measurement_duration
         self.cases: list[EnergyCase] = []
+
+    # Find one recorded repetition
+    def find_case(self, run: int) -> EnergyCase | None:
+
+        for case in self.cases:
+            if case.run == run:
+                return case
+
+        return None

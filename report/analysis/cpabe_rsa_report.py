@@ -48,11 +48,9 @@ from report.render.html import write_cpabe_rsa_report
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
 
-BENCHMARK_PREFIX = "BenchmarkCPABERSA"
-
-TIMING_RESULT_NAME = "timing.txt"
-MEMORY_RESULT_NAME = "memory.txt"
-ENERGY_RESULT_NAME = "energy.txt"
+TIMING_RESULT_NAME = "timing.csv"
+MEMORY_RESULT_NAME = "memory.csv"
+ENERGY_RESULT_NAME = "energy.csv"
 REPORT_TEMPLATE_NAME = "cpabe_rsa_template.html"
 
 CPABE_PLOT = "cpabe_attributes.png"
@@ -99,10 +97,12 @@ def analyze_timing_case(aggregations: list[TimingAggregation]) -> dict:
 def analyze_energy_case(
     aggregations: list[EnergyAggregation],
     energy_baseline_cases: list[EnergyCase],
+    timing_aggregations: list[TimingAggregation],
 ) -> dict:
     energy_means, energy_cis = energy_statistics(
         aggregations,
         energy_baseline_cases,
+        timing_aggregations,
     )
     return {
         "energy_means": to_microjoules(energy_means),
@@ -146,10 +146,6 @@ def main() -> None:
         timing_filepath=str(result_directory / TIMING_RESULT_NAME),
         memory_filepath=str(result_directory / MEMORY_RESULT_NAME),
         energy_filepath=str(result_directory / ENERGY_RESULT_NAME),
-        case_prefix=BENCHMARK_PREFIX,
-        parameter_by_algorithm=PARAMETER_BY_ALGORITHM,
-        warmup_duration=warmup_duration,
-        measurement_duration=measurement_duration,
     )
 
     timing_parameter_values = {
@@ -223,6 +219,7 @@ def main() -> None:
         energy_results[(algorithm, operation)] = analyze_energy_case(
             energy_aggregations,
             summary.energy_baseline_cases,
+            summary.timing_aggregations,
         )
 
         memory_aggregations = [
