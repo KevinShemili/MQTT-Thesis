@@ -3,6 +3,7 @@ package mqtt
 import (
 	"crypto/tls"
 	"fmt"
+	"os"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -35,7 +36,15 @@ func NewClient(cfg ClientConfig) *PahoClient {
 		SetPassword(cfg.Password).
 		SetTLSConfig(cfg.TLSConfig).
 		SetProtocolVersion(protocolVersion).
-		SetAutoReconnect(false)
+		SetAutoReconnect(false).
+		SetConnectionLostHandler(func(_ mqtt.Client, err error) {
+			fmt.Fprintf(
+				os.Stderr,
+				"MQTT CONNECTION LOST client_id=%s error=%q\n",
+				cfg.ClientID,
+				err,
+			)
+		})
 
 	return &PahoClient{
 		pahoClient: mqtt.NewClient(options),

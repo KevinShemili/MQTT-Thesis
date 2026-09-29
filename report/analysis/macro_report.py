@@ -5,12 +5,12 @@ from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_macro_summary
 from report.analysis.shared.paths import REPORT_NAME, TEMPLATE_DIR
+from report.analysis.shared.metrics import to_microseconds
 from report.analysis.shared.statistics import (
     macro_cycle_statistics,
     macro_latency_statistics,
 )
 from report.render.chart import plot_macro_cpu_cycles, plot_macro_latency
-from report.render.formatting import NS_PER_MICROSECOND
 from report.render.html import write_macro_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -36,8 +36,8 @@ def generate_report(result_directory: Path) -> None:
     payload_sizes = [aggregation.payload_size for aggregation in aggregations]
 
     latency_means, latency_cis = macro_latency_statistics(aggregations)
-    latency_means = [value / NS_PER_MICROSECOND for value in latency_means]
-    latency_cis = [value / NS_PER_MICROSECOND for value in latency_cis]
+    latency_means = to_microseconds(latency_means)
+    latency_cis = to_microseconds(latency_cis)
     cycles = macro_cycle_statistics(aggregations)
 
     plot_macro_latency(

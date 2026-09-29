@@ -1,0 +1,27 @@
+%%{init: {"theme": "redux-dark-color"}}%%
+sequenceDiagram
+    participant O as ORCHESTRATOR
+    participant S as SUBSCRIBER
+    participant P as PUBLISHER
+    participant B as BROKER
+    participant R as REPORT
+
+    O->>S: Start
+    O->>P: Start
+    O->>S: GO
+    S->>B: Subscribe
+    S-->>O: READY
+    O->>P: GO
+    P-)B: Publish messages
+    B-)S: Deliver messages
+    P-->>O: DONE
+    S-->>O: DONE
+    O->>P: FINISH
+    O->>S: FINISH
+    P->>B: Disconnect
+    S->>B: Disconnect
+    P->>P: Save results
+    S->>S: Save results
+    O->>P: Collect results
+    O->>S: Collect results
+    O->>R: Generate report

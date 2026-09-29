@@ -1,6 +1,21 @@
 services:
   mosquitto:
-    image: eclipse-mosquitto:2.1.2-alpine
-    network_mode: host
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: mqtt-thesis-broker
+
+    ports:
+      - "8883:8883"
+
+    env_file:
+      - ../environment/benchmark.env
+
     volumes:
-      - ./config:/mosquitto/config:ro
+      - broker-state:/state
+
+    restart: "no"
+
+volumes:
+  broker-state:

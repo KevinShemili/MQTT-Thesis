@@ -28,7 +28,7 @@ var (
 const remoteGoExecutable = "/usr/local/go/bin/go"
 const SSH = "/usr/bin/ssh"
 const SCP = "/usr/bin/scp"
-const python3 = "/usr/bin/python3"
+const python3 = "python3"
 
 func main() {
 

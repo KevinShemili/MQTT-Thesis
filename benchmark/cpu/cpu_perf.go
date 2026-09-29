@@ -127,8 +127,8 @@ func (measurement *CPUPerf) sendControl(command string) error {
 		return err
 	}
 
-	if strings.TrimSpace(acknowledgement) != "ack" {
-		return fmt.Errorf("perf did not acknowledge %s", command)
+	if strings.Trim(acknowledgement, "\x00 \t\r\n") != "ack" {
+		return fmt.Errorf("perf did not acknowledge %s: %q", command, acknowledgement)
 	}
 
 	return nil
@@ -164,7 +164,7 @@ func parsePerfCycles(output string) (uint64, error) {
 			continue
 		}
 
-		if strings.TrimSpace(fields[2]) != "cycles" {
+		if !strings.HasPrefix(strings.TrimSpace(fields[2]), "cycles") {
 			continue
 		}
 
