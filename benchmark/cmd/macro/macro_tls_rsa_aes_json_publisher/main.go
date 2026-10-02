@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cmd/macro/shared"
+	cmdshared "thesis/benchmark/cmd/macro/shared"
 	"thesis/benchmark/macro/shared"
 	"thesis/benchmark/macro/tls_rsa_aes_json"
 	"thesis/benchmark/utility"
@@ -28,16 +28,16 @@ func run() error {
 
 	rsaScheme := rsa.RSAFromPublicKeyBytes(cache.Load(shared.RSAPublicKeyFileName))
 
-	client, err := commands.NewPublisherClient(config.MQTT)
+	client, err := cmdshared.NewPublisherClient(config.MQTT)
 	if err != nil {
 		return err
 	}
 
-	results := commands.PreparePublisherResults(config.Benchmark)
+	results := cmdshared.PreparePublisherResults(config.Benchmark)
 
 	startSignal := bufio.NewReader(os.Stdin)
 
-	dependencies := commands.PublisherDependencies{
+	dependencies := cmdshared.PublisherDependencies{
 		Connect:    client.Connect,
 		Disconnect: client.Disconnect,
 		ReadSignal: func(expected string) error {
@@ -84,5 +84,5 @@ func run() error {
 		},
 	}
 
-	return commands.RunPublisher(config.Benchmark, dependencies)
+	return cmdshared.RunPublisher(config.Benchmark, dependencies)
 }

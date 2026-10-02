@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"thesis/benchmark/cache"
-	"thesis/benchmark/cmd/macro/shared"
+	cmdshared "thesis/benchmark/cmd/macro/shared"
 	"thesis/benchmark/macro/shared"
 	"thesis/benchmark/macro/tls_rsa_aes_json"
 	"thesis/benchmark/utility"
@@ -28,16 +28,16 @@ func run() error {
 
 	rsaScheme := rsa.RSAFromPrivateKeyBytes(cache.Load(shared.RSAPrivateKeyFileName))
 
-	client, err := commands.NewSubscriberClient(config.MQTT)
+	client, err := cmdshared.NewSubscriberClient(config.MQTT)
 	if err != nil {
 		return err
 	}
 
-	results := commands.PrepareSubscriberResults(config.Benchmark)
+	results := cmdshared.PrepareSubscriberResults(config.Benchmark)
 
 	startSignal := bufio.NewReader(os.Stdin)
 
-	dependencies := commands.SubscriberDependencies{
+	dependencies := cmdshared.SubscriberDependencies{
 		Connect:    client.Connect,
 		Disconnect: client.Disconnect,
 		ReadSignal: func(expected string) error {
@@ -83,5 +83,5 @@ func run() error {
 		},
 	}
 
-	return commands.RunSubscriber(config.Benchmark, dependencies)
+	return cmdshared.RunSubscriber(config.Benchmark, dependencies)
 }
