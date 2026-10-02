@@ -1,3 +1,10 @@
+[![SonarQube Cloud](https://sonarcloud.io/images/project_badges/sonarcloud-highlight.svg)](https://sonarcloud.io/summary/new_code?id=KevinShemili_MQTT-Thesis)<br>
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=KevinShemili_MQTT-Thesis&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=KevinShemili_MQTT-Thesis)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=KevinShemili_MQTT-Thesis&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=KevinShemili_MQTT-Thesis)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=KevinShemili_MQTT-Thesis&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=KevinShemili_MQTT-Thesis)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=KevinShemili_MQTT-Thesis&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=KevinShemili_MQTT-Thesis)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=KevinShemili_MQTT-Thesis&metric=coverage)](https://sonarcloud.io/summary/new_code?id=KevinShemili_MQTT-Thesis)
+
 # MQTT Security Benchmarks
 
 ## Microbenchmarks
