@@ -1,0 +1,87 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+
+	"thesis/benchmark/cache"
+	cmdshared "thesis/benchmark/cmd/macro/shared"
+	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro/tls_cpabe_aes_json"
+	"thesis/benchmark/utility"
+	"thesis/benchmark/utility/csv"
+	"thesis/internal/cryptography/cpabe"
+)
+
+func main() {
+
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR role=subscriber error=%q\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+
+	config := shared.NewMacroConfig()
+
+	privateKey := cpabe.PrivateKeyFromBytes(cache.Load(shared.CPABEPrivateKeyFileName))
+
+	client, err := cmdshared.NewSubscriberClient(config.MQTT)
+	if err != nil {
+		return err
+	}
+
+	results := cmdshared.PrepareSubscriberResults(config.Benchmark)
+
+	startSignal := bufio.NewReader(os.Stdin)
+
+	dependencies := cmdshared.SubscriberDependencies{
+		Connect:    client.Connect,
+		Disconnect: client.Disconnect,
+		ReadSignal: func(expected string) error {
+			return utility.ReadSignal(startSignal, expected)
+		},
+		WriteSignal: func(signal string) error {
+			return utility.WriteSignal(os.Stdout, signal)
+		},
+		RunBenchmark: func(payloadIndex int, run int, isWarmup bool, onReady func() error) error {
+
+			if !isWarmup {
+
+				resultIndex := payloadIndex*config.Benchmark.Runs + run - config.Benchmark.WarmupRuns
+
+				result, err := tls_cpabe_aes_json.RunSubscribeBenchmark(tls_cpabe_aes_json.TLSCPABEAESSubscriberInput{
+					Client:       client,
+					Config:       config,
+					PrivateKey:   privateKey,
+					Measurements: results[resultIndex].Measurements,
+					IsWarmup:     false,
+				}, onReady)
+				if err != nil {
+					return err
+				}
+
+				results[resultIndex] = result
+
+				return nil
+			}
+
+			_, err := tls_cpabe_aes_json.RunSubscribeBenchmark(tls_cpabe_aes_json.TLSCPABEAESSubscriberInput{
+				Client:     client,
+				Config:     config,
+				PrivateKey: privateKey,
+				IsWarmup:   true,
+			}, onReady)
+
+			return err
+		},
+
+		WriteResults: func() error {
+			return csv.WriteSubscriberResults(results, config.Benchmark)
+		},
+	}
+
+	return cmdshared.RunSubscriber(config.Benchmark, dependencies)
+}

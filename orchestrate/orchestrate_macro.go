@@ -105,7 +105,7 @@ func main() {
 }
 
 func provisionFixtures() error {
-	command := exec.Command("go", "run", "./benchmark/cmd/provision_macro")
+	command := exec.Command("go", "run", "./benchmark/cmd/provision/provision_macro")
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	return command.Run()
@@ -237,7 +237,7 @@ func buildBinary(target, projectDirectory, executable string) error {
 		SSH,
 		target,
 		fmt.Sprintf(
-			"cd %s && %s build -o /tmp/mqtt-thesis-%s ./benchmark/cmd/%s",
+			"cd %s && %s build -o /tmp/mqtt-thesis-%s ./benchmark/cmd/macro/%s",
 			projectDirectory,
 			remoteGoExecutable,
 			executable,

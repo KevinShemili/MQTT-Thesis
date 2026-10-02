@@ -33,9 +33,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from um24c.um24c import UM24C
 
 REMOTE_PACKAGE = "./micro/full_schema"
-REMOTE_PROVISION_PACKAGE = "./cmd/provision_full_schema"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision/provision_full_schema"
 REMOTE_BINARY = "/tmp/full-schema-benchmark"
-REMOTE_ENERGY_PACKAGE = "./cmd/energy_full_schema"
+REMOTE_ENERGY_PACKAGE = "./cmd/energy/energy_full_schema"
 REMOTE_ENERGY_BINARY = "/tmp/full-schema-energy"
 REMOTE_PROVISION_BINARY = "/tmp/full-schema-provision"
 

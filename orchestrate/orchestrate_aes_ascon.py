@@ -33,9 +33,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from um24c.um24c import UM24C
 
 REMOTE_PACKAGE = "./micro/aes_ascon"
-REMOTE_PROVISION_PACKAGE = "./cmd/provision_aes_ascon"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision/provision_aes_ascon"
 REMOTE_BINARY = "/tmp/aes-ascon-benchmark"
-REMOTE_ENERGY_PACKAGE = "./cmd/energy_aes_ascon"
+REMOTE_ENERGY_PACKAGE = "./cmd/energy/energy_aes_ascon"
 REMOTE_ENERGY_BINARY = "/tmp/aes-ascon-energy"
 REMOTE_PROVISION_BINARY = "/tmp/aes-ascon-provision"
 

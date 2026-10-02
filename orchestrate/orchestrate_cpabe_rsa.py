@@ -33,9 +33,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from um24c.um24c import UM24C
 
 REMOTE_PACKAGE = "./micro/cpabe_rsa"
-REMOTE_PROVISION_PACKAGE = "./cmd/provision_cpabe_rsa"
+REMOTE_PROVISION_PACKAGE = "./cmd/provision/provision_cpabe_rsa"
 REMOTE_BINARY = "/tmp/cpabe-rsa-benchmark"
-REMOTE_ENERGY_PACKAGE = "./cmd/energy_cpabe_rsa"
+REMOTE_ENERGY_PACKAGE = "./cmd/energy/energy_cpabe_rsa"
 REMOTE_ENERGY_BINARY = "/tmp/cpabe-rsa-energy"
 REMOTE_PROVISION_BINARY = "/tmp/cpabe-rsa-provision"
 

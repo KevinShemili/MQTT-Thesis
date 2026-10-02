@@ -30,7 +30,7 @@ from um24c.um24c import UM24C
 
 REMOTE_PACKAGE = "./micro/json_cbor"
 REMOTE_BINARY = "/tmp/json-cbor-benchmark"
-REMOTE_ENERGY_PACKAGE = "./cmd/energy_json_cbor"
+REMOTE_ENERGY_PACKAGE = "./cmd/energy/energy_json_cbor"
 REMOTE_ENERGY_BINARY = "/tmp/json-cbor-energy"
 
 
