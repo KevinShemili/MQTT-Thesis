@@ -896,52 +896,56 @@ def write_cpabe_rsa_report(
     build_html_report(template_path, report_path, placeholders)
 
 
-# Render the already-analyzed macrobenchmark data
+# Render the already-analyzed macrobenchmark comparison
 def write_macro_report(
     report_data: dict[str, Any],
     template_path: str,
     report_path: str,
 ) -> None:
 
-    payload_column = _byte_column(report_data["payload_sizes"])
-    publisher_means, publisher_cis = report_data["cycles"]["publisher"]
-    subscriber_means, subscriber_cis = report_data["cycles"]["subscriber"]
+    sample_rows = []
+    latency_rows = []
+    cycle_rows = []
+    highlighted = []
+
+    for scenario in report_data["scenarios"]:
+        publisher_means, publisher_cis = scenario["cycles"]["publisher"]
+        subscriber_means, subscriber_cis = scenario["cycles"]["subscriber"]
+        latency_values = _mean_ci_column(scenario["latency_means"], scenario["latency_cis"])
+        publisher_values = _mean_ci_column(publisher_means, publisher_cis)
+        subscriber_values = _mean_ci_column(subscriber_means, subscriber_cis)
+
+        for index, payload_size in enumerate(scenario["payload_sizes"]):
+            prefix = [scenario["label"], f"{payload_size:,} B"]
+            sample_rows.append(prefix + [
+                str(scenario["repetition_counts"][index]),
+                ", ".join(str(count) for count in scenario["message_counts"][index]),
+            ])
+            latency_rows.append(prefix + [latency_values[index]])
+            cycle_rows.append(prefix + [publisher_values[index], subscriber_values[index]])
+            highlighted.append(scenario["reference"])
 
     placeholders = {
         "ConfidenceLevel": CONFIDENCE_LEVEL,
         "LatencyPlot": report_data["plots"]["latency"],
         "CpuCyclesPlot": report_data["plots"]["cpu_cycles"],
-        "SampleCountsTable": _build_data_table(
+        "SampleCountsTable": build_html_table(
             [
-                "Payload",
-                "Measured repetitions",
+                "Scenario", "Payload", "Measured repetitions",
                 "Messages per repetition (in run order)",
             ],
-            [
-                payload_column,
-                [str(count) for count in report_data["repetition_counts"]],
-                [
-                    ", ".join(str(count) for count in counts)
-                    for counts in report_data["message_counts"]
-                ],
-            ],
+            sample_rows,
+            highlighted=highlighted,
         ),
-        "LatencyTable": _build_data_table(
-            ["Payload", "Mean E2E latency ± 95% CI (µs)"],
-            [
-                payload_column,
-                _mean_ci_column(
-                    report_data["latency_means"], report_data["latency_cis"]
-                ),
-            ],
+        "LatencyTable": build_html_table(
+            ["Scenario", "Payload", "Mean E2E latency ± 95% CI (µs)"],
+            latency_rows,
+            highlighted=highlighted,
         ),
-        "CpuCyclesTable": _build_data_table(
-            ["Payload", "Publisher cycles ± 95% CI", "Subscriber cycles ± 95% CI"],
-            [
-                payload_column,
-                _mean_ci_column(publisher_means, publisher_cis),
-                _mean_ci_column(subscriber_means, subscriber_cis),
-            ],
+        "CpuCyclesTable": build_html_table(
+            ["Scenario", "Payload", "Publisher cycles ± 95% CI", "Subscriber cycles ± 95% CI"],
+            cycle_rows,
+            highlighted=highlighted,
         ),
     }
     build_html_report(template_path, report_path, placeholders)

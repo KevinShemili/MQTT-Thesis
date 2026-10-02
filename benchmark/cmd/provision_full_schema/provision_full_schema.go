@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"thesis/benchmark/cache"
 	"thesis/benchmark/micro/full_schema/shared"
 	"thesis/benchmark/utility"
@@ -38,30 +39,30 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 	cborSerializer := serialization.CBORSerializer{}
 
 	standardSymmetricKey := dependencies.generateRandomBytes(symmetricKeySize)
-	dependencies.store(cache.AESKeyFileName, standardSymmetricKey)
+	dependencies.store(shared.AESKeyFileName, standardSymmetricKey)
 	standardCipher := aes.NewAES(standardSymmetricKey)
 	standardNonce := dependencies.generateRandomBytes(standardCipher.NonceSize())
 
 	lightweightSymmetricKey := dependencies.generateRandomBytes(symmetricKeySize)
-	dependencies.store(cache.ASCONKeyFileName, lightweightSymmetricKey)
+	dependencies.store(shared.ASCONKeyFileName, lightweightSymmetricKey)
 	lightweightCipher := ascon.NewASCON(lightweightSymmetricKey)
 	lightweightNonce := dependencies.generateRandomBytes(lightweightCipher.NonceSize())
 
 	rsaScheme := rsa.NewRSA(rsaKeyBits)
-	dependencies.store(cache.RSAPrivateKeyFileName, rsaScheme.PrivateKeyBytes())
-	dependencies.store(cache.RSAPublicKeyFileName, rsaScheme.PublicKeyBytes())
+	dependencies.store(shared.RSAPrivateKeyFileName, rsaScheme.PrivateKeyBytes())
+	dependencies.store(shared.RSAPublicKeyFileName, rsaScheme.PublicKeyBytes())
 	standardRSACiphertext := rsaScheme.Encrypt(standardSymmetricKey)
 	lightweightRSACiphertext := rsaScheme.Encrypt(lightweightSymmetricKey)
 
 	authority := cpabe.NewAuthority()
 
-	dependencies.store(cache.CPABEPublicKeyFileName, authority.PublicKeyBytes())
+	dependencies.store(shared.CPABEPublicKeyFileName, authority.PublicKeyBytes())
 
 	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-	dependencies.store(cache.CPABEPolicyFileName, []byte(policy.String()))
+	dependencies.store(shared.CPABEPolicyFileName, []byte(policy.String()))
 
-	dependencies.store(cache.CPABEPrivateKeyFileName, authority.IssuePrivateKey(attributes).Bytes())
+	dependencies.store(shared.CPABEPrivateKeyFileName, authority.IssuePrivateKey(attributes).Bytes())
 
 	standardCPABECiphertext := authority.Encrypt(policy, standardSymmetricKey)
 
@@ -71,13 +72,13 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 
 		plaintext := dependencies.generateRandomBytes(payloadSize)
 
-		dependencies.store(cache.CreateFullSchemaPlaintextFileName(payloadSize), plaintext)
+		dependencies.store(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize), plaintext)
 
 		standardSymmetricCiphertext := standardCipher.Encrypt(nil, standardNonce, plaintext)
 
 		lightweightSymmetricCiphertext := lightweightCipher.Encrypt(nil, lightweightNonce, plaintext)
 
-		pskStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
+		pskStandardEnvelope, err := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 			Nonce:               standardNonce,
 			SymmetricCiphertext: standardSymmetricCiphertext,
 		})
@@ -85,9 +86,9 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 			panic(err)
 		}
 
-		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("psk", "standard", payloadSize), pskStandardEnvelope)
+		dependencies.store(fmt.Sprintf(shared.PSKStandardEnvelopeFileNameFormat, payloadSize), pskStandardEnvelope)
 
-		pskLightweightEnvelope, err := cborSerializer.Serialize(envelope.Envelope{
+		pskLightweightEnvelope, err := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 			Nonce:               lightweightNonce,
 			SymmetricCiphertext: lightweightSymmetricCiphertext,
 		})
@@ -95,9 +96,9 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 			panic(err)
 		}
 
-		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("psk", "lightweight", payloadSize), pskLightweightEnvelope)
+		dependencies.store(fmt.Sprintf(shared.PSKLightweightEnvelopeFileNameFormat, payloadSize), pskLightweightEnvelope)
 
-		rsaStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
+		rsaStandardEnvelope, err := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: standardRSACiphertext,
 			Nonce:                standardNonce,
 			SymmetricCiphertext:  standardSymmetricCiphertext,
@@ -106,9 +107,9 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 			panic(err)
 		}
 
-		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("rsa", "standard", payloadSize), rsaStandardEnvelope)
+		dependencies.store(fmt.Sprintf(shared.RSAStandardEnvelopeFileNameFormat, payloadSize), rsaStandardEnvelope)
 
-		rsaLightweightEnvelope, err := cborSerializer.Serialize(envelope.Envelope{
+		rsaLightweightEnvelope, err := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: lightweightRSACiphertext,
 			Nonce:                lightweightNonce,
 			SymmetricCiphertext:  lightweightSymmetricCiphertext,
@@ -117,9 +118,9 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 			panic(err)
 		}
 
-		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("rsa", "lightweight", payloadSize), rsaLightweightEnvelope)
+		dependencies.store(fmt.Sprintf(shared.RSALightweightEnvelopeFileNameFormat, payloadSize), rsaLightweightEnvelope)
 
-		cpabeStandardEnvelope, err := jsonSerializer.Serialize(envelope.Envelope{
+		cpabeStandardEnvelope, err := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: standardCPABECiphertext,
 			Nonce:                standardNonce,
 			SymmetricCiphertext:  standardSymmetricCiphertext,
@@ -128,9 +129,9 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 			panic(err)
 		}
 
-		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("cpabe", "standard", payloadSize), cpabeStandardEnvelope)
+		dependencies.store(fmt.Sprintf(shared.CPABEStandardEnvelopeFileNameFormat, payloadSize), cpabeStandardEnvelope)
 
-		cpabeLightweightEnvelope, err := cborSerializer.Serialize(envelope.Envelope{
+		cpabeLightweightEnvelope, err := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: lightweightCPABECiphertext,
 			Nonce:                lightweightNonce,
 			SymmetricCiphertext:  lightweightSymmetricCiphertext,
@@ -139,6 +140,6 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 			panic(err)
 		}
 
-		dependencies.store(cache.CreateFullSchemaEnvelopeFileName("cpabe", "lightweight", payloadSize), cpabeLightweightEnvelope)
+		dependencies.store(fmt.Sprintf(shared.CPABELightweightEnvelopeFileNameFormat, payloadSize), cpabeLightweightEnvelope)
 	}
 }

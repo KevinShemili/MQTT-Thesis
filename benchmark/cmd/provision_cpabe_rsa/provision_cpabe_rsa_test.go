@@ -3,8 +3,6 @@ package main
 import (
 	"slices"
 	"testing"
-
-	"thesis/benchmark/cache"
 )
 
 func TestRunProvisionCallsOperationsInExpectedOrder(t *testing.T) {
@@ -27,15 +25,15 @@ func TestRunProvisionCallsOperationsInExpectedOrder(t *testing.T) {
 
 	expected := []string{
 		"generate",
-		"store " + cache.AESKeyFileName,
-		"store " + cache.CPABEPublicKeyFileName,
-		"store " + cache.CreateCPABEPolicyFileName(1),
-		"store " + cache.CreateCPABEPrivateKeyFileName(1),
-		"store " + cache.CreateCPABECiphertextFileName(1),
-		"store " + cache.CreateRSAPublicKeyFileName(0),
-		"store " + cache.RSAPrivateKeyFileName,
-		"store " + cache.RSACiphertextFileName,
-		"store " + cache.CreateRSAPublicKeyFileName(1),
+		"store aes.key",
+		"store cpabe-public.key",
+		"store cpabe-policy-1.txt",
+		"store cpabe-private-1.key",
+		"store cpabe-ciphertext-1.bin",
+		"store rsa-public-0.key",
+		"store rsa-private.key",
+		"store rsa-ciphertext.bin",
+		"store rsa-public-1.key",
 	}
 
 	// Act

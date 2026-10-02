@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MQTT-over-TLS Macrobenchmark</title>
+    <title>MQTT-over-TLS Protection Macrobenchmark</title>
     <style>
         :root {
             --page: #f5f2ed;
@@ -51,6 +51,7 @@
         td { font-variant-numeric: tabular-nums; white-space: nowrap; }
         th:first-child, td:first-child { text-align: left; }
         tbody tr:last-child td { border-bottom: 0; }
+        tr.reference-row { background: #f5efff; font-weight: 600; }
         @media (max-width: 700px) {
             .page { width: calc(100% - 24px); margin-top: 12px; }
             .hero, .section { padding: 22px; }
@@ -60,8 +61,9 @@
 <body>
 <main class="page">
     <header class="hero">
-        <div class="eyebrow">MQTT-over-TLS · JSON baseline</div>
-        <h1>Macrobenchmark</h1>
+        <div class="eyebrow">MQTT-over-TLS · eight application protection scenarios</div>
+        <h1>Macrobenchmark comparison</h1>
+        <p>TLS + JSON is the plaintext reference. Latency starts immediately before publisher message serialization and protection, and ends immediately after the subscriber has completely recovered and deserialized the original readable message.</p>
     </header>
 
     <section class="section">
@@ -79,6 +81,7 @@
 
     <section class="section">
         <h2>CPU cycles for the fixed workload</h2>
+        <p>CPU cycles include MQTT/TLS processing and application protection or unprotection. Benchmark preparation and connection/subscription setup are excluded. Publisher measurement includes publish-token completion.</p>
         <figure>
             <img src="{{CpuCyclesPlot}}">
         </figure>

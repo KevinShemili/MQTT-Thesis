@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"thesis/benchmark/cache"
 	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/utility"
@@ -30,25 +31,25 @@ func main() {
 func runProvision(payloadSizes []int, aesKeySize int, asconKeySize int, dependencies provisionDependencies) {
 
 	aesKey := dependencies.generateRandomBytes(aesKeySize)
-	dependencies.store(cache.AESKeyFileName, aesKey)
+	dependencies.store(shared.AESKeyFileName, aesKey)
 	aesGCM := aes.NewAES(aesKey)
 
 	asconKey := dependencies.generateRandomBytes(asconKeySize)
-	dependencies.store(cache.ASCONKeyFileName, asconKey)
+	dependencies.store(shared.ASCONKeyFileName, asconKey)
 	asconCipher := ascon.NewASCON(asconKey)
 
 	aesNonce := dependencies.generateRandomBytes(aesGCM.NonceSize())
-	dependencies.store(cache.AESGCMNonceFileName, aesNonce)
+	dependencies.store(shared.AESNonceFileName, aesNonce)
 
 	asconNonce := dependencies.generateRandomBytes(asconCipher.NonceSize())
-	dependencies.store(cache.ASCONNonceFileName, asconNonce)
+	dependencies.store(shared.ASCONNonceFileName, asconNonce)
 
 	for _, payloadSize := range payloadSizes {
 
 		plaintext := dependencies.generateRandomBytes(payloadSize)
 
-		dependencies.store(cache.CreateAESASCONPlaintextFileName(payloadSize), plaintext)
-		dependencies.store(cache.CreateAESGCMCiphertextFileName(payloadSize), aesGCM.Encrypt(nil, aesNonce, plaintext))
-		dependencies.store(cache.CreateASCONCiphertextFileName(payloadSize), asconCipher.Encrypt(nil, asconNonce, plaintext))
+		dependencies.store(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize), plaintext)
+		dependencies.store(fmt.Sprintf(shared.AESCiphertextFileNameFormat, payloadSize), aesGCM.Encrypt(nil, aesNonce, plaintext))
+		dependencies.store(fmt.Sprintf(shared.ASCONCiphertextFileNameFormat, payloadSize), asconCipher.Encrypt(nil, asconNonce, plaintext))
 	}
 }

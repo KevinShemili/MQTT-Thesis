@@ -31,9 +31,9 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// 1. Public Key
 			// 2. Policy
 			// 3. AES Symmetric Key
-			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(cache.CPABEPublicKeyFileName))
-			abePolicy := cpabe.ParseCPABEPolicy(string(cache.Load(cache.CreateCPABEPolicyFileName(attributeCount))))
-			symmetricKey := cache.Load(cache.AESKeyFileName)
+			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(shared.CPABEPublicKeyFileName))
+			abePolicy := cpabe.ParseCPABEPolicy(string(cache.Load(fmt.Sprintf(shared.CPABEPolicyFileNameFormat, attributeCount))))
+			symmetricKey := cache.Load(shared.AESKeyFileName)
 
 			thermal.WaitForCooldown()
 
@@ -58,7 +58,7 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// 1. Each subscriber's public key
 			// 2. AES Symmetric Key
 			publicKeySlice := loadIndividualRSAPublicKeys(subscriberCount)
-			symmetricKey := cache.Load(cache.AESKeyFileName)
+			symmetricKey := cache.Load(shared.AESKeyFileName)
 
 			thermal.WaitForCooldown()
 
@@ -90,8 +90,8 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 			// Load from cache:
 			// 1. Private key with attributes
 			// 2. Ciphertext to decrypt
-			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(cache.CreateCPABEPrivateKeyFileName(attributeCount)))
-			asymmetricCiphertext := cache.Load(cache.CreateCPABECiphertextFileName(attributeCount))
+			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(fmt.Sprintf(shared.CPABEPrivateKeyFileNameFormat, attributeCount)))
+			asymmetricCiphertext := cache.Load(fmt.Sprintf(shared.CPABECiphertextFileNameFormat, attributeCount))
 
 			thermal.WaitForCooldown()
 
@@ -111,8 +111,8 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 	rsaKeyBits := config.FixedRSAKeyBits
 	benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-		privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(cache.RSAPrivateKeyFileName))
-		asymmetricCiphertext := cache.Load(cache.RSACiphertextFileName)
+		privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(shared.RSAPrivateKeyFileName))
+		asymmetricCiphertext := cache.Load(shared.RSACiphertextFileName)
 
 		thermal.WaitForCooldown()
 
@@ -175,7 +175,7 @@ func loadIndividualRSAPublicKeys(requiredCount int) []rsa.RSA {
 
 	for index := range requiredCount {
 		keySlice[index] = rsa.RSAFromPublicKeyBytes(
-			cache.Load(cache.CreateRSAPublicKeyFileName(index)),
+			cache.Load(fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, index)),
 		)
 	}
 

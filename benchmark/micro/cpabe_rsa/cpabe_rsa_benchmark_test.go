@@ -7,6 +7,7 @@ import (
 	"thesis/benchmark/thermal"
 	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/cpabe"
+	"thesis/internal/cryptography/rsa"
 )
 
 func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
@@ -56,7 +57,10 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSASubscribers/%d", subscriberCount), func(b *testing.B) {
 
-			publicKeySlice := shared.LoadRSAKeysFromInMemoryCache(config.FixedRSAKeyBits, subscriberCount)
+			publicKeySlice := make([]rsa.RSA, subscriberCount)
+			for index := range subscriberCount {
+				publicKeySlice[index] = rsa.NewRSA(config.FixedRSAKeyBits)
+			}
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Size of a single wrapped key
@@ -95,8 +99,8 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-			// Get just 1 RSA key of the specified size
-			publicKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+			// Generate one RSA key of the specified size
+			publicKey := rsa.NewRSA(rsaKeyBits)
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
@@ -174,8 +178,8 @@ func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-			// Get just 1 RSA key of the specified size
-			privateKey := shared.LoadRSAKeysFromInMemoryCache(rsaKeyBits, 1)[0]
+			// Generate one RSA key of the specified size
+			privateKey := rsa.NewRSA(rsaKeyBits)
 			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
 
 			// Create ciphertext based on policy to measure decryption cost

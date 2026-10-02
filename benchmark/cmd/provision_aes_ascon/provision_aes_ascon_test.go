@@ -3,8 +3,6 @@ package main
 import (
 	"slices"
 	"testing"
-
-	"thesis/benchmark/cache"
 )
 
 func TestRunProvisionCallsOperationsInExpectedOrder(t *testing.T) {
@@ -26,21 +24,21 @@ func TestRunProvisionCallsOperationsInExpectedOrder(t *testing.T) {
 
 	expected := []string{
 		"generate",
-		"store " + cache.AESKeyFileName,
+		"store aes.key",
 		"generate",
-		"store " + cache.ASCONKeyFileName,
+		"store ascon.key",
 		"generate",
-		"store " + cache.AESGCMNonceFileName,
+		"store aes.nonce",
 		"generate",
-		"store " + cache.ASCONNonceFileName,
+		"store ascon.nonce",
 		"generate",
-		"store " + cache.CreateAESASCONPlaintextFileName(16),
-		"store " + cache.CreateAESGCMCiphertextFileName(16),
-		"store " + cache.CreateASCONCiphertextFileName(16),
+		"store plaintext-16.bin",
+		"store aes-ciphertext-16.bin",
+		"store ascon-ciphertext-16.bin",
 		"generate",
-		"store " + cache.CreateAESASCONPlaintextFileName(32),
-		"store " + cache.CreateAESGCMCiphertextFileName(32),
-		"store " + cache.CreateASCONCiphertextFileName(32),
+		"store plaintext-32.bin",
+		"store aes-ciphertext-32.bin",
+		"store ascon-ciphertext-32.bin",
 	}
 
 	// Act

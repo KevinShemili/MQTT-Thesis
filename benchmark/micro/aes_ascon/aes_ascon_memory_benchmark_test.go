@@ -26,9 +26,9 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
-			plaintext := cache.Load(cache.CreateAESASCONPlaintextFileName(payloadSize))
-			nonce := cache.Load(cache.AESGCMNonceFileName)
+			cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
+			nonce := cache.Load(shared.AESNonceFileName)
 
 			thermal.WaitForCooldown()
 
@@ -48,9 +48,9 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
-			plaintext := cache.Load(cache.CreateAESASCONPlaintextFileName(payloadSize))
-			nonce := cache.Load(cache.ASCONNonceFileName)
+			cipher := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
+			nonce := cache.Load(shared.ASCONNonceFileName)
 
 			thermal.WaitForCooldown()
 
@@ -75,9 +75,9 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
-			ciphertext := cache.Load(cache.CreateAESGCMCiphertextFileName(payloadSize))
-			nonce := cache.Load(cache.AESGCMNonceFileName)
+			cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
+			ciphertext := cache.Load(fmt.Sprintf(shared.AESCiphertextFileNameFormat, payloadSize))
+			nonce := cache.Load(shared.AESNonceFileName)
 
 			thermal.WaitForCooldown()
 
@@ -97,9 +97,9 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
-			ciphertext := cache.Load(cache.CreateASCONCiphertextFileName(payloadSize))
-			nonce := cache.Load(cache.ASCONNonceFileName)
+			cipher := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName))
+			ciphertext := cache.Load(fmt.Sprintf(shared.ASCONCiphertextFileNameFormat, payloadSize))
+			nonce := cache.Load(shared.ASCONNonceFileName)
 
 			thermal.WaitForCooldown()
 

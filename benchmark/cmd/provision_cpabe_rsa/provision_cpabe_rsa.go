@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"thesis/benchmark/cache"
 	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/utility"
@@ -31,12 +32,12 @@ func runProvision(attributeCounts []int, subscriberCounts []int, aesKeySize int,
 	fixedRSAKeyBits int, dependencies provisionDependencies) {
 
 	symmetricKey := dependencies.generateRandomBytes(aesKeySize)
-	dependencies.store(cache.AESKeyFileName, symmetricKey)
+	dependencies.store(shared.AESKeyFileName, symmetricKey)
 
 	authority := cpabe.NewAuthority()
 
 	dependencies.store(
-		cache.CPABEPublicKeyFileName,
+		shared.CPABEPublicKeyFileName,
 		authority.PublicKeyBytes(),
 	)
 
@@ -44,30 +45,24 @@ func runProvision(attributeCounts []int, subscriberCounts []int, aesKeySize int,
 
 		policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-		dependencies.store(cache.CreateCPABEPolicyFileName(attributeCount), []byte(policy.String()))
-		dependencies.store(cache.CreateCPABEPrivateKeyFileName(attributeCount), authority.IssuePrivateKey(attributes).Bytes())
-		dependencies.store(cache.CreateCPABECiphertextFileName(attributeCount), authority.Encrypt(policy, symmetricKey))
+		dependencies.store(fmt.Sprintf(shared.CPABEPolicyFileNameFormat, attributeCount), []byte(policy.String()))
+		dependencies.store(fmt.Sprintf(shared.CPABEPrivateKeyFileNameFormat, attributeCount), authority.IssuePrivateKey(attributes).Bytes())
+		dependencies.store(fmt.Sprintf(shared.CPABECiphertextFileNameFormat, attributeCount), authority.Encrypt(policy, symmetricKey))
 	}
 
-	maximumSubscriberCount := 0
-
-	for _, subscriberCount := range subscriberCounts {
-		if subscriberCount > maximumSubscriberCount {
-			maximumSubscriberCount = subscriberCount
-		}
-	}
+	maximumSubscriberCount := subscriberCounts[len(subscriberCounts)-1]
 
 	for index := range maximumSubscriberCount {
 
 		subscriber := rsa.NewRSA(fixedRSAKeyBits)
 
-		dependencies.store(cache.CreateRSAPublicKeyFileName(index), subscriber.PublicKeyBytes())
+		dependencies.store(fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, index), subscriber.PublicKeyBytes())
 
 		if index == 0 {
 
-			dependencies.store(cache.RSAPrivateKeyFileName, subscriber.PrivateKeyBytes())
+			dependencies.store(shared.RSAPrivateKeyFileName, subscriber.PrivateKeyBytes())
 
-			dependencies.store(cache.RSACiphertextFileName, subscriber.Encrypt(symmetricKey))
+			dependencies.store(shared.RSACiphertextFileName, subscriber.Encrypt(symmetricKey))
 		}
 	}
 }

@@ -3,8 +3,6 @@ package main
 import (
 	"slices"
 	"testing"
-
-	"thesis/benchmark/cache"
 )
 
 func TestRunProvisionCallsOperationsInExpectedOrder(t *testing.T) {
@@ -27,58 +25,29 @@ func TestRunProvisionCallsOperationsInExpectedOrder(t *testing.T) {
 
 	expected := []string{
 		"generate",
-		"store " + cache.AESKeyFileName,
+		"store aes.key",
 		"generate",
 
 		"generate",
-		"store " + cache.ASCONKeyFileName,
+		"store ascon.key",
 		"generate",
 
-		"store " + cache.RSAPrivateKeyFileName,
-		"store " + cache.RSAPublicKeyFileName,
+		"store rsa-private.key",
+		"store rsa-public.key",
 
-		"store " + cache.CPABEPublicKeyFileName,
-		"store " + cache.CPABEPolicyFileName,
-		"store " + cache.CPABEPrivateKeyFileName,
+		"store cpabe-public.key",
+		"store cpabe-policy.txt",
+		"store cpabe-private.key",
 
 		"generate",
-		"store " + cache.CreateFullSchemaPlaintextFileName(16),
+		"store plaintext-16.bin",
 
-		"store " + cache.CreateFullSchemaEnvelopeFileName(
-			"psk",
-			"standard",
-			16,
-		),
-
-		"store " + cache.CreateFullSchemaEnvelopeFileName(
-			"psk",
-			"lightweight",
-			16,
-		),
-
-		"store " + cache.CreateFullSchemaEnvelopeFileName(
-			"rsa",
-			"standard",
-			16,
-		),
-
-		"store " + cache.CreateFullSchemaEnvelopeFileName(
-			"rsa",
-			"lightweight",
-			16,
-		),
-
-		"store " + cache.CreateFullSchemaEnvelopeFileName(
-			"cpabe",
-			"standard",
-			16,
-		),
-
-		"store " + cache.CreateFullSchemaEnvelopeFileName(
-			"cpabe",
-			"lightweight",
-			16,
-		),
+		"store psk-standard-16.bin",
+		"store psk-lightweight-16.bin",
+		"store rsa-standard-16.bin",
+		"store rsa-lightweight-16.bin",
+		"store cpabe-standard-16.bin",
+		"store cpabe-lightweight-16.bin",
 	}
 
 	// Act

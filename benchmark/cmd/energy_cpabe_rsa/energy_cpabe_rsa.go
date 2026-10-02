@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"thesis/benchmark/cache"
 	"thesis/benchmark/micro/cpabe_rsa/shared"
@@ -65,7 +66,7 @@ func encryptRSASubscribers(subscriberCount int, duration time.Duration) bool {
 
 	publicKeySlice := make([]rsa.RSA, subscriberCount)
 	for index := range subscriberCount {
-		publicKeySlice[index] = rsa.RSAFromPublicKeyBytes(cache.Load(cache.CreateRSAPublicKeyFileName(index)))
+		publicKeySlice[index] = rsa.RSAFromPublicKeyBytes(cache.Load(fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, index)))
 	}
 
 	symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)

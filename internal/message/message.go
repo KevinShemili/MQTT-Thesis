@@ -2,7 +2,6 @@ package message
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -37,22 +36,4 @@ func NewMessageIntKeys(payloadSize int) MessageIntKeys {
 
 func BuildPayload(payloadSize int) []byte {
 	return bytes.Repeat([]byte{0xAB}, payloadSize)
-}
-
-func ValidateMessage(message Message, expectedPayloadSize int) error {
-	if len(message.Payload) != expectedPayloadSize {
-		return fmt.Errorf(
-			"payload has %d bytes, expected %d",
-			len(message.Payload),
-			expectedPayloadSize,
-		)
-	}
-
-	expectedPayload := BuildPayload(expectedPayloadSize)
-
-	if !bytes.Equal(message.Payload, expectedPayload) {
-		return fmt.Errorf("payload contents are invalid")
-	}
-
-	return nil
 }

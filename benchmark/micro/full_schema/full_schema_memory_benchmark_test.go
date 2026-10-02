@@ -28,8 +28,8 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKStandard/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
-			plaintext := cache.Load(cache.CreateFullSchemaPlaintextFileName(payloadSize))
+			cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -39,7 +39,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 				symmetricCiphertext := cipher.Encrypt(nil, nonce, plaintext)
 
-				jsonSerializer.Serialize(envelope.Envelope{
+				jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 					Nonce:               nonce,
 					SymmetricCiphertext: symmetricCiphertext,
 				})
@@ -55,9 +55,9 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSAStandard/%dB", payloadSize), func(b *testing.B) {
 
-			publicKey := rsa.RSAFromPublicKeyBytes(cache.Load(cache.RSAPublicKeyFileName))
-			plaintext := cache.Load(cache.CreateFullSchemaPlaintextFileName(payloadSize))
-			nonceSize := aes.NewAES(cache.Load(cache.AESKeyFileName)).NonceSize()
+			publicKey := rsa.RSAFromPublicKeyBytes(cache.Load(shared.RSAPublicKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
+			nonceSize := aes.NewAES(cache.Load(shared.AESKeyFileName)).NonceSize()
 
 			thermal.WaitForCooldown()
 
@@ -71,7 +71,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				asymmetricCiphertext := publicKey.Encrypt(symmetricKey)
 				symmetricCiphertext := messageCipher.Encrypt(nil, nonce, plaintext)
 
-				jsonSerializer.Serialize(envelope.Envelope{
+				jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
 					Nonce:                nonce,
 					SymmetricCiphertext:  symmetricCiphertext,
@@ -88,12 +88,12 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEStandard/%dB", payloadSize), func(b *testing.B) {
 
-			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(cache.CPABEPublicKeyFileName))
+			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(shared.CPABEPublicKeyFileName))
 			policy := cpabe.ParseCPABEPolicy(
-				string(cache.Load(cache.CPABEPolicyFileName)),
+				string(cache.Load(shared.CPABEPolicyFileName)),
 			)
-			plaintext := cache.Load(cache.CreateFullSchemaPlaintextFileName(payloadSize))
-			nonceSize := aes.NewAES(cache.Load(cache.AESKeyFileName)).NonceSize()
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
+			nonceSize := aes.NewAES(cache.Load(shared.AESKeyFileName)).NonceSize()
 
 			thermal.WaitForCooldown()
 
@@ -107,7 +107,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				asymmetricCiphertext := authority.Encrypt(policy, symmetricKey)
 				symmetricCiphertext := messageCipher.Encrypt(nil, nonce, plaintext)
 
-				jsonSerializer.Serialize(envelope.Envelope{
+				jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
 					Nonce:                nonce,
 					SymmetricCiphertext:  symmetricCiphertext,
@@ -124,8 +124,8 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKLightweight/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
-			plaintext := cache.Load(cache.CreateFullSchemaPlaintextFileName(payloadSize))
+			cipher := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
@@ -135,7 +135,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 				symmetricCiphertext := cipher.Encrypt(nil, nonce, plaintext)
 
-				cborSerializer.Serialize(envelope.Envelope{
+				cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 					Nonce:               nonce,
 					SymmetricCiphertext: symmetricCiphertext,
 				})
@@ -151,9 +151,9 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSALightweight/%dB", payloadSize), func(b *testing.B) {
 
-			publicKey := rsa.RSAFromPublicKeyBytes(cache.Load(cache.RSAPublicKeyFileName))
-			plaintext := cache.Load(cache.CreateFullSchemaPlaintextFileName(payloadSize))
-			nonceSize := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName)).NonceSize()
+			publicKey := rsa.RSAFromPublicKeyBytes(cache.Load(shared.RSAPublicKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
+			nonceSize := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName)).NonceSize()
 
 			thermal.WaitForCooldown()
 
@@ -167,7 +167,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				asymmetricCiphertext := publicKey.Encrypt(symmetricKey)
 				symmetricCiphertext := messageCipher.Encrypt(nil, nonce, plaintext)
 
-				cborSerializer.Serialize(envelope.Envelope{
+				cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
 					Nonce:                nonce,
 					SymmetricCiphertext:  symmetricCiphertext,
@@ -184,12 +184,12 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABELightweight/%dB", payloadSize), func(b *testing.B) {
 
-			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(cache.CPABEPublicKeyFileName))
+			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(shared.CPABEPublicKeyFileName))
 			policy := cpabe.ParseCPABEPolicy(
-				string(cache.Load(cache.CPABEPolicyFileName)),
+				string(cache.Load(shared.CPABEPolicyFileName)),
 			)
-			plaintext := cache.Load(cache.CreateFullSchemaPlaintextFileName(payloadSize))
-			nonceSize := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName)).NonceSize()
+			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
+			nonceSize := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName)).NonceSize()
 
 			thermal.WaitForCooldown()
 
@@ -203,7 +203,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 				asymmetricCiphertext := authority.Encrypt(policy, symmetricKey)
 				symmetricCiphertext := messageCipher.Encrypt(nil, nonce, plaintext)
 
-				cborSerializer.Serialize(envelope.Envelope{
+				cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 					AsymmetricCiphertext: asymmetricCiphertext,
 					Nonce:                nonce,
 					SymmetricCiphertext:  symmetricCiphertext,
@@ -227,15 +227,15 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKStandard/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
-			serializedEnvelope := cache.Load(cache.CreateFullSchemaEnvelopeFileName("psk", "standard", payloadSize))
+			cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
+			serializedEnvelope := cache.Load(fmt.Sprintf(shared.PSKStandardEnvelopeFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				var env envelope.Envelope
+				var env envelope.AsymmetricEnvelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 				cipher.Decrypt(nil, env.Nonce, env.SymmetricCiphertext)
 			}
@@ -250,15 +250,15 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("RSAStandard/%dB", payloadSize), func(b *testing.B) {
 
-			privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(cache.RSAPrivateKeyFileName))
-			serializedEnvelope := cache.Load(cache.CreateFullSchemaEnvelopeFileName("rsa", "standard", payloadSize))
+			privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(shared.RSAPrivateKeyFileName))
+			serializedEnvelope := cache.Load(fmt.Sprintf(shared.RSAStandardEnvelopeFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				var env envelope.Envelope
+				var env envelope.AsymmetricEnvelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 				symmetricKey := privateKey.Decrypt(env.AsymmetricCiphertext)
 				aes.NewAES(symmetricKey).Decrypt(nil, env.Nonce, env.SymmetricCiphertext)
@@ -274,15 +274,15 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABEStandard/%dB", payloadSize), func(b *testing.B) {
 
-			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(cache.CPABEPrivateKeyFileName))
-			serializedEnvelope := cache.Load(cache.CreateFullSchemaEnvelopeFileName("cpabe", "standard", payloadSize))
+			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(shared.CPABEPrivateKeyFileName))
+			serializedEnvelope := cache.Load(fmt.Sprintf(shared.CPABEStandardEnvelopeFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				var env envelope.Envelope
+				var env envelope.AsymmetricEnvelope
 				jsonSerializer.Deserialize(serializedEnvelope, &env)
 				symmetricKey := privateKey.Decrypt(env.AsymmetricCiphertext)
 				aes.NewAES(symmetricKey).Decrypt(nil, env.Nonce, env.SymmetricCiphertext)
@@ -298,15 +298,15 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKLightweight/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
-			serializedEnvelope := cache.Load(cache.CreateFullSchemaEnvelopeFileName("psk", "lightweight", payloadSize))
+			cipher := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName))
+			serializedEnvelope := cache.Load(fmt.Sprintf(shared.PSKLightweightEnvelopeFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				var env envelope.Envelope
+				var env envelope.AsymmetricEnvelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 				cipher.Decrypt(nil, env.Nonce, env.SymmetricCiphertext)
 			}
@@ -322,10 +322,10 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("RSALightweight/%dB", payloadSize), func(b *testing.B) {
 
 			privateKey := rsa.RSAFromPrivateKeyBytes(
-				cache.Load(cache.RSAPrivateKeyFileName),
+				cache.Load(shared.RSAPrivateKeyFileName),
 			)
 			serializedEnvelope := cache.Load(
-				cache.CreateFullSchemaEnvelopeFileName("rsa", "lightweight", payloadSize),
+				fmt.Sprintf(shared.RSALightweightEnvelopeFileNameFormat, payloadSize),
 			)
 
 			thermal.WaitForCooldown()
@@ -333,7 +333,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				var env envelope.Envelope
+				var env envelope.AsymmetricEnvelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 				symmetricKey := privateKey.Decrypt(env.AsymmetricCiphertext)
 				ascon.NewASCON(symmetricKey).Decrypt(nil, env.Nonce, env.SymmetricCiphertext)
@@ -349,15 +349,15 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("CPABELightweight/%dB", payloadSize), func(b *testing.B) {
 
-			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(cache.CPABEPrivateKeyFileName))
-			serializedEnvelope := cache.Load(cache.CreateFullSchemaEnvelopeFileName("cpabe", "lightweight", payloadSize))
+			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(shared.CPABEPrivateKeyFileName))
+			serializedEnvelope := cache.Load(fmt.Sprintf(shared.CPABELightweightEnvelopeFileNameFormat, payloadSize))
 
 			thermal.WaitForCooldown()
 
 			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
 
 			for b.Loop() {
-				var env envelope.Envelope
+				var env envelope.AsymmetricEnvelope
 				cborSerializer.Deserialize(serializedEnvelope, &env)
 				symmetricKey := privateKey.Decrypt(env.AsymmetricCiphertext)
 				ascon.NewASCON(symmetricKey).Decrypt(nil, env.Nonce, env.SymmetricCiphertext)

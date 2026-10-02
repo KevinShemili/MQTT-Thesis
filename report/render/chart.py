@@ -1786,59 +1786,57 @@ def plot_encrypt_decrypt_asymmetry(
     save_figure(figure, output_path)
 
 
-# Render prepared E2E latency means and confidence intervals
-def plot_macro_latency(
-    payload_sizes: list[int],
-    means: list[float],
-    confidence_intervals: list[float],
-    output_path: str,
-) -> None:
+# Render E2E latency means and confidence intervals for every macro scenario
+def plot_macro_latency(scenarios: list[dict[str, Any]], output_path: str) -> None:
 
-    figure, axis = plt.subplots(figsize=CROSSOVER_FIGURE_SIZE)
-    draw_summary(
-        axis,
-        payload_sizes,
-        means,
-        confidence_intervals,
-        "E2E latency",
-        VIOLET,
-        with_ci=True,
-    )
-    _configure_log2_payload_axis(axis, payload_sizes)
+    figure, axis = plt.subplots(figsize=(12, 6))
+    for scenario in scenarios:
+        draw_summary(
+            axis,
+            scenario["payload_sizes"],
+            scenario["latency_means"],
+            scenario["latency_cis"],
+            scenario["label"],
+            scenario["color"],
+            with_ci=True,
+            linestyle=scenario["linestyle"],
+        )
+
+    _configure_log2_payload_axis(axis, scenarios[0]["payload_sizes"])
     axis.set_title("E2E latency — mean and 95% CI")
     axis.set_xlabel("Payload size")
     axis.set_ylabel("Latency (µs)")
     apply_value_grid(axis)
+    axis.legend(loc="upper left", ncol=2, frameon=False, fontsize=8)
     figure.tight_layout()
     save_figure(figure, output_path)
 
 
-# Keep the two endpoints' fixed-workload cycle totals in separate panels
-def plot_macro_cpu_cycles(
-    payload_sizes: list[int],
-    results: dict[str, tuple[list[float], list[float]]],
-    output_path: str,
-) -> None:
+# Keep the publisher and subscriber workload cycle totals in separate panels
+def plot_macro_cpu_cycles(scenarios: list[dict[str, Any]], output_path: str) -> None:
 
-    figure, axes = plt.subplots(1, 2, figsize=PANEL_FIGURE_SIZE)
+    figure, axes = plt.subplots(1, 2, figsize=(16, 6))
     figure.suptitle("CPU cycles per workload — mean and 95% CI", fontsize=13)
 
-    for axis, role, color in zip(axes, ("publisher", "subscriber"), (VIOLET, TEAL)):
-        means, confidence_intervals = results[role]
-        draw_summary(
-            axis,
-            payload_sizes,
-            means,
-            confidence_intervals,
-            role.title(),
-            color,
-            with_ci=True,
-        )
-        _configure_log2_payload_axis(axis, payload_sizes)
+    for axis, role in zip(axes, ("publisher", "subscriber")):
+        for scenario in scenarios:
+            means, confidence_intervals = scenario["cycles"][role]
+            draw_summary(
+                axis,
+                scenario["payload_sizes"],
+                means,
+                confidence_intervals,
+                scenario["label"],
+                scenario["color"],
+                with_ci=True,
+                linestyle=scenario["linestyle"],
+            )
+        _configure_log2_payload_axis(axis, scenarios[0]["payload_sizes"])
         axis.set_title(role.title())
         axis.set_xlabel("Payload size")
         axis.set_ylabel("CPU cycles / workload")
         apply_value_grid(axis)
 
+    axes[1].legend(loc="upper left", ncol=2, frameon=False, fontsize=8)
     figure.tight_layout()
     save_figure(figure, output_path)

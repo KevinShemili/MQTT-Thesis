@@ -78,7 +78,7 @@ func encryptPSKStandard(payloadSize int, duration time.Duration) bool {
 		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 		symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
-		jsonSerializer.Serialize(envelope.Envelope{
+		jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 			Nonce:               nonce,
 			SymmetricCiphertext: symmetricCiphertext,
 		})
@@ -111,7 +111,7 @@ func encryptRSAStandard(payloadSize int, duration time.Duration) bool {
 		asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
 		symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
-		jsonSerializer.Serialize(envelope.Envelope{
+		jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: asymmetricCiphertext,
 			Nonce:                nonce,
 			SymmetricCiphertext:  symmetricCiphertext,
@@ -147,7 +147,7 @@ func encryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 		asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
 		symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
-		jsonSerializer.Serialize(envelope.Envelope{
+		jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: asymmetricCiphertext,
 			Nonce:                nonce,
 			SymmetricCiphertext:  symmetricCiphertext,
@@ -175,7 +175,7 @@ func encryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 		symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
-		cborSerializer.Serialize(envelope.Envelope{
+		cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 			Nonce:               nonce,
 			SymmetricCiphertext: symmetricCiphertext,
 		})
@@ -208,7 +208,7 @@ func encryptRSALightweight(payloadSize int, duration time.Duration) bool {
 		asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
 		symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
-		cborSerializer.Serialize(envelope.Envelope{
+		cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: asymmetricCiphertext,
 			Nonce:                nonce,
 			SymmetricCiphertext:  symmetricCiphertext,
@@ -244,7 +244,7 @@ func encryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 		asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
 		symmetricCiphertext := messageCipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
-		cborSerializer.Serialize(envelope.Envelope{
+		cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 			AsymmetricCiphertext: asymmetricCiphertext,
 			Nonce:                nonce,
 			SymmetricCiphertext:  symmetricCiphertext,
@@ -265,7 +265,7 @@ func decryptPSKStandard(payloadSize int, duration time.Duration) bool {
 	plaintext := utility.GenerateRandomBytes(payloadSize)
 	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 
-	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.Envelope{
+	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 		Nonce:               nonce,
 		SymmetricCiphertext: cipher.Encrypt(nil, nonce, plaintext),
 	})
@@ -276,7 +276,7 @@ func decryptPSKStandard(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		var env envelope.Envelope
+		var env envelope.AsymmetricEnvelope
 		jsonSerializer.Deserialize(serializedEnvelope, &env)
 
 		cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
@@ -298,7 +298,7 @@ func decryptRSAStandard(payloadSize int, duration time.Duration) bool {
 	plaintext := utility.GenerateRandomBytes(payloadSize)
 	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 
-	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.Envelope{
+	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
 		Nonce:                nonce,
 		SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
@@ -310,7 +310,7 @@ func decryptRSAStandard(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		var env envelope.Envelope
+		var env envelope.AsymmetricEnvelope
 		jsonSerializer.Deserialize(serializedEnvelope, &env)
 		recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
@@ -335,7 +335,7 @@ func decryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 	plaintext := utility.GenerateRandomBytes(payloadSize)
 	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 
-	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.Envelope{
+	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),
 		Nonce:                nonce,
 		SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
@@ -347,7 +347,7 @@ func decryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		var env envelope.Envelope
+		var env envelope.AsymmetricEnvelope
 		jsonSerializer.Deserialize(serializedEnvelope, &env)
 		recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 
@@ -368,7 +368,7 @@ func decryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 	plaintext := utility.GenerateRandomBytes(payloadSize)
 	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 
-	serializedEnvelope, _ := cborSerializer.Serialize(envelope.Envelope{
+	serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 		Nonce:               nonce,
 		SymmetricCiphertext: cipher.Encrypt(nil, nonce, plaintext),
 	})
@@ -379,7 +379,7 @@ func decryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		var env envelope.Envelope
+		var env envelope.AsymmetricEnvelope
 		cborSerializer.Deserialize(serializedEnvelope, &env)
 
 		cipher.Decrypt(decryptedPlaintext[:0], env.Nonce, env.SymmetricCiphertext)
@@ -401,7 +401,7 @@ func decryptRSALightweight(payloadSize int, duration time.Duration) bool {
 	plaintext := utility.GenerateRandomBytes(payloadSize)
 	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 
-	serializedEnvelope, _ := cborSerializer.Serialize(envelope.Envelope{
+	serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
 		Nonce:                nonce,
 		SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
@@ -413,7 +413,7 @@ func decryptRSALightweight(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		var env envelope.Envelope
+		var env envelope.AsymmetricEnvelope
 		cborSerializer.Deserialize(serializedEnvelope, &env)
 		recoveredSymmetricKey := rsaScheme.Decrypt(env.AsymmetricCiphertext)
 
@@ -438,7 +438,7 @@ func decryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 	plaintext := utility.GenerateRandomBytes(payloadSize)
 	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
 
-	serializedEnvelope, _ := cborSerializer.Serialize(envelope.Envelope{
+	serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),
 		Nonce:                nonce,
 		SymmetricCiphertext:  cipher.Encrypt(nil, nonce, plaintext),
@@ -450,7 +450,7 @@ func decryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		var env envelope.Envelope
+		var env envelope.AsymmetricEnvelope
 		cborSerializer.Deserialize(serializedEnvelope, &env)
 		recoveredSymmetricKey := subscriberKey.Decrypt(env.AsymmetricCiphertext)
 

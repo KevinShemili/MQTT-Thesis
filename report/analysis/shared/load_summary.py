@@ -199,7 +199,7 @@ def _load_energy_results(
 
 # Load the two endpoint CSVs, retaining raw timestamps and workload cycle totals
 def load_macro_summary(
-    publisher_filepath: str, subscriber_filepath: str
+    publisher_filepath: str, subscriber_filepath: str, scenario: str
 ) -> BenchmarkSummary:
 
     summary = BenchmarkSummary()
@@ -210,10 +210,10 @@ def load_macro_summary(
 
             payload_size = int(row["payload_size"])
             repetition = int(row["repetition"])
-            aggregation = summary.find_macro_aggregation("MQTT-TLS", payload_size)
+            aggregation = summary.find_macro_aggregation(scenario, payload_size)
 
             if aggregation is None:
-                aggregation = MacroAggregation("MQTT-TLS", payload_size)
+                aggregation = MacroAggregation(scenario, payload_size)
                 summary.macro_aggregations.append(aggregation)
 
             case = aggregation.find_case(repetition)
@@ -234,7 +234,7 @@ def load_macro_summary(
             payload_size = int(row["payload_size"])
             repetition = int(row["repetition"])
 
-            aggregation = summary.find_macro_aggregation("MQTT-TLS", payload_size)
+            aggregation = summary.find_macro_aggregation(scenario, payload_size)
             case = aggregation.find_case(repetition)
 
             case.subscriber_cycles = int(row["subscriber_cycles"])

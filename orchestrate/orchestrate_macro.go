@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"thesis/benchmark/macro/shared"
 	"thesis/benchmark/utility"
 
 	"github.com/joho/godotenv"
@@ -19,6 +20,7 @@ var (
 	runs                int
 	warmupRuns          int
 	resultDirectory     string
+	cacheDirectory      string
 	publisherTarget     string
 	subscriberTarget    string
 	publisherDirectory  string
@@ -34,39 +36,64 @@ func main() {
 
 	loadEnvironmentVariables()
 
-	if err := buildBinary(publisherTarget, publisherDirectory, "macro_publisher"); err != nil {
+	if err := provisionFixtures(); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
 		os.Exit(1)
 	}
 
-	if err := buildBinary(subscriberTarget, subscriberDirectory, "macro_subscriber"); err != nil {
+	if err := distributeFixtures(); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
 		os.Exit(1)
 	}
 
-	if err := orchestrateMacro(publisherTarget, publisherDirectory, subscriberTarget, subscriberDirectory, len(payloadSizes)*(warmupRuns+runs)); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
-		os.Exit(1)
+	scenarios := []struct {
+		name       string
+		publisher  string
+		subscriber string
+	}{
+		{"tls_json", "macro_tls_json_publisher", "macro_tls_json_subscriber"},
+		{"tls_cbor", "macro_tls_cbor_publisher", "macro_tls_cbor_subscriber"},
+		{"tls_psk_aes", "macro_tls_psk_aes_publisher", "macro_tls_psk_aes_subscriber"},
+		{"tls_psk_ascon", "macro_tls_psk_ascon_publisher", "macro_tls_psk_ascon_subscriber"},
+		{"tls_rsa_aes_json", "macro_tls_rsa_aes_json_publisher", "macro_tls_rsa_aes_json_subscriber"},
+		{"tls_rsa_ascon_cbor", "macro_tls_rsa_ascon_cbor_publisher", "macro_tls_rsa_ascon_cbor_subscriber"},
+		{"tls_cpabe_aes_json", "macro_tls_cpabe_aes_json_publisher", "macro_tls_cpabe_aes_json_subscriber"},
+		{"tls_cpabe_ascon_cbor", "macro_tls_cpabe_ascon_cbor_publisher", "macro_tls_cpabe_ascon_cbor_subscriber"},
 	}
 
-	if err := os.MkdirAll(resultDirectory, utility.DirectoryPermissions); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
-		os.Exit(1)
-	}
+	for _, scenario := range scenarios {
 
-	if err := transferResult(publisherTarget, publisherDirectory, resultDirectory, "publisher.csv"); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
-		os.Exit(1)
-	}
+		if err := buildBinary(publisherTarget, publisherDirectory, scenario.publisher); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+			os.Exit(1)
+		}
 
-	if err := transferResult(
-		subscriberTarget,
-		subscriberDirectory,
-		resultDirectory,
-		"subscriber.csv",
-	); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
-		os.Exit(1)
+		if err := buildBinary(subscriberTarget, subscriberDirectory, scenario.subscriber); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+			os.Exit(1)
+		}
+
+		if err := orchestrateMacro(publisherTarget, publisherDirectory, subscriberTarget, subscriberDirectory,
+			scenario.publisher, scenario.subscriber, len(payloadSizes)*(warmupRuns+runs)); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+			os.Exit(1)
+		}
+
+		scenarioDirectory := filepath.Join(resultDirectory, scenario.name)
+		if err := os.MkdirAll(scenarioDirectory, utility.DirectoryPermissions); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+			os.Exit(1)
+		}
+
+		if err := transferResult(publisherTarget, publisherDirectory, scenarioDirectory, "publisher.csv"); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+			os.Exit(1)
+		}
+
+		if err := transferResult(subscriberTarget, subscriberDirectory, scenarioDirectory, "subscriber.csv"); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR role=coordinator error=%q\n", err)
+			os.Exit(1)
+		}
 	}
 
 	if err := generateReport(); err != nil {
@@ -77,12 +104,60 @@ func main() {
 	fmt.Printf("Finished: %s\n", resultDirectory)
 }
 
-func orchestrateMacro(publisherTarget string, publisherDirectory string, subscriberTarget string, subscriberDirectory string, repetitions int) error {
+func provisionFixtures() error {
+	command := exec.Command("go", "run", "./benchmark/cmd/provision_macro")
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
+}
+
+func distributeFixtures() error {
+	publisherFiles := []string{
+		shared.AESKeyFileName,
+		shared.ASCONKeyFileName,
+		shared.RSAPublicKeyFileName,
+		shared.CPABEPublicKeyFileName,
+	}
+	subscriberFiles := []string{
+		shared.AESKeyFileName,
+		shared.ASCONKeyFileName,
+		shared.RSAPrivateKeyFileName,
+		shared.CPABEPrivateKeyFileName,
+	}
+
+	if err := copyFixtures(publisherTarget, publisherDirectory, publisherFiles); err != nil {
+		return err
+	}
+	return copyFixtures(subscriberTarget, subscriberDirectory, subscriberFiles)
+}
+
+func copyFixtures(target, projectDirectory string, files []string) error {
+	remoteDirectory := path.Join(projectDirectory, cacheDirectory)
+	mkdir := exec.Command(SSH, target, "mkdir", "-p", remoteDirectory)
+	mkdir.Stdout = os.Stdout
+	mkdir.Stderr = os.Stderr
+	if err := mkdir.Run(); err != nil {
+		return err
+	}
+
+	for _, name := range files {
+		copyCommand := exec.Command(SCP, "-p", filepath.Join(cacheDirectory, name), target+":"+path.Join(remoteDirectory, name))
+		copyCommand.Stdout = os.Stdout
+		copyCommand.Stderr = os.Stderr
+		if err := copyCommand.Run(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func orchestrateMacro(publisherTarget string, publisherDirectory string, subscriberTarget string, subscriberDirectory string,
+	publisherExecutable string, subscriberExecutable string, repetitions int) error {
 
 	subscriber, subscriberInput, subscriberOutput, err := startBenchmark(
 		subscriberTarget,
 		subscriberDirectory,
-		"macro_subscriber",
+		subscriberExecutable,
 	)
 	if err != nil {
 		return err
@@ -91,7 +166,7 @@ func orchestrateMacro(publisherTarget string, publisherDirectory string, subscri
 	publisher, publisherInput, publisherOutput, err := startBenchmark(
 		publisherTarget,
 		publisherDirectory,
-		"macro_publisher",
+		publisherExecutable,
 	)
 	if err != nil {
 		return err
@@ -149,6 +224,7 @@ func loadEnvironmentVariables() {
 	runs = utility.ParseIntFromEnv("MACRO_RUNS")
 	warmupRuns = utility.ParseIntFromEnv("MACRO_WARMUP_RUNS")
 	resultDirectory = utility.ParseStringFromEnv("MACRO_RESULT_DIR")
+	cacheDirectory = utility.ParseStringFromEnv("CACHE_DIRECTORY")
 	publisherTarget = utility.ParseStringFromEnv("MACRO_PUBLISHER_SSH_TARGET")
 	subscriberTarget = utility.ParseStringFromEnv("MACRO_SUBSCRIBER_SSH_TARGET")
 	publisherDirectory = utility.ParseStringFromEnv("MACRO_PUBLISHER_PROJECT_DIR")

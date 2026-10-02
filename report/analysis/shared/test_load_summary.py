@@ -401,12 +401,12 @@ def test_load_macro_summary_combines_publisher_and_subscriber_data(tmp_path):
     )
 
     # Act
-    summary = sut.load_macro_summary(str(publisher_filepath), str(subscriber_filepath))
+    summary = sut.load_macro_summary(str(publisher_filepath), str(subscriber_filepath), "tls_json")
 
     # Assert
     assert len(summary.macro_aggregations) == 2
 
-    aggregation = summary.find_macro_aggregation("MQTT-TLS", 256)
+    aggregation = summary.find_macro_aggregation("tls_json", 256)
 
     assert aggregation is not None
     assert len(aggregation.cases) == 2
@@ -437,7 +437,7 @@ def test_load_macro_summary_combines_publisher_and_subscriber_data(tmp_path):
         "message-1": 350,
     }
 
-    second_aggregation = summary.find_macro_aggregation("MQTT-TLS", 512)
+    second_aggregation = summary.find_macro_aggregation("tls_json", 512)
 
     assert second_aggregation is not None
     assert len(second_aggregation.cases) == 1
