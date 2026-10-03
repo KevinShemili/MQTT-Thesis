@@ -1,57 +1,81 @@
-import subprocess
+import socket
+import statistics
+import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
 
-PI3 = "pi3"
-PI4 = "pi4"
+import ntplib
 
-SAMPLES = 30
+PORT = 12345
+BURSTS = 30
+EXCHANGES_PER_BURST = 8
 INTERVAL_SECONDS = 5
 
 
-def read_offset(target):
-    output = subprocess.check_output(
-        ["ssh", target, "chronyc", "tracking"],
-        text=True,
-    )
+def serve():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("0.0.0.0", PORT))
 
-    line = next(
-        line for line in output.splitlines() if line.strip().startswith("System time")
-    )
+        while True:
+            data, address = sock.recvfrom(256)
+            received = ntplib.system_to_ntp_time(time.time())
 
-    parts = line.split()
+            request = ntplib.NTPPacket()
+            request.from_data(data)
 
-    offset = float(parts[3])
-    direction = parts[5]
+            reply = ntplib.NTPPacket(version=request.version, mode=4)
+            # Measurement responder only; not a synchronization source.
+            reply.leap = 3
+            reply.orig_timestamp = request.tx_timestamp
+            reply.recv_timestamp = received
+            reply.tx_timestamp = ntplib.system_to_ntp_time(time.time())
 
-    if direction == "slow":
-        offset = -offset
-
-    return offset
+            sock.sendto(reply.to_data(), address)
 
 
-offsets = []
+def measure(host):
+    client = ntplib.NTPClient()
+    selected = []
 
-with ThreadPoolExecutor(max_workers=2) as executor:
-    for sample in range(SAMPLES):
-        pi3_future = executor.submit(read_offset, PI3)
-        pi4_future = executor.submit(read_offset, PI4)
+    for burst in range(BURSTS):
+        exchanges = []
 
-        pi3_offset = pi3_future.result()
-        pi4_offset = pi4_future.result()
+        for _ in range(EXCHANGES_PER_BURST):
+            result = client.request(
+                host,
+                version=4,
+                port=PORT,
+                timeout=5,
+            )
 
-        relative_offset = abs(pi4_offset - pi3_offset)
-        offsets.append(relative_offset)
+            if result.delay < 0:
+                raise RuntimeError("Negative RTT: invalid measurement; rerun.")
 
-        if sample < SAMPLES - 1:
+            exchanges.append(result)
+
+        # Keep the lowest-RTT exchange from each burst.
+        selected.append(min(exchanges, key=lambda result: result.delay))
+
+        if burst < BURSTS - 1:
             time.sleep(INTERVAL_SECONDS)
 
+    offsets = [result.offset for result in selected]
+    rtts = [result.delay for result in selected]
 
-mean_offset = sum(offsets) / len(offsets)
+    mean_offset = statistics.mean(offsets)
+    mean_rtt = statistics.mean(rtts)
+    offset_variation = statistics.stdev(offsets)
 
-print(f"Samples: {SAMPLES}")
-print(
-    f"Mean absolute Pi-to-Pi clock offset: "
-    f"{mean_offset * 1_000_000:.2f} us "
-    f"({mean_offset * 1_000:.3f} ms)"
-)
+    print(f"Selected measurements: {len(selected)}")
+    print(f"Mean estimated clock offset (Pi4 - Pi3): {mean_offset * 1000:+.3f} ms")
+    print(f"Mean selected RTT: {mean_rtt * 1000:.3f} ms")
+    print(f"Offset variation (standard deviation): {offset_variation * 1000:.3f} ms")
+
+
+if __name__ == "__main__":
+    if sys.argv[1] == "server":
+        try:
+            serve()
+        except KeyboardInterrupt:
+            pass
+    else:
+        measure(sys.argv[1])

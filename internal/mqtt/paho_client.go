@@ -29,7 +29,8 @@ var _ Client = (*PahoClient)(nil)
 
 func NewClient(cfg ClientConfig) *PahoClient {
 
-	options := mqtt.NewClientOptions().
+	options := mqtt.
+		NewClientOptions().
 		AddBroker(cfg.BrokerURL).
 		SetClientID(cfg.ClientID).
 		SetUsername(cfg.Username).
