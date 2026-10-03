@@ -3,15 +3,15 @@ package main
 import (
 	"flag"
 	"os"
-	"thesis/benchmark/micro/full_schema/shared"
+	"thesis/benchmark/micro/full_schema"
 	"thesis/benchmark/thermal"
-	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
 	"thesis/internal/envelope"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 	"time"
 )
 
@@ -62,12 +62,12 @@ func main() {
 
 func encryptPSKStandard(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 
-	cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
+	cipher := aes.NewAES(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
+	plaintext := generator.GenerateRandomBytes(payloadSize)
 
 	ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -75,7 +75,7 @@ func encryptPSKStandard(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+		nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 		symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 		jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
@@ -89,14 +89,14 @@ func encryptPSKStandard(payloadSize int, duration time.Duration) bool {
 
 func encryptRSAStandard(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 
 	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
+	plaintext := generator.GenerateRandomBytes(payloadSize)
 
-	cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
+	cipher := aes.NewAES(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 	ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -104,8 +104,8 @@ func encryptRSAStandard(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-		symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+		nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+		symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 		messageCipher := aes.NewAES(symmetricKey)
 
 		asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
@@ -123,16 +123,16 @@ func encryptRSAStandard(payloadSize int, duration time.Duration) bool {
 
 func encryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 
 	authority := cpabe.NewAuthority()
 
 	abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
+	plaintext := generator.GenerateRandomBytes(payloadSize)
 
-	cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
+	cipher := aes.NewAES(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 	ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -140,8 +140,8 @@ func encryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-		symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+		nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+		symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 		messageCipher := aes.NewAES(symmetricKey)
 
 		asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -159,12 +159,12 @@ func encryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 
 func encryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	cborSerializer := serialization.CBORSerializer{}
 
-	cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
+	cipher := ascon.NewASCON(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
+	plaintext := generator.GenerateRandomBytes(payloadSize)
 
 	ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -172,7 +172,7 @@ func encryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+		nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 		symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 		cborSerializer.Serialize(envelope.AsymmetricEnvelope{
@@ -186,14 +186,14 @@ func encryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 
 func encryptRSALightweight(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	cborSerializer := serialization.CBORSerializer{}
 
 	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
+	plaintext := generator.GenerateRandomBytes(payloadSize)
 
-	cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
+	cipher := ascon.NewASCON(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 	ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -201,8 +201,8 @@ func encryptRSALightweight(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-		symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+		nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+		symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 		messageCipher := ascon.NewASCON(symmetricKey)
 
 		asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
@@ -220,16 +220,16 @@ func encryptRSALightweight(payloadSize int, duration time.Duration) bool {
 
 func encryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	cborSerializer := serialization.CBORSerializer{}
 
 	authority := cpabe.NewAuthority()
 
 	abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
+	plaintext := generator.GenerateRandomBytes(payloadSize)
 
-	cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
+	cipher := ascon.NewASCON(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 	ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -237,8 +237,8 @@ func encryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 
 	deadline := time.Now().Add(duration)
 	for time.Now().Before(deadline) {
-		nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-		symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+		nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+		symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 		messageCipher := ascon.NewASCON(symmetricKey)
 
 		asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -256,14 +256,14 @@ func encryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 
 func decryptPSKStandard(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 
-	symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 	cipher := aes.NewAES(symmetricKey)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 		Nonce:               nonce,
@@ -287,16 +287,16 @@ func decryptPSKStandard(payloadSize int, duration time.Duration) bool {
 
 func decryptRSAStandard(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 
 	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-	symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 	cipher := aes.NewAES(symmetricKey)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
@@ -322,18 +322,18 @@ func decryptRSAStandard(payloadSize int, duration time.Duration) bool {
 
 func decryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 
 	authority := cpabe.NewAuthority()
 	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 	subscriberKey := authority.IssuePrivateKey(abeAttributes)
 
-	symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 	cipher := aes.NewAES(symmetricKey)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),
@@ -359,14 +359,14 @@ func decryptCPABEStandard(payloadSize int, duration time.Duration) bool {
 
 func decryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	cborSerializer := serialization.CBORSerializer{}
 
-	symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 	cipher := ascon.NewASCON(symmetricKey)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 		Nonce:               nonce,
@@ -390,16 +390,16 @@ func decryptPSKLightweight(payloadSize int, duration time.Duration) bool {
 
 func decryptRSALightweight(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	cborSerializer := serialization.CBORSerializer{}
 
 	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-	symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 	cipher := ascon.NewASCON(symmetricKey)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
@@ -425,18 +425,18 @@ func decryptRSALightweight(payloadSize int, duration time.Duration) bool {
 
 func decryptCPABELightweight(payloadSize int, duration time.Duration) bool {
 
-	config := shared.LoadFullSchemaConfig()
+	config := full_schema.NewFullSchemaConfig()
 	cborSerializer := serialization.CBORSerializer{}
 
 	authority := cpabe.NewAuthority()
 	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 	subscriberKey := authority.IssuePrivateKey(abeAttributes)
 
-	symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 	cipher := ascon.NewASCON(symmetricKey)
 
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 		AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),

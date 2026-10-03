@@ -5,32 +5,32 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/utility"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/envelope"
 	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 )
 
 type TLSPSKAESPublisherInput struct {
 	Client       mqtt.Client
-	Config       shared.MacroConfig
+	Config       macro.MacroConfig
 	Cipher       aes.AES
 	PayloadSize  int
-	Measurements []shared.PublisherMeasurement
+	Measurements []macro.PublisherMeasurement
 	IsWarmup     bool
 }
 
-func RunPublishBenchmark(input TLSPSKAESPublisherInput) (shared.PublisherResult, error) {
+func RunPublishBenchmark(input TLSPSKAESPublisherInput) (macro.PublisherResult, error) {
 
 	return runPublishBenchmark(input, cpu.NewCPUPerf)
 }
 
-func runPublishBenchmark(input TLSPSKAESPublisherInput, newCPU func() (cpu.CPU, error)) (shared.PublisherResult, error) {
+func runPublishBenchmark(input TLSPSKAESPublisherInput, newCPU func() (cpu.CPU, error)) (macro.PublisherResult, error) {
 
-	messages := shared.BuildMessages(input.Config.Benchmark.MessageCount, input.PayloadSize)
+	messages := message.BuildMessages(input.Config.Benchmark.MessageCount, input.PayloadSize)
 	serializer := serialization.JSONSerializer{}
 	publishTokens := make([]mqtt.PublishToken, input.Config.Benchmark.MessageCount)
 
@@ -38,34 +38,34 @@ func runPublishBenchmark(input TLSPSKAESPublisherInput, newCPU func() (cpu.CPU, 
 
 		err := publishMessages(input, serializer, messages, publishTokens)
 		if err != nil {
-			return shared.PublisherResult{}, err
+			return macro.PublisherResult{}, err
 		}
 
-		return shared.PublisherResult{}, nil
+		return macro.PublisherResult{}, nil
 	}
 
 	measurement, err := newCPU()
 	if err != nil {
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
 	if err := measurement.Enable(); err != nil {
 		measurement.Abort()
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
 	workloadErr := publishMessages(input, serializer, messages, publishTokens)
 	if workloadErr != nil {
 		measurement.Abort()
-		return shared.PublisherResult{}, workloadErr
+		return macro.PublisherResult{}, workloadErr
 	}
 
 	cycles, err := measurement.Stop()
 	if err != nil {
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
-	return shared.PublisherResult{
+	return macro.PublisherResult{
 		Measurements: input.Measurements,
 		Cycles:       cycles,
 	}, nil
@@ -100,7 +100,7 @@ func publishMessages(input TLSPSKAESPublisherInput, serializer serialization.JSO
 
 		publishTokens[messageIndex] = publishToken
 
-		input.Measurements[messageIndex] = shared.PublisherMeasurement{
+		input.Measurements[messageIndex] = macro.PublisherMeasurement{
 			MessageID: msg.ID,
 			StartTime: startTime,
 		}
@@ -125,7 +125,7 @@ func publishMessage(input TLSPSKAESPublisherInput, serializer serialization.JSON
 		return nil, fmt.Errorf("serialize message %s: %w", msg.ID, err)
 	}
 
-	nonce := utility.GenerateRandomBytes(input.Cipher.NonceSize())
+	nonce := generator.GenerateRandomBytes(input.Cipher.NonceSize())
 	ciphertext := input.Cipher.Encrypt(nil, nonce, plaintext)
 
 	payload, err := serializer.Serialize(envelope.SymmetricEnvelope{

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
@@ -13,20 +13,20 @@ import (
 
 type TLSCBORPublisherInput struct {
 	Client       mqtt.Client
-	Config       shared.MacroConfig
+	Config       macro.MacroConfig
 	PayloadSize  int
-	Measurements []shared.PublisherMeasurement
+	Measurements []macro.PublisherMeasurement
 	IsWarmup     bool
 }
 
-func RunPublishBenchmark(input TLSCBORPublisherInput) (shared.PublisherResult, error) {
+func RunPublishBenchmark(input TLSCBORPublisherInput) (macro.PublisherResult, error) {
 
 	return runPublishBenchmark(input, cpu.NewCPUPerf)
 }
 
-func runPublishBenchmark(input TLSCBORPublisherInput, newCPU func() (cpu.CPU, error)) (shared.PublisherResult, error) {
+func runPublishBenchmark(input TLSCBORPublisherInput, newCPU func() (cpu.CPU, error)) (macro.PublisherResult, error) {
 
-	messages := shared.BuildMessages(input.Config.Benchmark.MessageCount, input.PayloadSize)
+	messages := message.BuildMessages(input.Config.Benchmark.MessageCount, input.PayloadSize)
 	serializer := serialization.CBORSerializer{}
 	publishTokens := make([]mqtt.PublishToken, input.Config.Benchmark.MessageCount)
 
@@ -34,34 +34,34 @@ func runPublishBenchmark(input TLSCBORPublisherInput, newCPU func() (cpu.CPU, er
 
 		err := publishMessages(input, serializer, messages, publishTokens)
 		if err != nil {
-			return shared.PublisherResult{}, err
+			return macro.PublisherResult{}, err
 		}
 
-		return shared.PublisherResult{}, nil
+		return macro.PublisherResult{}, nil
 	}
 
 	measurement, err := newCPU()
 	if err != nil {
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
 	if err := measurement.Enable(); err != nil {
 		measurement.Abort()
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
 	workloadErr := publishMessages(input, serializer, messages, publishTokens)
 	if workloadErr != nil {
 		measurement.Abort()
-		return shared.PublisherResult{}, workloadErr
+		return macro.PublisherResult{}, workloadErr
 	}
 
 	cycles, err := measurement.Stop()
 	if err != nil {
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
-	return shared.PublisherResult{
+	return macro.PublisherResult{
 		Measurements: input.Measurements,
 		Cycles:       cycles,
 	}, nil
@@ -96,7 +96,7 @@ func publishMessages(input TLSCBORPublisherInput, serializer serialization.CBORS
 
 		publishTokens[messageIndex] = publishToken
 
-		input.Measurements[messageIndex] = shared.PublisherMeasurement{
+		input.Measurements[messageIndex] = macro.PublisherMeasurement{
 			MessageID: msg.ID,
 			StartTime: startTime,
 		}

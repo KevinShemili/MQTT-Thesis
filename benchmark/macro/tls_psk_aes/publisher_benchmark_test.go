@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/utility"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/envelope"
 	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 )
 
 func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
@@ -42,16 +42,16 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 		calls: &calls,
 	}
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount:    2,
 		PublishInterval: 0,
 		Topic:           "test/topic",
 	}
 
-	key := utility.GenerateRandomBytes(16)
+	key := generator.GenerateRandomBytes(16)
 	cipher := aes.NewAES(key)
 
-	measurements := make([]shared.PublisherMeasurement, config.MessageCount)
+	measurements := make([]macro.PublisherMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
 		calls = append(calls, "new cpu")
@@ -73,7 +73,7 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 	// Act
 	result, err := runPublishBenchmark(TLSPSKAESPublisherInput{
 		Client:       client,
-		Config:       shared.MacroConfig{Benchmark: config},
+		Config:       macro.MacroConfig{Benchmark: config},
 		Cipher:       cipher,
 		PayloadSize:  16,
 		Measurements: measurements,
@@ -119,13 +119,13 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 		tokens: tokens,
 	}
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount:    1,
 		PublishInterval: 0,
 		Topic:           "test/topic",
 	}
 
-	key := utility.GenerateRandomBytes(16)
+	key := generator.GenerateRandomBytes(16)
 	cipher := aes.NewAES(key)
 
 	newCPU := func() (cpu.CPU, error) {
@@ -142,7 +142,7 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	// Act
 	result, err := runPublishBenchmark(TLSPSKAESPublisherInput{
 		Client:      client,
-		Config:      shared.MacroConfig{Benchmark: config},
+		Config:      macro.MacroConfig{Benchmark: config},
 		Cipher:      cipher,
 		PayloadSize: 16,
 		IsWarmup:    true,
@@ -183,13 +183,13 @@ func TestPublishMessageConstructsDecryptablePayload(t *testing.T) {
 		tokens: tokens,
 	}
 
-	config := shared.MacroConfig{
-		Benchmark: shared.BenchmarkConfig{
+	config := macro.MacroConfig{
+		Benchmark: macro.BenchmarkConfig{
 			Topic: "test/topic",
 		},
 	}
 
-	key := utility.GenerateRandomBytes(16)
+	key := generator.GenerateRandomBytes(16)
 	cipher := aes.NewAES(key)
 
 	msg := message.NewMessage(16)

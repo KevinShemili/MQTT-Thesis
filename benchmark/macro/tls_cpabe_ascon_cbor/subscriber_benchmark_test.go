@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/utility"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/ascon"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/envelope"
+	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 )
 
 func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
@@ -22,12 +23,12 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 
 	payloadSize := 16
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount: 2,
 		Topic:        "test/topic",
 	}
 
-	messages := shared.BuildMessages(config.MessageCount, payloadSize)
+	messages := message.BuildMessages(config.MessageCount, payloadSize)
 
 	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(3)
 	authority := cpabe.NewAuthority()
@@ -40,9 +41,9 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 		t.Fatalf("failed to serialize first message: %v", err)
 	}
 
-	firstSymmetricKey := utility.GenerateRandomBytes(16)
+	firstSymmetricKey := generator.GenerateRandomBytes(16)
 	firstCipher := ascon.NewASCON(firstSymmetricKey)
-	firstNonce := utility.GenerateRandomBytes(firstCipher.NonceSize())
+	firstNonce := generator.GenerateRandomBytes(firstCipher.NonceSize())
 	firstAsymmetricCiphertext := authority.Encrypt(policy, firstSymmetricKey)
 	firstCiphertext := firstCipher.Encrypt(nil, firstNonce, firstPlaintext)
 
@@ -60,9 +61,9 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 		t.Fatalf("failed to serialize second message: %v", err)
 	}
 
-	secondSymmetricKey := utility.GenerateRandomBytes(16)
+	secondSymmetricKey := generator.GenerateRandomBytes(16)
 	secondCipher := ascon.NewASCON(secondSymmetricKey)
-	secondNonce := utility.GenerateRandomBytes(secondCipher.NonceSize())
+	secondNonce := generator.GenerateRandomBytes(secondCipher.NonceSize())
 	secondAsymmetricCiphertext := authority.Encrypt(policy, secondSymmetricKey)
 	secondCiphertext := secondCipher.Encrypt(nil, secondNonce, secondPlaintext)
 
@@ -80,7 +81,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 
 	cpuMeasurement := &fakeSubscriberCPU{calls: &calls}
 
-	measurements := make([]shared.SubscriberMeasurement, config.MessageCount)
+	measurements := make([]macro.SubscriberMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
 		calls = append(calls, "new cpu")
@@ -117,7 +118,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 	// Act
 	result, err := runSubscribeBenchmark(TLSCPABEASCONSubscriberInput{
 		Client:       client,
-		Config:       shared.MacroConfig{Benchmark: config},
+		Config:       macro.MacroConfig{Benchmark: config},
 		PrivateKey:   privateKey,
 		Measurements: measurements,
 		IsWarmup:     false,
@@ -157,12 +158,12 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 
 	payloadSize := 16
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount: 1,
 		Topic:        "test/topic",
 	}
 
-	messages := shared.BuildMessages(config.MessageCount, payloadSize)
+	messages := message.BuildMessages(config.MessageCount, payloadSize)
 
 	policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(3)
 	authority := cpabe.NewAuthority()
@@ -175,9 +176,9 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 		t.Fatalf("failed to serialize message: %v", err)
 	}
 
-	symmetricKey := utility.GenerateRandomBytes(16)
+	symmetricKey := generator.GenerateRandomBytes(16)
 	cipher := ascon.NewASCON(symmetricKey)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 	asymmetricCiphertext := authority.Encrypt(policy, symmetricKey)
 	ciphertext := cipher.Encrypt(nil, nonce, plaintext)
 
@@ -216,7 +217,7 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	// Act
 	result, err := runSubscribeBenchmark(TLSCPABEASCONSubscriberInput{
 		Client:     client,
-		Config:     shared.MacroConfig{Benchmark: config},
+		Config:     macro.MacroConfig{Benchmark: config},
 		PrivateKey: privateKey,
 		IsWarmup:   true,
 	}, notifyReady, newCPU)

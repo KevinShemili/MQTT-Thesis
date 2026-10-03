@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"thesis/benchmark/cache"
-	cmdshared "thesis/benchmark/cmd/macro/shared"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/cmd/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/benchmark/macro/tls_psk_aes"
-	"thesis/benchmark/utility"
-	"thesis/benchmark/utility/csv"
 	"thesis/internal/cryptography/aes"
+	"thesis/utility/golang/cache"
+	"thesis/utility/golang/communication"
 )
 
 func main() {
@@ -24,27 +23,27 @@ func main() {
 
 func run() error {
 
-	config := shared.NewMacroConfig()
+	config := macro.NewMacroConfig()
 
-	cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
+	cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
 
-	client, err := cmdshared.NewSubscriberClient(config.MQTT)
+	client, err := shared.NewSubscriberClient(config.MQTT)
 	if err != nil {
 		return err
 	}
 
-	results := cmdshared.PrepareSubscriberResults(config.Benchmark)
+	results := shared.PrepareSubscriberResults(config.Benchmark)
 
 	startSignal := bufio.NewReader(os.Stdin)
 
-	dependencies := cmdshared.SubscriberDependencies{
+	dependencies := shared.SubscriberDependency{
 		Connect:    client.Connect,
 		Disconnect: client.Disconnect,
 		ReadSignal: func(expected string) error {
-			return utility.ReadSignal(startSignal, expected)
+			return communication.ReadSignal(startSignal, expected)
 		},
 		WriteSignal: func(signal string) error {
-			return utility.WriteSignal(os.Stdout, signal)
+			return communication.WriteSignal(os.Stdout, signal)
 		},
 		RunBenchmark: func(payloadIndex int, run int, isWarmup bool, onReady func() error) error {
 
@@ -79,9 +78,9 @@ func run() error {
 		},
 
 		WriteResults: func() error {
-			return csv.WriteSubscriberResults(results, config.Benchmark)
+			return shared.WriteSubscriberResults(results, config.Benchmark)
 		},
 	}
 
-	return cmdshared.RunSubscriber(config.Benchmark, dependencies)
+	return shared.RunSubscriber(config.Benchmark, dependencies)
 }

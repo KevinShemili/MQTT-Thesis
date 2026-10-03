@@ -3,16 +3,15 @@ package cpabe_rsa
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/thermal"
-	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
+	"thesis/utility/golang/generator"
 )
 
 func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAConfig()
+	config := NewCPABERSAConfig()
 
 	// Scenario 1: Scaling attribute count in CP-ABE
 	for _, attributeCount := range config.AttributeCounts {
@@ -27,7 +26,7 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
 			// True cryptographic realism is not necessary here,
 			// hence no need to regenerate a symmetric key for each new encryption
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
 			asymmetricCiphertextSize := len(authority.Encrypt(abePolicy, symmetricKey))
@@ -61,7 +60,7 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 			for index := range subscriberCount {
 				publicKeySlice[index] = rsa.NewRSA(config.FixedRSAKeyBits)
 			}
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 			// Size of a single wrapped key
 			// - Directly comparable with CP-ABE's single ciphertext
@@ -101,7 +100,7 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
 			// Generate one RSA key of the specified size
 			publicKey := rsa.NewRSA(rsaKeyBits)
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 			// Ciphertext size is fixed, so measured once outside timed loop
 			asymmetricCiphertextSize := len(publicKey.Encrypt(symmetricKey))
@@ -129,7 +128,7 @@ func BenchmarkCPABERSAEncrypt(benchmark *testing.B) {
 
 func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAConfig()
+	config := NewCPABERSAConfig()
 
 	// Scenario 1: CP-ABE scaling attribute count
 	for _, attributeCount := range config.AttributeCounts {
@@ -142,7 +141,7 @@ func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 			// Create synthetic policy and attributes for given attribute count
 			abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 			// Create private key based on attributes
 			privateKey := authority.IssuePrivateKey(abeAttributes)
@@ -180,7 +179,7 @@ func BenchmarkCPABERSADecrypt(benchmark *testing.B) {
 
 			// Generate one RSA key of the specified size
 			privateKey := rsa.NewRSA(rsaKeyBits)
-			symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 			// Create ciphertext based on policy to measure decryption cost
 			asymmetricCiphertext := privateKey.Encrypt(symmetricKey)

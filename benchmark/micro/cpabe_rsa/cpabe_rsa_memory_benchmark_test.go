@@ -5,12 +5,11 @@ import (
 	"runtime"
 	"runtime/debug"
 	"testing"
-	"thesis/benchmark/cache"
 	"thesis/benchmark/memory"
-	"thesis/benchmark/micro/cpabe_rsa/shared"
 	"thesis/benchmark/thermal"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
+	"thesis/utility/golang/cache"
 )
 
 // Peak memory is a property of a whole process rather than of a loop, so these
@@ -20,7 +19,7 @@ import (
 // CP-ABE/RSA provisioner built in an earlier process
 func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAConfig()
+	config := NewCPABERSAConfig()
 
 	// Scenario 1: Measure how memory changes as policy grows
 	for _, attributeCount := range config.AttributeCounts {
@@ -31,9 +30,9 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// 1. Public Key
 			// 2. Policy
 			// 3. AES Symmetric Key
-			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(shared.CPABEPublicKeyFileName))
-			abePolicy := cpabe.ParseCPABEPolicy(string(cache.Load(fmt.Sprintf(shared.CPABEPolicyFileNameFormat, attributeCount))))
-			symmetricKey := cache.Load(shared.AESKeyFileName)
+			authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(cache.CPABEPublicKeyFileName))
+			abePolicy := cpabe.ParseCPABEPolicy(string(cache.Load(fmt.Sprintf(cache.CPABEPolicyWCountFileName, attributeCount))))
+			symmetricKey := cache.Load(cache.AESKeyFileName)
 
 			thermal.WaitForCooldown()
 
@@ -58,7 +57,7 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// 1. Each subscriber's public key
 			// 2. AES Symmetric Key
 			publicKeySlice := loadIndividualRSAPublicKeys(subscriberCount)
-			symmetricKey := cache.Load(shared.AESKeyFileName)
+			symmetricKey := cache.Load(cache.AESKeyFileName)
 
 			thermal.WaitForCooldown()
 
@@ -80,7 +79,7 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 
 func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 
-	config := shared.NewCPABERSAConfig()
+	config := NewCPABERSAConfig()
 
 	// Scenario 1: Measure how memory changes as the policy grows
 	for _, attributeCount := range config.AttributeCounts {
@@ -90,8 +89,8 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 			// Load from cache:
 			// 1. Private key with attributes
 			// 2. Ciphertext to decrypt
-			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(fmt.Sprintf(shared.CPABEPrivateKeyFileNameFormat, attributeCount)))
-			asymmetricCiphertext := cache.Load(fmt.Sprintf(shared.CPABECiphertextFileNameFormat, attributeCount))
+			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(fmt.Sprintf(cache.CPABEPrivateKeyWCountFileName, attributeCount)))
+			asymmetricCiphertext := cache.Load(fmt.Sprintf(cache.CPABECiphertextWCountFileName, attributeCount))
 
 			thermal.WaitForCooldown()
 
@@ -111,8 +110,8 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 	rsaKeyBits := config.FixedRSAKeyBits
 	benchmark.Run(fmt.Sprintf("RSAKeyBits/%d", rsaKeyBits), func(b *testing.B) {
 
-		privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(shared.RSAPrivateKeyFileName))
-		asymmetricCiphertext := cache.Load(shared.RSACiphertextFileName)
+		privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(cache.RSAPrivateKeyFileName))
+		asymmetricCiphertext := cache.Load(cache.RSACiphertextFileName)
 
 		thermal.WaitForCooldown()
 
@@ -175,7 +174,7 @@ func loadIndividualRSAPublicKeys(requiredCount int) []rsa.RSA {
 
 	for index := range requiredCount {
 		keySlice[index] = rsa.RSAFromPublicKeyBytes(
-			cache.Load(fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, index)),
+			cache.Load(fmt.Sprintf(cache.RSAPublicKeyWIndexFileName, index)),
 		)
 	}
 

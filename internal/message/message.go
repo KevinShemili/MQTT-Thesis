@@ -37,3 +37,14 @@ func NewMessageIntKeys(payloadSize int) MessageIntKeys {
 func BuildPayload(payloadSize int) []byte {
 	return bytes.Repeat([]byte{0xAB}, payloadSize)
 }
+
+func BuildMessages(messageCount, payloadSize int) []Message {
+
+	messages := make([]Message, messageCount)
+
+	for messageIndex := range messageCount {
+		messages[messageIndex] = NewMessage(payloadSize)
+	}
+
+	return messages
+}

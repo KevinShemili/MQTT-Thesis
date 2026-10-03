@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/internal/mqtt"
 )
 
@@ -36,13 +36,13 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 		calls: &calls,
 	}
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount:    2,
 		PublishInterval: 0,
 		Topic:           "test/topic",
 	}
 
-	measurements := make([]shared.PublisherMeasurement, config.MessageCount)
+	measurements := make([]macro.PublisherMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
 		calls = append(calls, "new cpu")
@@ -64,7 +64,7 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 	// Act
 	result, err := runPublishBenchmark(TLSJSONPublisherInput{
 		Client:       client,
-		Config:       shared.MacroConfig{Benchmark: config},
+		Config:       macro.MacroConfig{Benchmark: config},
 		PayloadSize:  16,
 		Measurements: measurements,
 		IsWarmup:     false,
@@ -109,7 +109,7 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 		tokens: tokens,
 	}
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount:    1,
 		PublishInterval: 0,
 		Topic:           "test/topic",
@@ -129,7 +129,7 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	// Act
 	result, err := runPublishBenchmark(TLSJSONPublisherInput{
 		Client:      client,
-		Config:      shared.MacroConfig{Benchmark: config},
+		Config:      macro.MacroConfig{Benchmark: config},
 		PayloadSize: 16,
 		IsWarmup:    true,
 	}, newCPU)

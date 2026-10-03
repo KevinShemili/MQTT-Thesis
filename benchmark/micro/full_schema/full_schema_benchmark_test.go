@@ -3,20 +3,19 @@ package full_schema
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/micro/full_schema/shared"
 	"thesis/benchmark/thermal"
-	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
 	"thesis/internal/envelope"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 )
 
 func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
-	config := shared.LoadFullSchemaConfig()
+	config := NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
 
@@ -25,9 +24,9 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKStandard/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
+			cipher := aes.NewAES(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -43,7 +42,7 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				jsonSerializer.Serialize(
@@ -70,14 +69,14 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 			rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
+			cipher := aes.NewAES(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
 			asymmetricCiphertextSize := len(rsaScheme.Encrypt(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
+				generator.GenerateRandomBytes(config.SymmetricKeySize),
 			))
 
 			serializedEnvelope, _ := jsonSerializer.Serialize(
@@ -93,8 +92,8 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+				symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
@@ -126,15 +125,15 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			cipher := aes.NewAES(utility.GenerateRandomBytes(config.SymmetricKeySize))
+			cipher := aes.NewAES(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
 			asymmetricCiphertextSize := len(authority.Encrypt(
 				abePolicy,
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
+				generator.GenerateRandomBytes(config.SymmetricKeySize),
 			))
 
 			serializedEnvelope, _ := jsonSerializer.Serialize(
@@ -150,8 +149,8 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+				symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 				messageCipher := aes.NewAES(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -179,9 +178,9 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKLightweight/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
+			cipher := ascon.NewASCON(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
@@ -196,7 +195,7 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 				symmetricCiphertext := cipher.Encrypt(ciphertext[:0], nonce, plaintext)
 
 				cborSerializer.Serialize(envelope.AsymmetricEnvelope{
@@ -222,14 +221,14 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 			rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
+			cipher := ascon.NewASCON(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
 			asymmetricCiphertextSize := len(rsaScheme.Encrypt(
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
+				generator.GenerateRandomBytes(config.SymmetricKeySize),
 			))
 
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
@@ -244,8 +243,8 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 			throttle := thermal.NewThrottleWatch()
 
 			for b.Loop() {
-				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+				symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := rsaScheme.Encrypt(symmetricKey)
@@ -277,15 +276,15 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 			abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.AttributeCount)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			cipher := ascon.NewASCON(utility.GenerateRandomBytes(config.SymmetricKeySize))
+			cipher := ascon.NewASCON(generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 			ciphertext := make([]byte, 0, payloadSize+cipher.Overhead())
 
 			asymmetricCiphertextSize := len(authority.Encrypt(
 				abePolicy,
-				utility.GenerateRandomBytes(config.SymmetricKeySize),
+				generator.GenerateRandomBytes(config.SymmetricKeySize),
 			))
 
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
@@ -303,8 +302,8 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 			// A realistic implementation of CP-ABE + ASCON necessitates a fresh session key & nonce per message
 			for b.Loop() {
-				nonce := utility.GenerateRandomBytes(cipher.NonceSize())
-				symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
+				symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 				messageCipher := ascon.NewASCON(symmetricKey)
 
 				asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
@@ -330,7 +329,7 @@ func BenchmarkFullSchemaEncrypt(benchmark *testing.B) {
 
 func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
-	config := shared.LoadFullSchemaConfig()
+	config := NewFullSchemaConfig()
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
 
@@ -339,13 +338,13 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKStandard/%dB", payloadSize), func(b *testing.B) {
 
-			symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 
 			cipher := aes.NewAES(symmetricKey)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+			nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 			serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 				Nonce:               nonce,
@@ -380,13 +379,13 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-			symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 
 			cipher := aes.NewAES(symmetricKey)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+			nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 			serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 				AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
@@ -427,13 +426,13 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			subscriberKey := authority.IssuePrivateKey(abeAttributes)
 
-			symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 
 			cipher := aes.NewAES(symmetricKey)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+			nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 			serializedEnvelope, _ := jsonSerializer.Serialize(envelope.AsymmetricEnvelope{
 				AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),
@@ -470,13 +469,13 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("PSKLightweight/%dB", payloadSize), func(b *testing.B) {
 
-			symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 
 			cipher := ascon.NewASCON(symmetricKey)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+			nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 				Nonce:               nonce,
@@ -511,13 +510,13 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 
-			symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 
 			cipher := ascon.NewASCON(symmetricKey)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+			nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 				AsymmetricCiphertext: rsaScheme.Encrypt(symmetricKey),
@@ -558,13 +557,13 @@ func BenchmarkFullSchemaDecrypt(benchmark *testing.B) {
 
 			subscriberKey := authority.IssuePrivateKey(abeAttributes)
 
-			symmetricKey := utility.GenerateRandomBytes(config.SymmetricKeySize)
+			symmetricKey := generator.GenerateRandomBytes(config.SymmetricKeySize)
 
 			cipher := ascon.NewASCON(symmetricKey)
 
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
-			nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+			nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 			serializedEnvelope, _ := cborSerializer.Serialize(envelope.AsymmetricEnvelope{
 				AsymmetricCiphertext: authority.Encrypt(abePolicy, symmetricKey),

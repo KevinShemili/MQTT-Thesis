@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro"
+	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
 )
@@ -18,12 +19,12 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 
 	payloadSize := 16
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount: 2,
 		Topic:        "test/topic",
 	}
 
-	messages := shared.BuildMessages(config.MessageCount, payloadSize)
+	messages := message.BuildMessages(config.MessageCount, payloadSize)
 
 	jsonSerializer := serialization.JSONSerializer{}
 
@@ -42,7 +43,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 
 	cpuMeasurement := &fakeSubscriberCPU{calls: &calls}
 
-	measurements := make([]shared.SubscriberMeasurement, config.MessageCount)
+	measurements := make([]macro.SubscriberMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
 		calls = append(calls, "new cpu")
@@ -79,7 +80,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 	// Act
 	result, err := runSubscribeBenchmark(TLSJSONSubscriberInput{
 		Client:       client,
-		Config:       shared.MacroConfig{Benchmark: config},
+		Config:       macro.MacroConfig{Benchmark: config},
 		Measurements: measurements,
 		IsWarmup:     false,
 	}, notifyReady, newCPU)
@@ -118,12 +119,12 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 
 	payloadSize := 16
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount: 1,
 		Topic:        "test/topic",
 	}
 
-	messages := shared.BuildMessages(config.MessageCount, payloadSize)
+	messages := message.BuildMessages(config.MessageCount, payloadSize)
 
 	jsonSerializer := serialization.JSONSerializer{}
 
@@ -158,7 +159,7 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	// Act
 	result, err := runSubscribeBenchmark(TLSJSONSubscriberInput{
 		Client:   client,
-		Config:   shared.MacroConfig{Benchmark: config},
+		Config:   macro.MacroConfig{Benchmark: config},
 		IsWarmup: true,
 	}, notifyReady, newCPU)
 

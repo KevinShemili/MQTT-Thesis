@@ -4,12 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"thesis/benchmark/cache"
-	"thesis/benchmark/micro/cpabe_rsa/shared"
+	"thesis/benchmark/micro/cpabe_rsa"
 	"thesis/benchmark/thermal"
-	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
+	"thesis/utility/golang/cache"
+	"thesis/utility/golang/generator"
 	"time"
 )
 
@@ -44,11 +44,11 @@ func main() {
 
 func encryptCPABEAttributes(attributeCount int, duration time.Duration) bool {
 
-	config := shared.NewCPABERSAConfig()
+	config := cpabe_rsa.NewCPABERSAConfig()
 
 	authority := cpabe.NewAuthority()
 	abePolicy, _ := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
-	symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 	throttle := thermal.NewThrottleWatch()
 
@@ -62,14 +62,14 @@ func encryptCPABEAttributes(attributeCount int, duration time.Duration) bool {
 
 func encryptRSASubscribers(subscriberCount int, duration time.Duration) bool {
 
-	config := shared.NewCPABERSAConfig()
+	config := cpabe_rsa.NewCPABERSAConfig()
 
 	publicKeySlice := make([]rsa.RSA, subscriberCount)
 	for index := range subscriberCount {
-		publicKeySlice[index] = rsa.RSAFromPublicKeyBytes(cache.Load(fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, index)))
+		publicKeySlice[index] = rsa.RSAFromPublicKeyBytes(cache.Load(fmt.Sprintf(cache.RSAPublicKeyWIndexFileName, index)))
 	}
 
-	symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 
 	throttle := thermal.NewThrottleWatch()
 
@@ -85,12 +85,12 @@ func encryptRSASubscribers(subscriberCount int, duration time.Duration) bool {
 
 func decryptCPABEAttributes(attributeCount int, duration time.Duration) bool {
 
-	config := shared.NewCPABERSAConfig()
+	config := cpabe_rsa.NewCPABERSAConfig()
 
 	authority := cpabe.NewAuthority()
 	abePolicy, abeAttributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 	privateKey := authority.IssuePrivateKey(abeAttributes)
-	symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 	asymmetricCiphertext := authority.Encrypt(abePolicy, symmetricKey)
 
 	throttle := thermal.NewThrottleWatch()
@@ -105,10 +105,10 @@ func decryptCPABEAttributes(attributeCount int, duration time.Duration) bool {
 
 func decryptRSAKeyBits(duration time.Duration) bool {
 
-	config := shared.NewCPABERSAConfig()
+	config := cpabe_rsa.NewCPABERSAConfig()
 
 	privateKey := rsa.NewRSA(config.FixedRSAKeyBits)
-	symmetricKey := utility.GenerateRandomBytes(config.AESKeySize)
+	symmetricKey := generator.GenerateRandomBytes(config.AESKeySize)
 	asymmetricCiphertext := privateKey.Encrypt(symmetricKey)
 
 	throttle := thermal.NewThrottleWatch()

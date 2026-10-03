@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/envelope"
@@ -42,7 +42,7 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 		calls: &calls,
 	}
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount:    2,
 		PublishInterval: 0,
 		Topic:           "test/topic",
@@ -51,7 +51,7 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 	policy, _ := cpabe.BuildSyntheticPolicyAndAttributes(3)
 	authority := cpabe.NewAuthority()
 
-	measurements := make([]shared.PublisherMeasurement, config.MessageCount)
+	measurements := make([]macro.PublisherMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
 		calls = append(calls, "new cpu")
@@ -73,9 +73,9 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 	// Act
 	result, err := runPublishBenchmark(TLSCPABEAESPublisherInput{
 		Client: client,
-		Config: shared.MacroConfig{
+		Config: macro.MacroConfig{
 			Benchmark: config,
-			Cryptography: shared.CryptographyConfig{
+			Cryptography: macro.CryptographyConfig{
 				SymmetricKeySize: 16,
 			},
 		},
@@ -125,7 +125,7 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 		tokens: tokens,
 	}
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount:    1,
 		PublishInterval: 0,
 		Topic:           "test/topic",
@@ -148,9 +148,9 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	// Act
 	result, err := runPublishBenchmark(TLSCPABEAESPublisherInput{
 		Client: client,
-		Config: shared.MacroConfig{
+		Config: macro.MacroConfig{
 			Benchmark: config,
-			Cryptography: shared.CryptographyConfig{
+			Cryptography: macro.CryptographyConfig{
 				SymmetricKeySize: 16,
 			},
 		},
@@ -195,11 +195,11 @@ func TestPublishMessageConstructsDecryptablePayload(t *testing.T) {
 		tokens: tokens,
 	}
 
-	config := shared.MacroConfig{
-		Benchmark: shared.BenchmarkConfig{
+	config := macro.MacroConfig{
+		Benchmark: macro.BenchmarkConfig{
 			Topic: "test/topic",
 		},
-		Cryptography: shared.CryptographyConfig{
+		Cryptography: macro.CryptographyConfig{
 			SymmetricKeySize: 16,
 		},
 	}

@@ -3,8 +3,9 @@ package main
 import (
 	"testing"
 
-	cmdshared "thesis/benchmark/cmd/provision/shared"
-	macroshared "thesis/benchmark/macro/shared"
+	"thesis/benchmark/cmd/provision"
+	"thesis/benchmark/macro"
+	"thesis/utility/golang/cache"
 )
 
 func TestRunProvisionStoresAllKeys(t *testing.T) {
@@ -12,13 +13,13 @@ func TestRunProvisionStoresAllKeys(t *testing.T) {
 	// Arrange
 	stored := map[string]bool{}
 
-	config := macroshared.CryptographyConfig{
+	config := macro.CryptographyConfig{
 		SymmetricKeySize: 32,
 		RSAKeyBits:       2048,
 		AttributeCount:   1,
 	}
 
-	dependencies := cmdshared.ProvisionDependencies{
+	dependencies := provision.Dependency{
 		GenerateRandomBytes: func(size int) []byte {
 			return make([]byte, size)
 		},
@@ -28,12 +29,12 @@ func TestRunProvisionStoresAllKeys(t *testing.T) {
 	}
 
 	expected := []string{
-		macroshared.AESKeyFileName,
-		macroshared.ASCONKeyFileName,
-		macroshared.RSAPublicKeyFileName,
-		macroshared.RSAPrivateKeyFileName,
-		macroshared.CPABEPublicKeyFileName,
-		macroshared.CPABEPrivateKeyFileName,
+		cache.AESKeyFileName,
+		cache.ASCONKeyFileName,
+		cache.RSAPublicKeyFileName,
+		cache.RSAPrivateKeyFileName,
+		cache.CPABEPublicKeyFileName,
+		cache.CPABEPrivateKeyFileName,
 	}
 
 	// Act

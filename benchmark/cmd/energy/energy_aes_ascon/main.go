@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"os"
-	"thesis/benchmark/micro/aes_ascon/shared"
+	"thesis/benchmark/micro/aes_ascon"
 	"thesis/benchmark/thermal"
-	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
+	"thesis/utility/golang/generator"
 	"time"
 )
 
@@ -42,11 +42,11 @@ func main() {
 
 func encryptAESGCM(payloadSize int, duration time.Duration) bool {
 
-	config := shared.NewAESASCONConfig()
+	config := aes_ascon.NewAESASCONConfig()
 
-	aes := aes.NewAES(utility.GenerateRandomBytes(config.AESKeySize))
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(aes.NonceSize())
+	aes := aes.NewAES(generator.GenerateRandomBytes(config.AESKeySize))
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(aes.NonceSize())
 	ciphertext := make([]byte, 0, payloadSize+aes.Overhead())
 
 	throttle := thermal.NewThrottleWatch()
@@ -61,11 +61,11 @@ func encryptAESGCM(payloadSize int, duration time.Duration) bool {
 
 func encryptASCON(payloadSize int, duration time.Duration) bool {
 
-	config := shared.NewAESASCONConfig()
+	config := aes_ascon.NewAESASCONConfig()
 
-	ascon := ascon.NewASCON(utility.GenerateRandomBytes(config.ASCONKeySize))
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(ascon.NonceSize())
+	ascon := ascon.NewASCON(generator.GenerateRandomBytes(config.ASCONKeySize))
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(ascon.NonceSize())
 	ciphertext := make([]byte, 0, payloadSize+ascon.Overhead())
 
 	throttle := thermal.NewThrottleWatch()
@@ -80,11 +80,11 @@ func encryptASCON(payloadSize int, duration time.Duration) bool {
 
 func decryptAESGCM(payloadSize int, duration time.Duration) bool {
 
-	config := shared.NewAESASCONConfig()
+	config := aes_ascon.NewAESASCONConfig()
 
-	aes := aes.NewAES(utility.GenerateRandomBytes(config.AESKeySize))
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(aes.NonceSize())
+	aes := aes.NewAES(generator.GenerateRandomBytes(config.AESKeySize))
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(aes.NonceSize())
 	ciphertext := aes.Encrypt(nil, nonce, plaintext)
 	decryptedPlaintext := make([]byte, 0, payloadSize)
 
@@ -100,11 +100,11 @@ func decryptAESGCM(payloadSize int, duration time.Duration) bool {
 
 func decryptASCON(payloadSize int, duration time.Duration) bool {
 
-	config := shared.NewAESASCONConfig()
+	config := aes_ascon.NewAESASCONConfig()
 
-	ascon := ascon.NewASCON(utility.GenerateRandomBytes(config.ASCONKeySize))
-	plaintext := utility.GenerateRandomBytes(payloadSize)
-	nonce := utility.GenerateRandomBytes(ascon.NonceSize())
+	ascon := ascon.NewASCON(generator.GenerateRandomBytes(config.ASCONKeySize))
+	plaintext := generator.GenerateRandomBytes(payloadSize)
+	nonce := generator.GenerateRandomBytes(ascon.NonceSize())
 	ciphertext := ascon.Encrypt(nil, nonce, plaintext)
 	decryptedPlaintext := make([]byte, 0, payloadSize)
 

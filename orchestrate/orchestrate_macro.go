@@ -9,8 +9,10 @@ import (
 	"path"
 	"path/filepath"
 
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/utility"
+	"thesis/utility/golang/cache"
+	"thesis/utility/golang/communication"
+	"thesis/utility/golang/parser"
+	"thesis/utility/golang/permission"
 
 	"github.com/joho/godotenv"
 )
@@ -121,7 +123,7 @@ func runCoordinator(dependencies coordinatorDependencies) error {
 
 		scenarioDirectory := filepath.Join(resultDirectory, scenario.name)
 
-		if err := os.MkdirAll(scenarioDirectory, utility.DirectoryPermissions); err != nil {
+		if err := os.MkdirAll(scenarioDirectory, permission.DirectoryPermissions); err != nil {
 			return err
 		}
 
@@ -149,17 +151,17 @@ func provisionFixtures() error {
 func distributeFixtures() error {
 
 	publisherFiles := []string{
-		shared.AESKeyFileName,
-		shared.ASCONKeyFileName,
-		shared.RSAPublicKeyFileName,
-		shared.CPABEPublicKeyFileName,
+		cache.AESKeyFileName,
+		cache.ASCONKeyFileName,
+		cache.RSAPublicKeyFileName,
+		cache.CPABEPublicKeyFileName,
 	}
 
 	subscriberFiles := []string{
-		shared.AESKeyFileName,
-		shared.ASCONKeyFileName,
-		shared.RSAPrivateKeyFileName,
-		shared.CPABEPrivateKeyFileName,
+		cache.AESKeyFileName,
+		cache.ASCONKeyFileName,
+		cache.RSAPrivateKeyFileName,
+		cache.CPABEPrivateKeyFileName,
 	}
 
 	if err := copyFixtures(publisherTarget, publisherDirectory, publisherFiles); err != nil {
@@ -254,16 +256,16 @@ func orchestrateMacro(publisherTarget string, publisherDirectory string, subscri
 
 	signalDependencies := signalDependencies{
 		WritePublisher: func(signal string) error {
-			return utility.WriteSignal(publisherInput, signal)
+			return communication.WriteSignal(publisherInput, signal)
 		},
 		ReadPublisher: func(signal string) error {
-			return utility.ReadSignal(publisherOutput, signal)
+			return communication.ReadSignal(publisherOutput, signal)
 		},
 		WriteSubscriber: func(signal string) error {
-			return utility.WriteSignal(subscriberInput, signal)
+			return communication.WriteSignal(subscriberInput, signal)
 		},
 		ReadSubscriber: func(signal string) error {
-			return utility.ReadSignal(subscriberOutput, signal)
+			return communication.ReadSignal(subscriberOutput, signal)
 		},
 	}
 
@@ -273,11 +275,11 @@ func orchestrateMacro(publisherTarget string, publisherDirectory string, subscri
 		}
 	}
 
-	if err := utility.WriteSignal(publisherInput, "FINISH"); err != nil {
+	if err := communication.WriteSignal(publisherInput, "FINISH"); err != nil {
 		return err
 	}
 
-	if err := utility.WriteSignal(subscriberInput, "FINISH"); err != nil {
+	if err := communication.WriteSignal(subscriberInput, "FINISH"); err != nil {
 		return err
 	}
 
@@ -315,15 +317,15 @@ func loadEnvironmentVariables() {
 		panic(err)
 	}
 
-	payloadSizes = utility.ParseIntListFromEnv("MACRO_PAYLOAD_SIZES")
-	runs = utility.ParseIntFromEnv("MACRO_RUNS")
-	warmupRuns = utility.ParseIntFromEnv("MACRO_WARMUP_RUNS")
-	resultDirectory = utility.ParseStringFromEnv("MACRO_RESULT_DIR")
-	cacheDirectory = utility.ParseStringFromEnv("CACHE_DIRECTORY")
-	publisherTarget = utility.ParseStringFromEnv("MACRO_PUBLISHER_SSH_TARGET")
-	subscriberTarget = utility.ParseStringFromEnv("MACRO_SUBSCRIBER_SSH_TARGET")
-	publisherDirectory = utility.ParseStringFromEnv("MACRO_PUBLISHER_PROJECT_DIR")
-	subscriberDirectory = utility.ParseStringFromEnv("MACRO_SUBSCRIBER_PROJECT_DIR")
+	payloadSizes = parser.ParseIntListFromEnv("MACRO_PAYLOAD_SIZES")
+	runs = parser.ParseIntFromEnv("MACRO_RUNS")
+	warmupRuns = parser.ParseIntFromEnv("MACRO_WARMUP_RUNS")
+	resultDirectory = parser.ParseStringFromEnv("MACRO_RESULT_DIR")
+	cacheDirectory = parser.ParseStringFromEnv("CACHE_DIRECTORY")
+	publisherTarget = parser.ParseStringFromEnv("MACRO_PUBLISHER_SSH_TARGET")
+	subscriberTarget = parser.ParseStringFromEnv("MACRO_SUBSCRIBER_SSH_TARGET")
+	publisherDirectory = parser.ParseStringFromEnv("MACRO_PUBLISHER_PROJECT_DIR")
+	subscriberDirectory = parser.ParseStringFromEnv("MACRO_SUBSCRIBER_PROJECT_DIR")
 }
 
 func buildBinary(target, projectDirectory, executable string) error {

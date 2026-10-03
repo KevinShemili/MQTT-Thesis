@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/rsa"
 	"thesis/internal/envelope"
@@ -16,33 +16,33 @@ import (
 
 type TLSRSAAESSubscriberInput struct {
 	Client       mqtt.Client
-	Config       shared.MacroConfig
+	Config       macro.MacroConfig
 	RSAScheme    rsa.RSA
-	Measurements []shared.SubscriberMeasurement
+	Measurements []macro.SubscriberMeasurement
 	IsWarmup     bool
 }
 
-func RunSubscribeBenchmark(input TLSRSAAESSubscriberInput, notifyReady func() error) (shared.SubscriberResult, error) {
+func RunSubscribeBenchmark(input TLSRSAAESSubscriberInput, notifyReady func() error) (macro.SubscriberResult, error) {
 
 	return runSubscribeBenchmark(input, notifyReady, cpu.NewCPUPerf)
 }
 
 func runSubscribeBenchmark(input TLSRSAAESSubscriberInput, notifyReady func() error,
-	newCPU func() (cpu.CPU, error)) (shared.SubscriberResult, error) {
+	newCPU func() (cpu.CPU, error)) (macro.SubscriberResult, error) {
 
 	if input.IsWarmup {
 
 		err := consumeMessages(input, notifyReady)
 		if err != nil {
-			return shared.SubscriberResult{}, err
+			return macro.SubscriberResult{}, err
 		}
 
-		return shared.SubscriberResult{}, nil
+		return macro.SubscriberResult{}, nil
 	}
 
 	measurement, err := newCPU()
 	if err != nil {
-		return shared.SubscriberResult{}, err
+		return macro.SubscriberResult{}, err
 	}
 
 	workloadErr := consumeMessages(input, func() error {
@@ -53,15 +53,15 @@ func runSubscribeBenchmark(input TLSRSAAESSubscriberInput, notifyReady func() er
 	})
 	if workloadErr != nil {
 		measurement.Abort()
-		return shared.SubscriberResult{}, workloadErr
+		return macro.SubscriberResult{}, workloadErr
 	}
 
 	cycles, err := measurement.Stop()
 	if err != nil {
-		return shared.SubscriberResult{}, err
+		return macro.SubscriberResult{}, err
 	}
 
-	return shared.SubscriberResult{
+	return macro.SubscriberResult{
 		Measurements: input.Measurements,
 		Cycles:       cycles,
 	}, nil
@@ -99,7 +99,7 @@ func consumeMessages(input TLSRSAAESSubscriberInput, notifyReady func() error) e
 
 		endTime := time.Now().UnixNano()
 
-		input.Measurements[messageIndex] = shared.SubscriberMeasurement{
+		input.Measurements[messageIndex] = macro.SubscriberMeasurement{
 			MessageID: msg.ID,
 			EndTime:   endTime,
 		}

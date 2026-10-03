@@ -3,7 +3,6 @@ package json_cbor
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/micro/json_cbor/shared"
 	"thesis/benchmark/thermal"
 	"thesis/internal/message"
 	"thesis/internal/serialization"
@@ -11,7 +10,7 @@ import (
 
 func BenchmarkMessageSerialize(benchmark *testing.B) {
 
-	config := shared.NewJSONCBORConfig()
+	config := NewJSONCBORConfig()
 
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
@@ -100,7 +99,7 @@ func BenchmarkMessageSerialize(benchmark *testing.B) {
 
 func BenchmarkMessageDeserialize(benchmark *testing.B) {
 
-	config := shared.NewJSONCBORConfig()
+	config := NewJSONCBORConfig()
 
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}

@@ -2,22 +2,22 @@ package main
 
 import (
 	"fmt"
-	"thesis/benchmark/cache"
-	"thesis/benchmark/cmd/provision/shared"
-	"thesis/benchmark/micro/cpabe_rsa/shared"
-	"thesis/benchmark/utility"
+	"thesis/benchmark/cmd/provision"
+	"thesis/benchmark/micro/cpabe_rsa"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
+	"thesis/utility/golang/cache"
+	"thesis/utility/golang/generator"
 )
 
 // The point of this program is to provide the fixture data for the CP-ABE/RSA
 // memory benchmarks by populating the cache in an earlier process.
 func main() {
 
-	config := shared.NewCPABERSAConfig()
+	config := cpabe_rsa.NewCPABERSAConfig()
 
-	dependencies := cmdshared.ProvisionDependencies{
-		GenerateRandomBytes: utility.GenerateRandomBytes,
+	dependencies := provision.Dependency{
+		GenerateRandomBytes: generator.GenerateRandomBytes,
 		Store:               cache.Store,
 	}
 
@@ -25,15 +25,15 @@ func main() {
 }
 
 func runProvision(attributeCounts []int, subscriberCounts []int, aesKeySize int,
-	fixedRSAKeyBits int, dependencies cmdshared.ProvisionDependencies) {
+	fixedRSAKeyBits int, dependencies provision.Dependency) {
 
 	symmetricKey := dependencies.GenerateRandomBytes(aesKeySize)
-	dependencies.Store(shared.AESKeyFileName, symmetricKey)
+	dependencies.Store(cache.AESKeyFileName, symmetricKey)
 
 	authority := cpabe.NewAuthority()
 
 	dependencies.Store(
-		shared.CPABEPublicKeyFileName,
+		cache.CPABEPublicKeyFileName,
 		authority.PublicKeyBytes(),
 	)
 
@@ -41,9 +41,9 @@ func runProvision(attributeCounts []int, subscriberCounts []int, aesKeySize int,
 
 		policy, attributes := cpabe.BuildSyntheticPolicyAndAttributes(attributeCount)
 
-		dependencies.Store(fmt.Sprintf(shared.CPABEPolicyFileNameFormat, attributeCount), []byte(policy.String()))
-		dependencies.Store(fmt.Sprintf(shared.CPABEPrivateKeyFileNameFormat, attributeCount), authority.IssuePrivateKey(attributes).Bytes())
-		dependencies.Store(fmt.Sprintf(shared.CPABECiphertextFileNameFormat, attributeCount), authority.Encrypt(policy, symmetricKey))
+		dependencies.Store(fmt.Sprintf(cache.CPABEPolicyWCountFileName, attributeCount), []byte(policy.String()))
+		dependencies.Store(fmt.Sprintf(cache.CPABEPrivateKeyWCountFileName, attributeCount), authority.IssuePrivateKey(attributes).Bytes())
+		dependencies.Store(fmt.Sprintf(cache.CPABECiphertextWCountFileName, attributeCount), authority.Encrypt(policy, symmetricKey))
 	}
 
 	maximumSubscriberCount := subscriberCounts[len(subscriberCounts)-1]
@@ -52,13 +52,13 @@ func runProvision(attributeCounts []int, subscriberCounts []int, aesKeySize int,
 
 		subscriber := rsa.NewRSA(fixedRSAKeyBits)
 
-		dependencies.Store(fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, index), subscriber.PublicKeyBytes())
+		dependencies.Store(fmt.Sprintf(cache.RSAPublicKeyWIndexFileName, index), subscriber.PublicKeyBytes())
 
 		if index == 0 {
 
-			dependencies.Store(shared.RSAPrivateKeyFileName, subscriber.PrivateKeyBytes())
+			dependencies.Store(cache.RSAPrivateKeyFileName, subscriber.PrivateKeyBytes())
 
-			dependencies.Store(shared.RSACiphertextFileName, subscriber.Encrypt(symmetricKey))
+			dependencies.Store(cache.RSACiphertextFileName, subscriber.Encrypt(symmetricKey))
 		}
 	}
 }

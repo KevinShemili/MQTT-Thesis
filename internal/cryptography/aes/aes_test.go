@@ -3,18 +3,18 @@ package aes
 import (
 	"bytes"
 	"testing"
-	"thesis/benchmark/utility"
+	generator "thesis/utility/golang/generator"
 )
 
 const symmetricKeySize = 16
 
 func TestAESRoundTrip(t *testing.T) {
 
-	key := utility.GenerateRandomBytes(symmetricKeySize)
+	key := generator.GenerateRandomBytes(symmetricKeySize)
 	plaintext := []byte("test message")
 
 	cipher := NewAES(key)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	ciphertext := cipher.Encrypt(nil, nonce, plaintext)
 	decrypted := cipher.Decrypt(nil, nonce, ciphertext)

@@ -5,12 +5,11 @@ import (
 	"runtime"
 	"runtime/debug"
 	"testing"
-	"thesis/benchmark/cache"
 	"thesis/benchmark/memory"
-	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/thermal"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
+	"thesis/utility/golang/cache"
 )
 
 // Peak memory is a property of a whole process rather than of a loop, so these
@@ -20,15 +19,15 @@ import (
 // earlier process so fixture generation does not pollute the measured peak.
 func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
-	config := shared.NewAESASCONConfig()
+	config := NewAESASCONConfig()
 
 	for _, payloadSize := range config.PayloadSizes {
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
-			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
-			nonce := cache.Load(shared.AESNonceFileName)
+			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
+			nonce := cache.Load(cache.AESNonceFileName)
 
 			thermal.WaitForCooldown()
 
@@ -48,9 +47,9 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName))
-			plaintext := cache.Load(fmt.Sprintf(shared.PlaintextFileNameFormat, payloadSize))
-			nonce := cache.Load(shared.ASCONNonceFileName)
+			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
+			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
+			nonce := cache.Load(cache.ASCONNonceFileName)
 
 			thermal.WaitForCooldown()
 
@@ -69,15 +68,15 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
-	config := shared.NewAESASCONConfig()
+	config := NewAESASCONConfig()
 
 	for _, payloadSize := range config.PayloadSizes {
 
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := aes.NewAES(cache.Load(shared.AESKeyFileName))
-			ciphertext := cache.Load(fmt.Sprintf(shared.AESCiphertextFileNameFormat, payloadSize))
-			nonce := cache.Load(shared.AESNonceFileName)
+			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
+			ciphertext := cache.Load(fmt.Sprintf(cache.AESCiphertextWSizeFileName, payloadSize))
+			nonce := cache.Load(cache.AESNonceFileName)
 
 			thermal.WaitForCooldown()
 
@@ -97,9 +96,9 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 		benchmark.Run(fmt.Sprintf("ASCON/%dB", payloadSize), func(b *testing.B) {
 
-			cipher := ascon.NewASCON(cache.Load(shared.ASCONKeyFileName))
-			ciphertext := cache.Load(fmt.Sprintf(shared.ASCONCiphertextFileNameFormat, payloadSize))
-			nonce := cache.Load(shared.ASCONNonceFileName)
+			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
+			ciphertext := cache.Load(fmt.Sprintf(cache.ASCONCiphertextWSizeFileName, payloadSize))
+			nonce := cache.Load(cache.ASCONNonceFileName)
 
 			thermal.WaitForCooldown()
 

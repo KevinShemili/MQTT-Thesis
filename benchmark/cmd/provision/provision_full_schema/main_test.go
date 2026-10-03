@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	cmdshared "thesis/benchmark/cmd/provision/shared"
-	"thesis/benchmark/micro/full_schema/shared"
+	"thesis/benchmark/cmd/provision"
+	"thesis/utility/golang/cache"
 )
 
 func TestRunProvisionStoresAllFixtures(t *testing.T) {
@@ -13,7 +13,7 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 	// Arrange
 	stored := map[string]bool{}
 
-	dependencies := cmdshared.ProvisionDependencies{
+	dependencies := provision.Dependency{
 		GenerateRandomBytes: func(count int) []byte {
 			return make([]byte, count)
 		},
@@ -25,20 +25,20 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 	payloadSizes := []int{16}
 
 	expected := []string{
-		shared.AESKeyFileName,
-		shared.ASCONKeyFileName,
-		shared.RSAPrivateKeyFileName,
-		shared.RSAPublicKeyFileName,
-		shared.CPABEPublicKeyFileName,
-		shared.CPABEPolicyFileName,
-		shared.CPABEPrivateKeyFileName,
-		fmt.Sprintf(shared.PlaintextFileNameFormat, 16),
-		fmt.Sprintf(shared.PSKStandardEnvelopeFileNameFormat, 16),
-		fmt.Sprintf(shared.PSKLightweightEnvelopeFileNameFormat, 16),
-		fmt.Sprintf(shared.RSAStandardEnvelopeFileNameFormat, 16),
-		fmt.Sprintf(shared.RSALightweightEnvelopeFileNameFormat, 16),
-		fmt.Sprintf(shared.CPABEStandardEnvelopeFileNameFormat, 16),
-		fmt.Sprintf(shared.CPABELightweightEnvelopeFileNameFormat, 16),
+		cache.AESKeyFileName,
+		cache.ASCONKeyFileName,
+		cache.RSAPrivateKeyFileName,
+		cache.RSAPublicKeyFileName,
+		cache.CPABEPublicKeyFileName,
+		cache.CPABEPolicyFileName,
+		cache.CPABEPrivateKeyFileName,
+		fmt.Sprintf(cache.PlaintextFileWSizeName, 16),
+		fmt.Sprintf(cache.PSKStandardEnvelopeWSizeFileName, 16),
+		fmt.Sprintf(cache.PSKLightEnvelopeWSizeFileName, 16),
+		fmt.Sprintf(cache.RSAStandardEnvelopeWSizeFileName, 16),
+		fmt.Sprintf(cache.RSALightEnvelopeWSizeFileName, 16),
+		fmt.Sprintf(cache.CPABEStandardEnvelopeWSizeFileName, 16),
+		fmt.Sprintf(cache.CPABELightEnvelopeWSizeFileName, 16),
 	}
 
 	// Act

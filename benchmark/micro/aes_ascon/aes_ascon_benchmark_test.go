@@ -3,16 +3,15 @@ package aes_ascon
 import (
 	"fmt"
 	"testing"
-	"thesis/benchmark/micro/aes_ascon/shared"
 	"thesis/benchmark/thermal"
-	"thesis/benchmark/utility"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
+	"thesis/utility/golang/generator"
 )
 
 func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
-	config := shared.NewAESASCONConfig()
+	config := NewAESASCONConfig()
 
 	for _, payloadSize := range config.PayloadSizes {
 
@@ -20,13 +19,13 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 		benchmark.Run(fmt.Sprintf("AES-GCM/%dB", payloadSize), func(b *testing.B) {
 
 			// Instantiate AES cipher
-			aes := aes.NewAES(utility.GenerateRandomBytes(config.AESKeySize))
+			aes := aes.NewAES(generator.GenerateRandomBytes(config.AESKeySize))
 
 			// Construct plaintexts
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
+			nonce := generator.GenerateRandomBytes(aes.NonceSize())
 
 			// Pre-allocate output destination buffers, to avoid allocation inside loop
 			ciphertext := make([]byte, 0, payloadSize+aes.Overhead())
@@ -59,14 +58,14 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
 			// Instantiate cipher
 			ascon := ascon.NewASCON(
-				utility.GenerateRandomBytes(config.ASCONKeySize),
+				generator.GenerateRandomBytes(config.ASCONKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(ascon.NonceSize())
+			nonce := generator.GenerateRandomBytes(ascon.NonceSize())
 
 			// Pre-allocate output destination buffer to avoid allocation inside timed loop
 			ciphertext := make([]byte, 0, payloadSize+ascon.Overhead())
@@ -95,7 +94,7 @@ func BenchmarkAESASCONEncrypt(benchmark *testing.B) {
 
 func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
-	config := shared.NewAESASCONConfig()
+	config := NewAESASCONConfig()
 
 	// Scenario 1: AES-GCM Scaling Payload Size
 	for _, payloadSize := range config.PayloadSizes {
@@ -104,14 +103,14 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
 			// Instantiate cipher
 			aes := aes.NewAES(
-				utility.GenerateRandomBytes(config.AESKeySize),
+				generator.GenerateRandomBytes(config.AESKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(aes.NonceSize())
+			nonce := generator.GenerateRandomBytes(aes.NonceSize())
 
 			// Create ciphertext to measure decryption cost
 			ciphertext := aes.Encrypt(nil, nonce, plaintext)
@@ -147,14 +146,14 @@ func BenchmarkAESASCONDecrypt(benchmark *testing.B) {
 
 			// Instantiate cipher
 			ascon := ascon.NewASCON(
-				utility.GenerateRandomBytes(config.ASCONKeySize),
+				generator.GenerateRandomBytes(config.ASCONKeySize),
 			)
 
 			// Construct plaintext for given payload size
-			plaintext := utility.GenerateRandomBytes(payloadSize)
+			plaintext := generator.GenerateRandomBytes(payloadSize)
 
 			// Create nonce
-			nonce := utility.GenerateRandomBytes(ascon.NonceSize())
+			nonce := generator.GenerateRandomBytes(ascon.NonceSize())
 
 			// Create ciphertext to measure decryption cost
 			ciphertext := ascon.Encrypt(nil, nonce, plaintext)

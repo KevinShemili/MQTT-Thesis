@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"thesis/benchmark/cache"
-	cmdshared "thesis/benchmark/cmd/macro/shared"
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/cmd/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/benchmark/macro/tls_cpabe_ascon_cbor"
-	"thesis/benchmark/utility"
-	"thesis/benchmark/utility/csv"
 	"thesis/internal/cryptography/cpabe"
+	"thesis/utility/golang/cache"
+	"thesis/utility/golang/communication"
 )
 
 func main() {
@@ -24,28 +23,28 @@ func main() {
 
 func run() error {
 
-	config := shared.NewMacroConfig()
+	config := macro.NewMacroConfig()
 
-	authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(shared.CPABEPublicKeyFileName))
+	authority := cpabe.AuthorityFromPublicKeyBytes(cache.Load(cache.CPABEPublicKeyFileName))
 	policy, _ := cpabe.BuildSyntheticPolicyAndAttributes(config.Cryptography.AttributeCount)
 
-	client, err := cmdshared.NewPublisherClient(config.MQTT)
+	client, err := shared.NewPublisherClient(config.MQTT)
 	if err != nil {
 		return err
 	}
 
-	results := cmdshared.PreparePublisherResults(config.Benchmark)
+	results := shared.PreparePublisherResults(config.Benchmark)
 
 	startSignal := bufio.NewReader(os.Stdin)
 
-	dependencies := cmdshared.PublisherDependencies{
+	dependencies := shared.PublisherDependency{
 		Connect:    client.Connect,
 		Disconnect: client.Disconnect,
 		ReadSignal: func(expected string) error {
-			return utility.ReadSignal(startSignal, expected)
+			return communication.ReadSignal(startSignal, expected)
 		},
 		WriteSignal: func(signal string) error {
-			return utility.WriteSignal(os.Stdout, signal)
+			return communication.WriteSignal(os.Stdout, signal)
 		},
 		RunBenchmark: func(payloadIndex int, payloadSize int, run int, isWarmup bool) error {
 
@@ -83,9 +82,9 @@ func run() error {
 		},
 
 		WriteResults: func() error {
-			return csv.WritePublisherResults(results, config.Benchmark)
+			return shared.WritePublisherResults(results, config.Benchmark)
 		},
 	}
 
-	return cmdshared.RunPublisher(config.Benchmark, dependencies)
+	return shared.RunPublisher(config.Benchmark, dependencies)
 }

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	cmdshared "thesis/benchmark/cmd/provision/shared"
-	"thesis/benchmark/micro/cpabe_rsa/shared"
+	"thesis/benchmark/cmd/provision"
+	"thesis/utility/golang/cache"
 )
 
 func TestRunProvisionStoresAllFixtures(t *testing.T) {
@@ -13,7 +13,7 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 	// Arrange
 	stored := map[string]bool{}
 
-	dependencies := cmdshared.ProvisionDependencies{
+	dependencies := provision.Dependency{
 		GenerateRandomBytes: func(count int) []byte {
 			return make([]byte, count)
 		},
@@ -26,15 +26,15 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 	subscriberCounts := []int{2}
 
 	expected := []string{
-		shared.AESKeyFileName,
-		shared.CPABEPublicKeyFileName,
-		fmt.Sprintf(shared.CPABEPolicyFileNameFormat, 1),
-		fmt.Sprintf(shared.CPABEPrivateKeyFileNameFormat, 1),
-		fmt.Sprintf(shared.CPABECiphertextFileNameFormat, 1),
-		fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, 0),
-		fmt.Sprintf(shared.RSAPublicKeyFileNameFormat, 1),
-		shared.RSAPrivateKeyFileName,
-		shared.RSACiphertextFileName,
+		cache.AESKeyFileName,
+		cache.CPABEPublicKeyFileName,
+		fmt.Sprintf(cache.CPABEPolicyWCountFileName, 1),
+		fmt.Sprintf(cache.CPABEPrivateKeyWCountFileName, 1),
+		fmt.Sprintf(cache.CPABECiphertextWCountFileName, 1),
+		fmt.Sprintf(cache.RSAPublicKeyWIndexFileName, 0),
+		fmt.Sprintf(cache.RSAPublicKeyWIndexFileName, 1),
+		cache.RSAPrivateKeyFileName,
+		cache.RSACiphertextFileName,
 	}
 
 	// Act

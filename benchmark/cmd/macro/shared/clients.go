@@ -1,11 +1,11 @@
-package cmdshared
+package shared
 
 import (
-	"thesis/benchmark/macro/shared"
+	"thesis/benchmark/macro"
 	"thesis/internal/mqtt"
 )
 
-func NewPublisherClient(config shared.MQTTConfig) (*mqtt.PahoClient, error) {
+func NewPublisherClient(config macro.MQTTConfig) (*mqtt.PahoClient, error) {
 
 	tlsConfig, err := mqtt.NewTLSConfig(config.CACertificate, config.BrokerURL)
 	if err != nil {
@@ -23,7 +23,7 @@ func NewPublisherClient(config shared.MQTTConfig) (*mqtt.PahoClient, error) {
 	return client, nil
 }
 
-func NewSubscriberClient(config shared.MQTTConfig) (*mqtt.PahoClient, error) {
+func NewSubscriberClient(config macro.MQTTConfig) (*mqtt.PahoClient, error) {
 
 	tlsConfig, err := mqtt.NewTLSConfig(config.CACertificate, config.BrokerURL)
 	if err != nil {

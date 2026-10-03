@@ -5,36 +5,36 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/utility"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/envelope"
 	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 
 	"github.com/cloudflare/circl/abe/cpabe/tkn20"
 )
 
 type TLSCPABEAESPublisherInput struct {
 	Client       mqtt.Client
-	Config       shared.MacroConfig
+	Config       macro.MacroConfig
 	Authority    cpabe.Authority
 	Policy       tkn20.Policy
 	PayloadSize  int
-	Measurements []shared.PublisherMeasurement
+	Measurements []macro.PublisherMeasurement
 	IsWarmup     bool
 }
 
-func RunPublishBenchmark(input TLSCPABEAESPublisherInput) (shared.PublisherResult, error) {
+func RunPublishBenchmark(input TLSCPABEAESPublisherInput) (macro.PublisherResult, error) {
 
 	return runPublishBenchmark(input, cpu.NewCPUPerf)
 }
 
-func runPublishBenchmark(input TLSCPABEAESPublisherInput, newCPU func() (cpu.CPU, error)) (shared.PublisherResult, error) {
+func runPublishBenchmark(input TLSCPABEAESPublisherInput, newCPU func() (cpu.CPU, error)) (macro.PublisherResult, error) {
 
-	messages := shared.BuildMessages(input.Config.Benchmark.MessageCount, input.PayloadSize)
+	messages := message.BuildMessages(input.Config.Benchmark.MessageCount, input.PayloadSize)
 	serializer := serialization.JSONSerializer{}
 	publishTokens := make([]mqtt.PublishToken, input.Config.Benchmark.MessageCount)
 
@@ -42,34 +42,34 @@ func runPublishBenchmark(input TLSCPABEAESPublisherInput, newCPU func() (cpu.CPU
 
 		err := publishMessages(input, serializer, messages, publishTokens)
 		if err != nil {
-			return shared.PublisherResult{}, err
+			return macro.PublisherResult{}, err
 		}
 
-		return shared.PublisherResult{}, nil
+		return macro.PublisherResult{}, nil
 	}
 
 	measurement, err := newCPU()
 	if err != nil {
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
 	if err := measurement.Enable(); err != nil {
 		measurement.Abort()
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
 	workloadErr := publishMessages(input, serializer, messages, publishTokens)
 	if workloadErr != nil {
 		measurement.Abort()
-		return shared.PublisherResult{}, workloadErr
+		return macro.PublisherResult{}, workloadErr
 	}
 
 	cycles, err := measurement.Stop()
 	if err != nil {
-		return shared.PublisherResult{}, err
+		return macro.PublisherResult{}, err
 	}
 
-	return shared.PublisherResult{
+	return macro.PublisherResult{
 		Measurements: input.Measurements,
 		Cycles:       cycles,
 	}, nil
@@ -104,7 +104,7 @@ func publishMessages(input TLSCPABEAESPublisherInput, serializer serialization.J
 
 		publishTokens[messageIndex] = publishToken
 
-		input.Measurements[messageIndex] = shared.PublisherMeasurement{
+		input.Measurements[messageIndex] = macro.PublisherMeasurement{
 			MessageID: msg.ID,
 			StartTime: startTime,
 		}
@@ -129,9 +129,9 @@ func publishMessage(input TLSCPABEAESPublisherInput, serializer serialization.JS
 		return nil, fmt.Errorf("serialize message %s: %w", msg.ID, err)
 	}
 
-	symmetricKey := utility.GenerateRandomBytes(input.Config.Cryptography.SymmetricKeySize)
+	symmetricKey := generator.GenerateRandomBytes(input.Config.Cryptography.SymmetricKeySize)
 	cipher := aes.NewAES(symmetricKey)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 	asymmetricCiphertext := input.Authority.Encrypt(input.Policy, symmetricKey)
 	symmetricCiphertext := cipher.Encrypt(nil, nonce, plaintext)
 

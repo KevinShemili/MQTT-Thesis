@@ -23,3 +23,18 @@ func TestNewMessage(t *testing.T) {
 		t.Fatalf("payload produced %x, want %x", msg.Payload, expectedPayload)
 	}
 }
+
+func TestBuildMessagesCreatesRequestedNumberOfMessages(t *testing.T) {
+
+	// Arrange
+	messageCount := 3
+	payloadSize := 256
+
+	// Act
+	messages := BuildMessages(messageCount, payloadSize)
+
+	// Assert
+	if len(messages) != messageCount {
+		t.Fatalf("expected %d messages, got %d", messageCount, len(messages))
+	}
+}

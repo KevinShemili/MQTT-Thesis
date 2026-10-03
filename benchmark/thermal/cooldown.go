@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"thesis/benchmark/utility"
+	"thesis/utility/golang/parser"
 	"time"
 )
 
@@ -21,7 +21,7 @@ const cooldownPollInterval = 5 * time.Second
 // Convert reading to celsius (from millidegrees)
 const millidegreesPerDegree = 1000.0
 
-var temperatureThreshold = utility.ParseIntFromEnv("TEMPERATURE_THRESHOLD")
+var temperatureThreshold = parser.ParseIntFromEnv("TEMPERATURE_THRESHOLD")
 
 func WaitForCooldown() {
 

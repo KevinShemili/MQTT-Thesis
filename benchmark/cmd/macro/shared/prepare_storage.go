@@ -1,17 +1,16 @@
-package cmdshared
+package shared
 
 import (
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/memory"
+	"thesis/benchmark/macro"
 )
 
-func PreparePublisherResults(config shared.BenchmarkConfig) []shared.PublisherResult {
+func PreparePublisherResults(config macro.BenchmarkConfig) []macro.PublisherResult {
 
-	results := make([]shared.PublisherResult, len(config.PayloadSizes)*config.Runs)
-	measurements := make([]shared.PublisherMeasurement, len(config.PayloadSizes)*config.Runs*config.MessageCount)
+	results := make([]macro.PublisherResult, len(config.PayloadSizes)*config.Runs)
+	measurements := make([]macro.PublisherMeasurement, len(config.PayloadSizes)*config.Runs*config.MessageCount)
 
 	// Touch memory once
-	memory.TouchMemory(measurements)
+	touchMemory(measurements)
 
 	// Assign the pre-allocated memory to results
 	for run := range results {
@@ -23,13 +22,13 @@ func PreparePublisherResults(config shared.BenchmarkConfig) []shared.PublisherRe
 	return results
 }
 
-func PrepareSubscriberResults(config shared.BenchmarkConfig) []shared.SubscriberResult {
+func PrepareSubscriberResults(config macro.BenchmarkConfig) []macro.SubscriberResult {
 
-	results := make([]shared.SubscriberResult, len(config.PayloadSizes)*config.Runs)
-	measurements := make([]shared.SubscriberMeasurement, len(config.PayloadSizes)*config.Runs*config.MessageCount)
+	results := make([]macro.SubscriberResult, len(config.PayloadSizes)*config.Runs)
+	measurements := make([]macro.SubscriberMeasurement, len(config.PayloadSizes)*config.Runs*config.MessageCount)
 
 	// Touch memory once
-	memory.TouchMemory(measurements)
+	touchMemory(measurements)
 
 	// Assign the pre-allocated memory to results
 	for run := range results {
@@ -41,4 +40,19 @@ func PrepareSubscriberResults(config shared.BenchmarkConfig) []shared.Subscriber
 	}
 
 	return results
+}
+
+func touchMemory[T macro.PublisherMeasurement | macro.SubscriberMeasurement](measurements []T) {
+
+	for index := range measurements {
+
+		switch measurement := any(&measurements[index]).(type) {
+
+		case *macro.PublisherMeasurement:
+			measurement.StartTime = -1
+
+		case *macro.SubscriberMeasurement:
+			measurement.EndTime = -1
+		}
+	}
 }

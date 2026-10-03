@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"thesis/benchmark/cpu"
-	"thesis/benchmark/macro/shared"
-	"thesis/benchmark/utility"
+	"thesis/benchmark/macro"
 	"thesis/internal/cryptography/ascon"
 	"thesis/internal/envelope"
+	"thesis/internal/message"
 	"thesis/internal/mqtt"
 	"thesis/internal/serialization"
+	"thesis/utility/golang/generator"
 )
 
 func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
@@ -21,14 +22,14 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 
 	payloadSize := 16
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount: 2,
 		Topic:        "test/topic",
 	}
 
-	messages := shared.BuildMessages(config.MessageCount, payloadSize)
+	messages := message.BuildMessages(config.MessageCount, payloadSize)
 
-	key := utility.GenerateRandomBytes(16)
+	key := generator.GenerateRandomBytes(16)
 	cipher := ascon.NewASCON(key)
 
 	cborSerializer := serialization.CBORSerializer{}
@@ -38,7 +39,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 		t.Fatalf("failed to serialize first message: %v", err)
 	}
 
-	firstNonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	firstNonce := generator.GenerateRandomBytes(cipher.NonceSize())
 	firstCiphertext := cipher.Encrypt(nil, firstNonce, firstPlaintext)
 
 	firstPayload, err := cborSerializer.Serialize(envelope.SymmetricEnvelope{
@@ -54,7 +55,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 		t.Fatalf("failed to serialize second message: %v", err)
 	}
 
-	secondNonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	secondNonce := generator.GenerateRandomBytes(cipher.NonceSize())
 	secondCiphertext := cipher.Encrypt(nil, secondNonce, secondPlaintext)
 
 	secondPayload, err := cborSerializer.Serialize(envelope.SymmetricEnvelope{
@@ -70,7 +71,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 
 	cpuMeasurement := &fakeSubscriberCPU{calls: &calls}
 
-	measurements := make([]shared.SubscriberMeasurement, config.MessageCount)
+	measurements := make([]macro.SubscriberMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
 		calls = append(calls, "new cpu")
@@ -107,7 +108,7 @@ func TestRunSubscribeBenchmarkMeasuredCallOrder(t *testing.T) {
 	// Act
 	result, err := runSubscribeBenchmark(TLSPSKASCONSubscriberInput{
 		Client:       client,
-		Config:       shared.MacroConfig{Benchmark: config},
+		Config:       macro.MacroConfig{Benchmark: config},
 		Cipher:       cipher,
 		Measurements: measurements,
 		IsWarmup:     false,
@@ -147,14 +148,14 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 
 	payloadSize := 16
 
-	config := shared.BenchmarkConfig{
+	config := macro.BenchmarkConfig{
 		MessageCount: 1,
 		Topic:        "test/topic",
 	}
 
-	messages := shared.BuildMessages(config.MessageCount, payloadSize)
+	messages := message.BuildMessages(config.MessageCount, payloadSize)
 
-	key := utility.GenerateRandomBytes(16)
+	key := generator.GenerateRandomBytes(16)
 	cipher := ascon.NewASCON(key)
 
 	cborSerializer := serialization.CBORSerializer{}
@@ -164,7 +165,7 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 		t.Fatalf("failed to serialize message: %v", err)
 	}
 
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 	ciphertext := cipher.Encrypt(nil, nonce, plaintext)
 
 	payload, err := cborSerializer.Serialize(envelope.SymmetricEnvelope{
@@ -201,7 +202,7 @@ func TestRunSubscribeBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	// Act
 	result, err := runSubscribeBenchmark(TLSPSKASCONSubscriberInput{
 		Client:   client,
-		Config:   shared.MacroConfig{Benchmark: config},
+		Config:   macro.MacroConfig{Benchmark: config},
 		Cipher:   cipher,
 		IsWarmup: true,
 	}, notifyReady, newCPU)

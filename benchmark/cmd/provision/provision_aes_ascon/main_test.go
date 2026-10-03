@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	cmdshared "thesis/benchmark/cmd/provision/shared"
-	"thesis/benchmark/micro/aes_ascon/shared"
+	"thesis/benchmark/cmd/provision"
+	"thesis/utility/golang/cache"
 )
 
 func TestRunProvisionStoresAllFixtures(t *testing.T) {
@@ -13,7 +13,7 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 	// Arrange
 	stored := map[string]bool{}
 
-	dependencies := cmdshared.ProvisionDependencies{
+	dependencies := provision.Dependency{
 		GenerateRandomBytes: func(count int) []byte {
 			return make([]byte, count)
 		},
@@ -25,16 +25,16 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 	payloadSizes := []int{16, 32}
 
 	expected := []string{
-		shared.AESKeyFileName,
-		shared.ASCONKeyFileName,
-		shared.AESNonceFileName,
-		shared.ASCONNonceFileName,
-		fmt.Sprintf(shared.PlaintextFileNameFormat, 16),
-		fmt.Sprintf(shared.AESCiphertextFileNameFormat, 16),
-		fmt.Sprintf(shared.ASCONCiphertextFileNameFormat, 16),
-		fmt.Sprintf(shared.PlaintextFileNameFormat, 32),
-		fmt.Sprintf(shared.AESCiphertextFileNameFormat, 32),
-		fmt.Sprintf(shared.ASCONCiphertextFileNameFormat, 32),
+		cache.AESKeyFileName,
+		cache.ASCONKeyFileName,
+		cache.AESNonceFileName,
+		cache.ASCONNonceFileName,
+		fmt.Sprintf(cache.PlaintextFileWSizeName, 16),
+		fmt.Sprintf(cache.AESCiphertextWSizeFileName, 16),
+		fmt.Sprintf(cache.ASCONCiphertextWSizeFileName, 16),
+		fmt.Sprintf(cache.PlaintextFileWSizeName, 32),
+		fmt.Sprintf(cache.AESCiphertextWSizeFileName, 32),
+		fmt.Sprintf(cache.ASCONCiphertextWSizeFileName, 32),
 	}
 
 	// Act

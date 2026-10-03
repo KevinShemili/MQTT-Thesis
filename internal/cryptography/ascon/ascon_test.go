@@ -3,17 +3,17 @@ package ascon
 import (
 	"bytes"
 	"testing"
-	"thesis/benchmark/utility"
+	"thesis/utility/golang/generator"
 )
 
 const symmetricKeySize = 16
 
 func TestASCONRoundTrip(t *testing.T) {
-	key := utility.GenerateRandomBytes(symmetricKeySize)
+	key := generator.GenerateRandomBytes(symmetricKeySize)
 	plaintext := []byte("test message")
 
 	cipher := NewASCON(key)
-	nonce := utility.GenerateRandomBytes(cipher.NonceSize())
+	nonce := generator.GenerateRandomBytes(cipher.NonceSize())
 
 	ciphertext := cipher.Encrypt(nil, nonce, plaintext)
 	decrypted := cipher.Decrypt(nil, nonce, ciphertext)
