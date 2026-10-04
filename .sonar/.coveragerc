@@ -5,7 +5,7 @@ data_file = .sonar/reports/.coverage
 source =
     report
     orchestrate
-    um24c
+    utility/python
 omit =
     **/test_*.py
     **/*_test.py

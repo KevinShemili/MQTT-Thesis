@@ -2,8 +2,6 @@ package aes_ascon
 
 import (
 	"fmt"
-	"runtime"
-	"runtime/debug"
 	"testing"
 	"thesis/benchmark/memory"
 	"thesis/benchmark/thermal"
@@ -31,7 +29,7 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				cipher.Encrypt(nil, nonce, plaintext)
@@ -53,7 +51,7 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				cipher.Encrypt(nil, nonce, plaintext)
@@ -80,7 +78,7 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				cipher.Decrypt(nil, nonce, ciphertext)
@@ -102,7 +100,7 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				cipher.Decrypt(nil, nonce, ciphertext)
@@ -122,7 +120,7 @@ func BenchmarkAESASCONMemoryBaseline(benchmark *testing.B) {
 
 		thermal.WaitForCooldown()
 
-		isPrepared := preparePeakMemoryMeasurement()
+		isPrepared := memory.PreparePeakMemoryMeasurement()
 
 		for b.Loop() {
 		}
@@ -131,12 +129,4 @@ func BenchmarkAESASCONMemoryBaseline(benchmark *testing.B) {
 			b.ReportMetric(peakBytes, "peak_rss_bytes")
 		}
 	})
-}
-
-func preparePeakMemoryMeasurement() bool {
-
-	runtime.GC()
-	debug.FreeOSMemory()
-
-	return memory.ResetPeakResidentMemory()
 }

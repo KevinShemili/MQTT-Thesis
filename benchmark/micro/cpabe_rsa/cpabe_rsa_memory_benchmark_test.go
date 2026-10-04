@@ -2,8 +2,6 @@ package cpabe_rsa
 
 import (
 	"fmt"
-	"runtime"
-	"runtime/debug"
 	"testing"
 	"thesis/benchmark/memory"
 	"thesis/benchmark/thermal"
@@ -36,7 +34,7 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				authority.Encrypt(abePolicy, symmetricKey)
@@ -61,7 +59,7 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				for index := range subscriberCount {
@@ -94,7 +92,7 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := preparePeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				privateKey.Decrypt(asymmetricCiphertext)
@@ -115,7 +113,7 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 
 		thermal.WaitForCooldown()
 
-		isPrepared := preparePeakMemoryMeasurement()
+		isPrepared := memory.PreparePeakMemoryMeasurement()
 
 		for b.Loop() {
 			privateKey.Decrypt(asymmetricCiphertext)
@@ -141,7 +139,7 @@ func BenchmarkCPABERSAMemoryBaseline(benchmark *testing.B) {
 
 		// Resetting the watermark leaves it at the current resident size, so the reading
 		// below is what the process holds before any fixture or operation touches it
-		isPrepared := preparePeakMemoryMeasurement()
+		isPrepared := memory.PreparePeakMemoryMeasurement()
 
 		// The measured case is a process that does nothing, so the loop does nothing
 		for b.Loop() {
@@ -151,20 +149,6 @@ func BenchmarkCPABERSAMemoryBaseline(benchmark *testing.B) {
 			b.ReportMetric(peakBytes, "peak_rss_bytes")
 		}
 	})
-}
-
-func preparePeakMemoryMeasurement() bool {
-
-	// Remove unused Go objects left behind by fixture loading
-	runtime.GC()
-
-	// Return unused Go memory to Linux so it does not remain part of the process footprint
-	debug.FreeOSMemory()
-
-	// Forget the previous process memory peak so the next VmHWM reflects this benchmark case
-	flag := memory.ResetPeakResidentMemory()
-
-	return flag
 }
 
 // Load the individual public keys of all subscribers

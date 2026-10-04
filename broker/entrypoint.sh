@@ -5,6 +5,7 @@ set -eu
 STATE_DIR="/state"
 CERT_DIR="$STATE_DIR/certs"
 PASSWORD_FILE="$STATE_DIR/passwords"
+ACL_FILE="$STATE_DIR/acl"
 
 : "${MACRO_BROKER_URL:?}"
 : "${MACRO_PUBLISHER_USERNAME:?}"
@@ -102,6 +103,14 @@ mosquitto_passwd \
     "$MACRO_SUBSCRIBER_USERNAME" \
     "$MACRO_SUBSCRIBER_PASSWORD"
 
+cat > "$ACL_FILE" <<EOF
+user $MACRO_PUBLISHER_USERNAME
+topic write $MACRO_BENCHMARK_TOPIC
+
+user $MACRO_SUBSCRIBER_USERNAME
+topic read $MACRO_BENCHMARK_TOPIC
+EOF
+
 
 # ============================================================
 # PERMISSIONS
@@ -115,7 +124,8 @@ chmod 644 \
 
 chmod 600 \
     "$CERT_DIR/broker.key" \
-    "$PASSWORD_FILE"
+    "$PASSWORD_FILE" \
+    "$ACL_FILE"
 
 
 # ============================================================

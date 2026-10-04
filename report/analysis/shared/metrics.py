@@ -4,9 +4,7 @@ from report.model.timing.timing_aggregation import TimingAggregation
 from report.model.timing.timing_case import THROTTLED as TIMING_THROTTLED
 
 MEGABYTE = 1024 * 1024
-
 NS_PER_MICROSECOND = 1000.0
-
 MICROJOULES_PER_JOULE = 1_000_000
 
 

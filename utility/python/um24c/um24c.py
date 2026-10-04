@@ -1,4 +1,5 @@
 import socket
+import time
 
 
 class UM24C:
@@ -37,6 +38,22 @@ class UM24C:
         power = int.from_bytes(data[6:10], byteorder="big") / 1000.0
 
         return voltage, current, power
+
+    def sample(self, duration):
+        samples = []
+
+        start = time.monotonic()
+        deadline = start + duration
+
+        while time.monotonic() < deadline:
+            voltage, current, power = self.read()
+
+            elapsed = time.monotonic() - start
+
+            if elapsed < duration:
+                samples.append((elapsed, voltage, current, power))
+
+        return samples
 
     def close(self):
         self.connection.close()

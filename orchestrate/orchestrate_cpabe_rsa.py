@@ -4,33 +4,35 @@ import sys
 import subprocess
 import time
 from contextlib import closing
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dotenv import load_dotenv
 
-from shared.paths import (
+from utility.python.parser.env_parser import parse_int_env, parse_int_list_env
+
+from utility.python.path.path import (
+    ENERGY_RESULT_NAME,
     ENVIRONMENT_FILE,
+    MEMORY_TEXT_NAME,
     PROJECT_ROOT,
     REMOTE_BENCHMARK_DIRECTORY,
-    REMOTE_CACHE_DIRECTORY,
     REMOTE_ENVIRONMENT_FILE,
+    REMOTE_GO_EXECUTABLE,
     REMOTE_PROJECT_DIRECTORY,
     SSH_TARGET,
+    TIMING_TEXT_NAME,
 )
 
-from shared.txt_to_csv import (
+from orchestrate.shared.csv import (
+    ENERGY_FIELDS,
     convert_memory_results,
     convert_timing_results,
-)
-
-from shared.energy import (
-    ENERGY_FIELDS,
-    read_um24c,
     write_samples,
 )
 
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from um24c.um24c import UM24C
+from utility.python.um24c.um24c import UM24C
 
 REMOTE_PACKAGE = "./micro/cpabe_rsa"
 REMOTE_PROVISION_PACKAGE = "./cmd/provision/provision_cpabe_rsa"
@@ -63,51 +65,42 @@ def load_environment_variables():
         override=True,
     )
 
-    RUNS = int(os.environ["CPABE_RSA_RUNS"])
+    RUNS = parse_int_env("CPABE_RSA_RUNS")
 
-    ATTRIBUTE_COUNTS = [
-        int(attribute_count)
-        for attribute_count in os.environ["CPABE_RSA_ATTRIBUTE_COUNT"].split(",")
-    ]
+    ATTRIBUTE_COUNTS = parse_int_list_env("CPABE_RSA_ATTRIBUTE_COUNT")
 
-    SUBSCRIBER_COUNTS = [
-        int(subscriber_count)
-        for subscriber_count in os.environ["CPABE_RSA_SUBSCRIBER_COUNT"].split(",")
-    ]
+    SUBSCRIBER_COUNTS = parse_int_list_env("CPABE_RSA_SUBSCRIBER_COUNT")
 
-    RSA_KEY_BITS = [
-        int(rsa_key_bits)
-        for rsa_key_bits in os.environ["CPABE_RSA_RSA_KEY_SIZES"].split(",")
-    ]
-    FIXED_RSA_KEY_BITS = int(os.environ["CPABE_RSA_FIXED_RSA_KEY_SIZE"])
+    RSA_KEY_BITS = parse_int_list_env("CPABE_RSA_RSA_KEY_SIZES")
+    FIXED_RSA_KEY_BITS = parse_int_env("CPABE_RSA_FIXED_RSA_KEY_SIZE")
 
-    TIMING_DURATION = int(os.environ["TIMING_DURATION"])
+    TIMING_DURATION = parse_int_env("TIMING_DURATION")
 
-    BASELINE_DURATION = int(os.environ["BASELINE_DURATION"])
-    WARMUP_DURATION = int(os.environ["WARMUP_DURATION"])
-    MEASUREMENT_DURATION = int(os.environ["MEASUREMENT_DURATION"])
-    TAIL_DURATION = int(os.environ["TAIL_DURATION"])
+    BASELINE_DURATION = parse_int_env("BASELINE_DURATION")
+    WARMUP_DURATION = parse_int_env("WARMUP_DURATION")
+    MEASUREMENT_DURATION = parse_int_env("MEASUREMENT_DURATION")
+    TAIL_DURATION = parse_int_env("TAIL_DURATION")
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
     RESULT_DIRECTORY = PROJECT_ROOT / os.environ["CPABE_RSA_RESULT_DIR"]
 
-    MEMORY_RESULT_FILE = RESULT_DIRECTORY / "memory.txt"
-    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.csv"
-    TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
+    MEMORY_RESULT_FILE = RESULT_DIRECTORY / MEMORY_TEXT_NAME
+    ENERGY_RESULT_FILE = RESULT_DIRECTORY / ENERGY_RESULT_NAME
+    TIMING_RESULT_FILE = RESULT_DIRECTORY / TIMING_TEXT_NAME
 
 
 def build_binaries():
 
     command = (
         f"cd {REMOTE_BENCHMARK_DIRECTORY}; "
-        f"/usr/local/go/bin/go test -c "
+        f"{REMOTE_GO_EXECUTABLE} test -c "
         f"-o {REMOTE_BINARY} "
         f"{REMOTE_PACKAGE} && "
-        f"/usr/local/go/bin/go build "
+        f"{REMOTE_GO_EXECUTABLE} build "
         f"-o {REMOTE_PROVISION_BINARY} "
         f"{REMOTE_PROVISION_PACKAGE} && "
-        f"/usr/local/go/bin/go build "
+        f"{REMOTE_GO_EXECUTABLE} build "
         f"-o {REMOTE_ENERGY_BINARY} "
         f"{REMOTE_ENERGY_PACKAGE}"
     )
@@ -119,21 +112,12 @@ def orchestrate_provision():
 
     print("Provisioning CP-ABE vs. RSA Fixtures...")
 
-    # Start with an empty fixture cache
-    subprocess.run(
-        [
-            "ssh",
-            SSH_TARGET,
-            f"rm -rf {REMOTE_CACHE_DIRECTORY}",
-        ],
-        check=True,
-    )
-
     command = (
         f"cd {REMOTE_PROJECT_DIRECTORY} && "
         f"set -a && "
         f". {REMOTE_ENVIRONMENT_FILE} && "
         f"set +a && "
+        'rm -rf "$CACHE_DIRECTORY" && '
         f"{REMOTE_PROVISION_BINARY}"
     )
 
@@ -238,7 +222,7 @@ def run_energy_case(meter, writer, algorithm, operation, parameter_value):
         process = subprocess.Popen(["ssh", SSH_TARGET, command])
 
         time.sleep(WARMUP_DURATION)
-        samples = read_um24c(meter, MEASUREMENT_DURATION)
+        samples = meter.sample(MEASUREMENT_DURATION)
 
         returncode = process.wait()
 
@@ -284,7 +268,7 @@ def orchestrate_energy():
             for run in range(1, RUNS + 1):
                 write_samples(
                     writer,
-                    read_um24c(um24c, BASELINE_DURATION),
+                    um24c.sample(BASELINE_DURATION),
                     {"scenario": "cpabe_rsa", "row_type": "baseline", "run": run},
                 )
 

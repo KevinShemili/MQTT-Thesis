@@ -52,8 +52,8 @@ jobs:
 
       - name: Check and Test Python
         run: |
-          python -m compileall -q report orchestrate um24c
-          python -m coverage run -m pytest -v report orchestrate um24c
+          python -m compileall -q report orchestrate utility/python
+          python -m coverage run -m pytest -v report orchestrate utility/python
           python -m coverage xml
 
       - name: Analyze With SonarCloud

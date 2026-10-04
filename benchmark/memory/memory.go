@@ -2,6 +2,8 @@ package memory
 
 import (
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -75,4 +77,12 @@ func PeakResidentMemory() (float64, bool) {
 	}
 
 	return 0, false
+}
+
+func PreparePeakMemoryMeasurement() bool {
+
+	runtime.GC()
+	debug.FreeOSMemory()
+
+	return ResetPeakResidentMemory()
 }

@@ -96,12 +96,12 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
     class FakeUM24C:
         MAC_ADDRESS = "fake"
 
+        def sample(self, duration):
+            calls.append("read baseline")
+            return []
+
         def close(self):
             pass
-
-    def fake_read_um24c(meter, duration):
-        calls.append("read baseline")
-        return []
 
     def fake_write_samples(writer, samples, metadata):
         calls.append("write baseline")
@@ -118,7 +118,6 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(sut, "ATTRIBUTE_COUNTS", [5], raising=False)
     monkeypatch.setattr(sut, "SUBSCRIBER_COUNTS", [10], raising=False)
     monkeypatch.setattr(sut, "FIXED_RSA_KEY_BITS", 2048, raising=False)
-    monkeypatch.setattr(sut, "read_um24c", fake_read_um24c)
     monkeypatch.setattr(sut, "write_samples", fake_write_samples)
     monkeypatch.setattr(sut, "run_energy_case", fake_run_energy_case)
 

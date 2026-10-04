@@ -2,8 +2,6 @@ package full_schema
 
 import (
 	"fmt"
-	"runtime"
-	"runtime/debug"
 	"testing"
 	"thesis/benchmark/memory"
 	"thesis/benchmark/thermal"
@@ -32,7 +30,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
@@ -60,7 +58,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				nonce := generator.GenerateRandomBytes(nonceSize)
@@ -96,7 +94,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				nonce := generator.GenerateRandomBytes(nonceSize)
@@ -128,7 +126,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				nonce := generator.GenerateRandomBytes(cipher.NonceSize())
@@ -156,7 +154,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				nonce := generator.GenerateRandomBytes(nonceSize)
@@ -192,7 +190,7 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				nonce := generator.GenerateRandomBytes(nonceSize)
@@ -231,7 +229,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				var env envelope.AsymmetricEnvelope
@@ -254,7 +252,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				var env envelope.AsymmetricEnvelope
@@ -278,7 +276,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				var env envelope.AsymmetricEnvelope
@@ -302,7 +300,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				var env envelope.AsymmetricEnvelope
@@ -329,7 +327,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				var env envelope.AsymmetricEnvelope
@@ -353,7 +351,7 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			thermal.WaitForCooldown()
 
-			isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
 				var env envelope.AsymmetricEnvelope
@@ -375,7 +373,7 @@ func BenchmarkFullSchemaMemoryBaseline(benchmark *testing.B) {
 
 		thermal.WaitForCooldown()
 
-		isPrepared := prepareFullSchemaPeakMemoryMeasurement()
+		isPrepared := memory.PreparePeakMemoryMeasurement()
 
 		for b.Loop() {
 		}
@@ -384,12 +382,4 @@ func BenchmarkFullSchemaMemoryBaseline(benchmark *testing.B) {
 			b.ReportMetric(peakBytes, "peak_rss_bytes")
 		}
 	})
-}
-
-func prepareFullSchemaPeakMemoryMeasurement() bool {
-
-	runtime.GC()
-	debug.FreeOSMemory()
-
-	return memory.ResetPeakResidentMemory()
 }

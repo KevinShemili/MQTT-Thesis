@@ -1,6 +1,6 @@
 import pytest
 
-from report.analysis.shared.parser import (
+from utility.python.parser.env_parser import (
     parse_int_env,
     parse_int_list_env,
 )

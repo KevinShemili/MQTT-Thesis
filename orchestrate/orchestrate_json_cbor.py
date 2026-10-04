@@ -4,29 +4,33 @@ import sys
 import subprocess
 import time
 from contextlib import closing
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dotenv import load_dotenv
 
-from shared.paths import (
+from utility.python.parser.env_parser import parse_int_env, parse_int_list_env
+
+from utility.python.path.path import (
+    ENERGY_RESULT_NAME,
     ENVIRONMENT_FILE,
     PROJECT_ROOT,
     REMOTE_BENCHMARK_DIRECTORY,
     REMOTE_ENVIRONMENT_FILE,
+    REMOTE_GO_EXECUTABLE,
     REMOTE_PROJECT_DIRECTORY,
     SSH_TARGET,
+    TIMING_TEXT_NAME,
 )
 
-from shared.txt_to_csv import convert_timing_results
-
-from shared.energy import (
+from orchestrate.shared.csv import (
     ENERGY_FIELDS,
-    read_um24c,
+    convert_timing_results,
     write_samples,
 )
 
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from um24c.um24c import UM24C
+from utility.python.um24c.um24c import UM24C
 
 REMOTE_PACKAGE = "./micro/json_cbor"
 REMOTE_BINARY = "/tmp/json-cbor-benchmark"
@@ -53,33 +57,31 @@ def load_environment_variables():
         override=True,
     )
 
-    RUNS = int(os.environ["JSON_CBOR_RUNS"])
+    RUNS = parse_int_env("JSON_CBOR_RUNS")
 
-    PAYLOAD_SIZES = [
-        int(payload_size) for payload_size in os.environ["PAYLOAD_SIZES"].split(",")
-    ]
+    PAYLOAD_SIZES = parse_int_list_env("PAYLOAD_SIZES")
 
-    TIMING_DURATION = int(os.environ["TIMING_DURATION"])
-    BASELINE_DURATION = int(os.environ["BASELINE_DURATION"])
-    WARMUP_DURATION = int(os.environ["WARMUP_DURATION"])
-    MEASUREMENT_DURATION = int(os.environ["MEASUREMENT_DURATION"])
-    TAIL_DURATION = int(os.environ["TAIL_DURATION"])
+    TIMING_DURATION = parse_int_env("TIMING_DURATION")
+    BASELINE_DURATION = parse_int_env("BASELINE_DURATION")
+    WARMUP_DURATION = parse_int_env("WARMUP_DURATION")
+    MEASUREMENT_DURATION = parse_int_env("MEASUREMENT_DURATION")
+    TAIL_DURATION = parse_int_env("TAIL_DURATION")
 
     TOTAL_WORKLOAD_DURATION = WARMUP_DURATION + MEASUREMENT_DURATION + TAIL_DURATION
 
     RESULT_DIRECTORY = PROJECT_ROOT / os.environ["JSON_CBOR_RESULT_DIR"]
-    TIMING_RESULT_FILE = RESULT_DIRECTORY / "timing.txt"
-    ENERGY_RESULT_FILE = RESULT_DIRECTORY / "energy.csv"
+    TIMING_RESULT_FILE = RESULT_DIRECTORY / TIMING_TEXT_NAME
+    ENERGY_RESULT_FILE = RESULT_DIRECTORY / ENERGY_RESULT_NAME
 
 
 def build_benchmark_binary():
 
     command = (
         f"cd {REMOTE_BENCHMARK_DIRECTORY }; "
-        f"/usr/local/go/bin/go test -c "
+        f"{REMOTE_GO_EXECUTABLE} test -c "
         f"-o {REMOTE_BINARY} "
         f"{REMOTE_PACKAGE} && "
-        f"/usr/local/go/bin/go build "
+        f"{REMOTE_GO_EXECUTABLE} build "
         f"-o {REMOTE_ENERGY_BINARY} "
         f"{REMOTE_ENERGY_PACKAGE}"
     )
@@ -111,7 +113,7 @@ def run_energy_case(meter, writer, algorithm, operation, payload_size):
         process = subprocess.Popen(["ssh", SSH_TARGET, command])
 
         time.sleep(WARMUP_DURATION)
-        samples = read_um24c(meter, MEASUREMENT_DURATION)
+        samples = meter.sample(MEASUREMENT_DURATION)
 
         returncode = process.wait()
 
@@ -158,7 +160,7 @@ def orchestrate_energy():
             for run in range(1, RUNS + 1):
                 write_samples(
                     writer,
-                    read_um24c(um24c, BASELINE_DURATION),
+                    um24c.sample(BASELINE_DURATION),
                     {"scenario": "json_cbor", "row_type": "baseline", "run": run},
                 )
 

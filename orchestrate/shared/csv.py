@@ -11,6 +11,14 @@ RESULT_FIELDS = [
     "run",
 ]
 
+ENERGY_FIELDS = RESULT_FIELDS + [
+    "throttled",
+    "elapsed_s",
+    "voltage_v",
+    "current_a",
+    "power_w",
+]
+
 
 # Extract independent repetitions from the current Go benchmark output.
 def _read_benchmark_results(txt_filepath, scenario):
@@ -153,3 +161,18 @@ def convert_memory_results(txt_filepath, scenario):
     txt_filepath.unlink()
 
     return csv_filepath
+
+
+def write_samples(writer, samples, run_data):
+
+    for elapsed, voltage, current, power in samples:
+
+        writer.writerow(
+            {
+                **run_data,
+                "elapsed_s": f"{elapsed:.6f}",
+                "voltage_v": f"{voltage:.3f}",
+                "current_a": f"{current:.3f}",
+                "power_w": f"{power:.3f}",
+            }
+        )

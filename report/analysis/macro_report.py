@@ -4,7 +4,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from report.analysis.shared.load_summary import load_macro_summary
-from report.analysis.shared.paths import REPORT_NAME, TEMPLATE_DIR
+from utility.python.path.path import (
+    ENVIRONMENT_FILE,
+    PROJECT_ROOT,
+    PUBLISHER_RESULT_NAME,
+    REPORT_NAME,
+    SUBSCRIBER_RESULT_NAME,
+    TEMPLATE_DIR,
+)
 from report.analysis.shared.metrics import to_microseconds
 from report.analysis.shared.statistics import (
     macro_cycle_statistics,
@@ -14,11 +21,6 @@ from report.render.chart import plot_macro_cpu_cycles, plot_macro_latency
 from report.render.html import write_macro_report
 from report.render.color import VIOLET, TEAL, AMBER, CRIMSON
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENVIRONMENT_FILE = PROJECT_ROOT / "environment" / "benchmark.env"
-
-PUBLISHER_RESULT_NAME = "publisher.csv"
-SUBSCRIBER_RESULT_NAME = "subscriber.csv"
 REPORT_TEMPLATE_NAME = "macro_template.html"
 LATENCY_PLOT = "latency.png"
 CPU_CYCLES_PLOT = "cpu_cycles.png"
@@ -58,12 +60,18 @@ def generate_report(result_directory: Path) -> None:
                 "label": label,
                 "color": color,
                 "linestyle": linestyle,
-                "payload_sizes": [aggregation.payload_size for aggregation in aggregations],
-                "repetition_counts": [len(aggregation.cases) for aggregation in aggregations],
+                "payload_sizes": [
+                    aggregation.payload_size for aggregation in aggregations
+                ],
+                "repetition_counts": [
+                    len(aggregation.cases) for aggregation in aggregations
+                ],
                 "message_counts": [
                     [
                         len(case.publisher_timestamps)
-                        for case in sorted(aggregation.cases, key=lambda case: case.repetition)
+                        for case in sorted(
+                            aggregation.cases, key=lambda case: case.repetition
+                        )
                     ]
                     for aggregation in aggregations
                 ],
@@ -76,7 +84,10 @@ def generate_report(result_directory: Path) -> None:
     plot_macro_latency(scenarios, str(result_directory / LATENCY_PLOT))
     plot_macro_cpu_cycles(scenarios, str(result_directory / CPU_CYCLES_PLOT))
     write_macro_report(
-        {"scenarios": scenarios, "plots": {"latency": LATENCY_PLOT, "cpu_cycles": CPU_CYCLES_PLOT}},
+        {
+            "scenarios": scenarios,
+            "plots": {"latency": LATENCY_PLOT, "cpu_cycles": CPU_CYCLES_PLOT},
+        },
         str(TEMPLATE_DIR / REPORT_TEMPLATE_NAME),
         str(result_directory / REPORT_NAME),
     )
