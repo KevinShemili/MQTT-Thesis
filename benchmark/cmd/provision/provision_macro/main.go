@@ -13,16 +13,15 @@ func main() {
 	config := macro.NewCryptographyConfig()
 
 	dependencies := provision.Dependency{
-		GenerateRandomBytes: generator.GenerateRandomBytes,
-		Store:               cache.Store,
+		Store: cache.Store,
 	}
 
 	runProvision(config, dependencies)
 }
 
 func runProvision(config macro.CryptographyConfig, dependencies provision.Dependency) {
-	dependencies.Store(cache.AESKeyFileName, dependencies.GenerateRandomBytes(config.SymmetricKeySize))
-	dependencies.Store(cache.ASCONKeyFileName, dependencies.GenerateRandomBytes(config.SymmetricKeySize))
+	dependencies.Store(cache.AESKeyFileName, generator.GenerateRandomBytes(config.SymmetricKeySize))
+	dependencies.Store(cache.ASCONKeyFileName, generator.GenerateRandomBytes(config.SymmetricKeySize))
 
 	rsaScheme := rsa.NewRSA(config.RSAKeyBits)
 	dependencies.Store(cache.RSAPublicKeyFileName, rsaScheme.PublicKeyBytes())

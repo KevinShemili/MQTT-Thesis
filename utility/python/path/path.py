@@ -20,6 +20,7 @@ SUBSCRIBER_RESULT_NAME = "subscriber.csv"
 SSH_TARGET = "pi"
 
 REMOTE_GO_EXECUTABLE = "/usr/local/go/bin/go"
+REMOTE_COOLDOWN_BINARY = "/tmp/benchmark-cooldown"
 REMOTE_PROJECT_DIRECTORY = "/home/thesis/MQTT-Thesis"
 REMOTE_BENCHMARK_DIRECTORY = f"{REMOTE_PROJECT_DIRECTORY}/benchmark"
 REMOTE_ENVIRONMENT_FILE = f"{REMOTE_PROJECT_DIRECTORY}/environment/benchmark.env"

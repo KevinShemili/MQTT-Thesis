@@ -9,15 +9,17 @@ import (
 
 func TestNewMessage(t *testing.T) {
 
+	// Arrange
 	const payloadSize = 12
+	expectedPayload := bytes.Repeat([]byte{0xAB}, payloadSize)
 
+	// Act
 	msg := NewMessage(payloadSize)
 
+	// Assert
 	if msg.ID == uuid.Nil {
 		t.Fatal("message ID is nil")
 	}
-
-	expectedPayload := bytes.Repeat([]byte{0xAB}, payloadSize)
 
 	if !bytes.Equal(msg.Payload, expectedPayload) {
 		t.Fatalf("payload produced %x, want %x", msg.Payload, expectedPayload)

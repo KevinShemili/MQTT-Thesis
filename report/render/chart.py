@@ -1786,23 +1786,36 @@ def plot_encrypt_decrypt_asymmetry(
     save_figure(figure, output_path)
 
 
+MACRO_SCENARIO_STYLES = {
+    "tls_json": ("TLS + JSON", VIOLET, "-"),
+    "tls_cbor": ("TLS + CBOR", VIOLET, "--"),
+    "tls_psk_aes": ("TLS + PSK (AES + JSON)", TEAL, "-"),
+    "tls_psk_ascon": ("TLS + PSK (ASCON + CBOR)", TEAL, "--"),
+    "tls_rsa_aes_json": ("TLS + RSA (AES + JSON)", AMBER, "-"),
+    "tls_rsa_ascon_cbor": ("TLS + RSA (ASCON + CBOR)", AMBER, "--"),
+    "tls_cpabe_aes_json": ("TLS + CP-ABE (AES + JSON)", CRIMSON, "-"),
+    "tls_cpabe_ascon_cbor": ("TLS + CP-ABE (ASCON + CBOR)", CRIMSON, "--"),
+}
+
+
 # Render E2E latency means and confidence intervals for every macro scenario
-def plot_macro_latency(scenarios: list[dict[str, Any]], output_path: str) -> None:
+def plot_macro_latency(scenarios: dict[str, dict[str, Any]], output_path: str) -> None:
 
     figure, axis = plt.subplots(figsize=(12, 6))
-    for scenario in scenarios:
+    for name, scenario in scenarios.items():
+        label, color, linestyle = MACRO_SCENARIO_STYLES[name]
         draw_summary(
             axis,
             scenario["payload_sizes"],
             scenario["latency_means"],
             scenario["latency_cis"],
-            scenario["label"],
-            scenario["color"],
+            label,
+            color,
             with_ci=True,
-            linestyle=scenario["linestyle"],
+            linestyle=linestyle,
         )
 
-    _configure_log2_payload_axis(axis, scenarios[0]["payload_sizes"])
+    _configure_log2_payload_axis(axis, next(iter(scenarios.values()))["payload_sizes"])
     axis.set_title("E2E latency — mean and 95% CI")
     axis.set_xlabel("Payload size")
     axis.set_ylabel("Latency (µs)")
@@ -1813,25 +1826,30 @@ def plot_macro_latency(scenarios: list[dict[str, Any]], output_path: str) -> Non
 
 
 # Keep the publisher and subscriber workload cycle totals in separate panels
-def plot_macro_cpu_cycles(scenarios: list[dict[str, Any]], output_path: str) -> None:
+def plot_macro_cpu_cycles(
+    scenarios: dict[str, dict[str, Any]], output_path: str
+) -> None:
 
     figure, axes = plt.subplots(1, 2, figsize=(16, 6))
     figure.suptitle("CPU cycles per workload — mean and 95% CI", fontsize=13)
 
     for axis, role in zip(axes, ("publisher", "subscriber")):
-        for scenario in scenarios:
+        for name, scenario in scenarios.items():
+            label, color, linestyle = MACRO_SCENARIO_STYLES[name]
             means, confidence_intervals = scenario["cycles"][role]
             draw_summary(
                 axis,
                 scenario["payload_sizes"],
                 means,
                 confidence_intervals,
-                scenario["label"],
-                scenario["color"],
+                label,
+                color,
                 with_ci=True,
-                linestyle=scenario["linestyle"],
+                linestyle=linestyle,
             )
-        _configure_log2_payload_axis(axis, scenarios[0]["payload_sizes"])
+        _configure_log2_payload_axis(
+            axis, next(iter(scenarios.values()))["payload_sizes"]
+        )
         axis.set_title(role.title())
         axis.set_xlabel("Payload size")
         axis.set_ylabel("CPU cycles / workload")

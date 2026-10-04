@@ -18,12 +18,15 @@ from utility.python.path.path import (
     MEMORY_TEXT_NAME,
     PROJECT_ROOT,
     REMOTE_BENCHMARK_DIRECTORY,
+    REMOTE_COOLDOWN_BINARY,
     REMOTE_ENVIRONMENT_FILE,
     REMOTE_GO_EXECUTABLE,
     REMOTE_PROJECT_DIRECTORY,
     SSH_TARGET,
     TIMING_TEXT_NAME,
 )
+
+from orchestrate.shared.cooldown import wait_for_cooldown
 
 from orchestrate.shared.csv import (
     ENERGY_FIELDS,
@@ -91,7 +94,9 @@ def build_binaries():
         f"{REMOTE_PROVISION_PACKAGE} && "
         f"{REMOTE_GO_EXECUTABLE} build "
         f"-o {REMOTE_ENERGY_BINARY} "
-        f"{REMOTE_ENERGY_PACKAGE}"
+        f"{REMOTE_ENERGY_PACKAGE} && "
+        f"{REMOTE_GO_EXECUTABLE} build "
+        f"-o {REMOTE_COOLDOWN_BINARY} ./cmd/cooldown"
     )
 
     subprocess.run(
@@ -193,6 +198,8 @@ def run_energy_case(meter, writer, algorithm, operation, payload_size):
 
     for run in range(1, RUNS + 1):
 
+        wait_for_cooldown()
+
         process = subprocess.Popen(["ssh", SSH_TARGET, command])
 
         time.sleep(WARMUP_DURATION)
@@ -239,6 +246,8 @@ def orchestrate_energy():
 
             writer = csv.DictWriter(output, fieldnames=ENERGY_FIELDS)
             writer.writeheader()
+
+            wait_for_cooldown()
 
             for run in range(1, RUNS + 1):
                 write_samples(
@@ -334,11 +343,14 @@ def main():
     # Run Memory Benchmark
     orchestrate_memory()
 
-    # Allow Device to Stabilize before Energy Measurement
+    # Allow Device to Stabilize After Memory Benchmark
     time.sleep(5)
 
     # Run Energy Benchmark
     orchestrate_energy()
+
+    # Allow Device to Stabilize after Energy Measurement
+    time.sleep(5)
 
     # Run Timing Benchmark
     orchestrate_timing()

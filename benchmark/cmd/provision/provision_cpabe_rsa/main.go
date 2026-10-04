@@ -17,8 +17,7 @@ func main() {
 	config := cpabe_rsa.NewCPABERSAConfig()
 
 	dependencies := provision.Dependency{
-		GenerateRandomBytes: generator.GenerateRandomBytes,
-		Store:               cache.Store,
+		Store: cache.Store,
 	}
 
 	runProvision(config.AttributeCounts, config.SubscriberCounts, config.AESKeySize, config.FixedRSAKeyBits, dependencies)
@@ -27,7 +26,7 @@ func main() {
 func runProvision(attributeCounts []int, subscriberCounts []int, aesKeySize int,
 	fixedRSAKeyBits int, dependencies provision.Dependency) {
 
-	symmetricKey := dependencies.GenerateRandomBytes(aesKeySize)
+	symmetricKey := generator.GenerateRandomBytes(aesKeySize)
 	dependencies.Store(cache.AESKeyFileName, symmetricKey)
 
 	authority := cpabe.NewAuthority()

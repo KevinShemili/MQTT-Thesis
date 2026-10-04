@@ -34,7 +34,7 @@ func TestRunCoordinatorCallsStagesInExpectedOrder(t *testing.T) {
 	warmupRuns = 1
 	resultDirectory = t.TempDir()
 
-	dependencies := coordinatorDependencies{
+	dependencies := coordinatorDependency{
 		LoadEnvironment: func() {
 			calls = append(calls, "load environment")
 		},
@@ -125,7 +125,7 @@ func TestRunCoordinatorStopsImmediatelyWhenBuildFails(t *testing.T) {
 	warmupRuns = 0
 	resultDirectory = t.TempDir()
 
-	dependencies := coordinatorDependencies{
+	dependencies := coordinatorDependency{
 		LoadEnvironment: func() {
 			calls = append(calls, "load environment")
 		},
@@ -185,7 +185,7 @@ func TestRunProtocolRepetitionCallsSignalsInExpectedOrder(t *testing.T) {
 	// Arrange
 	calls := []string{}
 
-	dependencies := signalDependencies{
+	dependencies := communicationDependency{
 		WritePublisher: func(signal string) error {
 			calls = append(calls, "write publisher "+signal)
 			return nil

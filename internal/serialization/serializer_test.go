@@ -11,24 +11,25 @@ import (
 
 func TestJSONSerializerRoundTrip(t *testing.T) {
 
+	// Arrange
 	original := message.Message{
 		ID:      uuid.MustParse("b9961566-8504-4a98-bbbe-cba09c5ee7cb"),
 		Payload: []byte("test payload"),
 	}
-
 	serializer := JSONSerializer{}
+	var decoded message.Message
 
+	// Act
 	serialized, err := serializer.Serialize(original)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var decoded message.Message
-
 	if err := serializer.Deserialize(serialized, &decoded); err != nil {
 		t.Fatal(err)
 	}
 
+	// Assert
 	if decoded.ID != original.ID {
 		t.Fatalf("decoded ID %s does not match original %s", decoded.ID, original.ID)
 	}
@@ -40,24 +41,25 @@ func TestJSONSerializerRoundTrip(t *testing.T) {
 
 func TestCBORSerializerRoundTrip(t *testing.T) {
 
+	// Arrange
 	original := message.Message{
 		ID:      uuid.MustParse("b9961566-8504-4a98-bbbe-cba09c5ee7cb"),
 		Payload: []byte("test payload"),
 	}
-
 	serializer := CBORSerializer{}
+	var decoded message.Message
 
+	// Act
 	serialized, err := serializer.Serialize(original)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var decoded message.Message
-
 	if err := serializer.Deserialize(serialized, &decoded); err != nil {
 		t.Fatal(err)
 	}
 
+	// Assert
 	if decoded.ID != original.ID {
 		t.Fatalf("decoded ID %s does not match original %s", decoded.ID, original.ID)
 	}
@@ -69,24 +71,25 @@ func TestCBORSerializerRoundTrip(t *testing.T) {
 
 func TestIntegerKeyCBORSerializerRoundTrip(t *testing.T) {
 
+	// Arrange
 	original := message.MessageIntKeys{
 		ID:      uuid.MustParse("b9961566-8504-4a98-bbbe-cba09c5ee7cb"),
 		Payload: []byte("test payload"),
 	}
-
 	serializer := CBORSerializer{}
+	var decoded message.MessageIntKeys
 
+	// Act
 	serialized, err := serializer.Serialize(original)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var decoded message.MessageIntKeys
-
 	if err := serializer.Deserialize(serialized, &decoded); err != nil {
 		t.Fatal(err)
 	}
 
+	// Assert
 	if decoded.ID != original.ID {
 		t.Fatalf("decoded ID %s does not match original %s", decoded.ID, original.ID)
 	}

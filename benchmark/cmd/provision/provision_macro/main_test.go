@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"testing"
 
 	"thesis/benchmark/cmd/provision"
@@ -11,7 +12,7 @@ import (
 func TestRunProvisionStoresAllKeys(t *testing.T) {
 
 	// Arrange
-	stored := map[string]bool{}
+	var stored []string
 
 	config := macro.CryptographyConfig{
 		SymmetricKeySize: 32,
@@ -20,14 +21,15 @@ func TestRunProvisionStoresAllKeys(t *testing.T) {
 	}
 
 	dependencies := provision.Dependency{
-		GenerateRandomBytes: func(size int) []byte {
-			return make([]byte, size)
-		},
-		Store: func(name string, data []byte) {
-			stored[name] = true
+		Store: func(name string, _ []byte) {
+			stored = append(stored, name)
 		},
 	}
 
+	// Act
+	runProvision(config, dependencies)
+
+	// Assert
 	expected := []string{
 		cache.AESKeyFileName,
 		cache.ASCONKeyFileName,
@@ -37,13 +39,10 @@ func TestRunProvisionStoresAllKeys(t *testing.T) {
 		cache.CPABEPrivateKeyFileName,
 	}
 
-	// Act
-	runProvision(config, dependencies)
+	slices.Sort(stored)
+	slices.Sort(expected)
 
-	// Assert
-	for _, name := range expected {
-		if !stored[name] {
-			t.Fatalf("expected %s to be stored", name)
-		}
+	if !slices.Equal(stored, expected) {
+		t.Fatalf("stored %v, want %v", stored, expected)
 	}
 }

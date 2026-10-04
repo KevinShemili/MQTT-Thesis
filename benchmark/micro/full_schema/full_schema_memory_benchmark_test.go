@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 	"thesis/benchmark/memory"
-	"thesis/benchmark/thermal"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
 	"thesis/internal/cryptography/cpabe"
@@ -27,8 +26,6 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 
 			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -55,8 +52,6 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 			publicKey := rsa.RSAFromPublicKeyBytes(cache.Load(cache.RSAPublicKeyFileName))
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 			nonceSize := aes.NewAES(cache.Load(cache.AESKeyFileName)).NonceSize()
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -92,8 +87,6 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 			nonceSize := aes.NewAES(cache.Load(cache.AESKeyFileName)).NonceSize()
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -124,8 +117,6 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -151,8 +142,6 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 			publicKey := rsa.RSAFromPublicKeyBytes(cache.Load(cache.RSAPublicKeyFileName))
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 			nonceSize := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName)).NonceSize()
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -187,8 +176,6 @@ func BenchmarkFullSchemaMemoryEncrypt(benchmark *testing.B) {
 			)
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 			nonceSize := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName)).NonceSize()
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -227,8 +214,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 			cipher := aes.NewAES(cache.Load(cache.AESKeyFileName))
 			serializedEnvelope := cache.Load(fmt.Sprintf(cache.PSKStandardEnvelopeWSizeFileName, payloadSize))
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -249,8 +234,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(cache.RSAPrivateKeyFileName))
 			serializedEnvelope := cache.Load(fmt.Sprintf(cache.RSAStandardEnvelopeWSizeFileName, payloadSize))
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -274,8 +257,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(cache.CPABEPrivateKeyFileName))
 			serializedEnvelope := cache.Load(fmt.Sprintf(cache.CPABEStandardEnvelopeWSizeFileName, payloadSize))
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -297,8 +278,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 
 			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
 			serializedEnvelope := cache.Load(fmt.Sprintf(cache.PSKLightEnvelopeWSizeFileName, payloadSize))
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -325,8 +304,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 				fmt.Sprintf(cache.RSALightEnvelopeWSizeFileName, payloadSize),
 			)
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -349,8 +326,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(cache.CPABEPrivateKeyFileName))
 			serializedEnvelope := cache.Load(fmt.Sprintf(cache.CPABELightEnvelopeWSizeFileName, payloadSize))
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -370,8 +345,6 @@ func BenchmarkFullSchemaMemoryDecrypt(benchmark *testing.B) {
 func BenchmarkFullSchemaMemoryBaseline(benchmark *testing.B) {
 
 	benchmark.Run("Runtime/0B", func(b *testing.B) {
-
-		thermal.WaitForCooldown()
 
 		isPrepared := memory.PreparePeakMemoryMeasurement()
 

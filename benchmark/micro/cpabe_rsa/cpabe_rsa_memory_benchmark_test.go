@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 	"thesis/benchmark/memory"
-	"thesis/benchmark/thermal"
 	"thesis/internal/cryptography/cpabe"
 	"thesis/internal/cryptography/rsa"
 	"thesis/utility/golang/cache"
@@ -32,8 +31,6 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			abePolicy := cpabe.ParseCPABEPolicy(string(cache.Load(fmt.Sprintf(cache.CPABEPolicyWCountFileName, attributeCount))))
 			symmetricKey := cache.Load(cache.AESKeyFileName)
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -56,8 +53,6 @@ func BenchmarkCPABERSAMemoryEncrypt(benchmark *testing.B) {
 			// 2. AES Symmetric Key
 			publicKeySlice := loadIndividualRSAPublicKeys(subscriberCount)
 			symmetricKey := cache.Load(cache.AESKeyFileName)
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -90,8 +85,6 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 			privateKey := cpabe.PrivateKeyFromBytes(cache.Load(fmt.Sprintf(cache.CPABEPrivateKeyWCountFileName, attributeCount)))
 			asymmetricCiphertext := cache.Load(fmt.Sprintf(cache.CPABECiphertextWCountFileName, attributeCount))
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -110,8 +103,6 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 
 		privateKey := rsa.RSAFromPrivateKeyBytes(cache.Load(cache.RSAPrivateKeyFileName))
 		asymmetricCiphertext := cache.Load(cache.RSACiphertextFileName)
-
-		thermal.WaitForCooldown()
 
 		isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -132,10 +123,6 @@ func BenchmarkCPABERSAMemoryDecrypt(benchmark *testing.B) {
 func BenchmarkCPABERSAMemoryBaseline(benchmark *testing.B) {
 
 	benchmark.Run("Runtime/0", func(b *testing.B) {
-
-		// Keep cooldown in the baseline so any persistent RSS footprint it introduces is also present in the
-		// baseline itself
-		thermal.WaitForCooldown()
 
 		// Resetting the watermark leaves it at the current resident size, so the reading
 		// below is what the process holds before any fixture or operation touches it

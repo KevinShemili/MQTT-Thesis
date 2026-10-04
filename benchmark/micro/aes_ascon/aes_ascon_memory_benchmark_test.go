@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 	"thesis/benchmark/memory"
-	"thesis/benchmark/thermal"
 	"thesis/internal/cryptography/aes"
 	"thesis/internal/cryptography/ascon"
 	"thesis/utility/golang/cache"
@@ -27,8 +26,6 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 			nonce := cache.Load(cache.AESNonceFileName)
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -48,8 +45,6 @@ func BenchmarkAESASCONMemoryEncrypt(benchmark *testing.B) {
 			cipher := ascon.NewASCON(cache.Load(cache.ASCONKeyFileName))
 			plaintext := cache.Load(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize))
 			nonce := cache.Load(cache.ASCONNonceFileName)
-
-			thermal.WaitForCooldown()
 
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
@@ -76,8 +71,6 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 			ciphertext := cache.Load(fmt.Sprintf(cache.AESCiphertextWSizeFileName, payloadSize))
 			nonce := cache.Load(cache.AESNonceFileName)
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -98,8 +91,6 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 			ciphertext := cache.Load(fmt.Sprintf(cache.ASCONCiphertextWSizeFileName, payloadSize))
 			nonce := cache.Load(cache.ASCONNonceFileName)
 
-			thermal.WaitForCooldown()
-
 			isPrepared := memory.PreparePeakMemoryMeasurement()
 
 			for b.Loop() {
@@ -117,8 +108,6 @@ func BenchmarkAESASCONMemoryDecrypt(benchmark *testing.B) {
 func BenchmarkAESASCONMemoryBaseline(benchmark *testing.B) {
 
 	benchmark.Run("Runtime/0B", func(b *testing.B) {
-
-		thermal.WaitForCooldown()
 
 		isPrepared := memory.PreparePeakMemoryMeasurement()
 

@@ -16,12 +16,13 @@ import (
 
 func TestNewTLSConfig(t *testing.T) {
 
+	// Arrange
 	certificatePath, certificatePEM := createTestCACertificate(t)
 
-	config, err := NewTLSConfig(
-		certificatePath,
-		"ssl://mqtt-broker.example:8883",
-	)
+	// Act
+	config, err := NewTLSConfig(certificatePath, "ssl://mqtt-broker.example:8883")
+
+	// Assert
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,13 +49,13 @@ func TestNewTLSConfig(t *testing.T) {
 
 func TestNewTLSConfigRejectsNonSSLURL(t *testing.T) {
 
+	// Arrange
 	certificatePath, _ := createTestCACertificate(t)
 
-	_, err := NewTLSConfig(
-		certificatePath,
-		"tcp://mqtt-broker.example:1883",
-	)
+	// Act
+	_, err := NewTLSConfig(certificatePath, "tcp://mqtt-broker.example:1883")
 
+	// Assert
 	if err == nil {
 		t.Fatal("non-SSL broker URL was accepted")
 	}
@@ -76,13 +77,7 @@ func createTestCACertificate(t *testing.T) (string, []byte) {
 		KeyUsage:              x509.KeyUsageCertSign,
 	}
 
-	certificateBytes, err := x509.CreateCertificate(
-		rand.Reader,
-		&certificate,
-		&certificate,
-		&privateKey.PublicKey,
-		privateKey,
-	)
+	certificateBytes, err := x509.CreateCertificate(rand.Reader, &certificate, &certificate, &privateKey.PublicKey, privateKey)
 	if err != nil {
 		t.Fatal(err)
 	}

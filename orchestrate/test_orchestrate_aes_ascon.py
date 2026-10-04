@@ -35,6 +35,7 @@ def test_main_calls_stages_in_expected_order(monkeypatch):
         "memory",
         "sleep 5",
         "energy",
+        "sleep 5",
         "timing",
         "report",
     ]
@@ -117,8 +118,10 @@ def test_orchestrate_energy_runs_baseline_before_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(sut, "PAYLOAD_SIZES", [256], raising=False)
     monkeypatch.setattr(sut, "write_samples", fake_write_samples)
     monkeypatch.setattr(sut, "run_energy_case", fake_run_energy_case)
+    monkeypatch.setattr(sut, "wait_for_cooldown", lambda: calls.append("cooldown"))
 
     expected = [
+        "cooldown",
         "read baseline",
         "write baseline",
         ("AES-GCM", "Encrypt", 256),

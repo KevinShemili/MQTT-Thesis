@@ -896,6 +896,18 @@ def write_cpabe_rsa_report(
     build_html_report(template_path, report_path, placeholders)
 
 
+MACRO_SCENARIO_LABELS = {
+    "tls_json": "TLS + JSON",
+    "tls_cbor": "TLS + CBOR",
+    "tls_psk_aes": "TLS + PSK (AES + JSON)",
+    "tls_psk_ascon": "TLS + PSK (ASCON + CBOR)",
+    "tls_rsa_aes_json": "TLS + RSA (AES + JSON)",
+    "tls_rsa_ascon_cbor": "TLS + RSA (ASCON + CBOR)",
+    "tls_cpabe_aes_json": "TLS + CP-ABE (AES + JSON)",
+    "tls_cpabe_ascon_cbor": "TLS + CP-ABE (ASCON + CBOR)",
+}
+
+
 # Render the already-analyzed macrobenchmark comparison
 def write_macro_report(
     report_data: dict[str, Any],
@@ -908,7 +920,7 @@ def write_macro_report(
     cycle_rows = []
     highlighted = []
 
-    for scenario in report_data["scenarios"]:
+    for name, scenario in report_data["scenarios"].items():
         publisher_means, publisher_cis = scenario["cycles"]["publisher"]
         subscriber_means, subscriber_cis = scenario["cycles"]["subscriber"]
         latency_values = _mean_ci_column(scenario["latency_means"], scenario["latency_cis"])
@@ -916,14 +928,14 @@ def write_macro_report(
         subscriber_values = _mean_ci_column(subscriber_means, subscriber_cis)
 
         for index, payload_size in enumerate(scenario["payload_sizes"]):
-            prefix = [scenario["label"], f"{payload_size:,} B"]
+            prefix = [MACRO_SCENARIO_LABELS[name], f"{payload_size:,} B"]
             sample_rows.append(prefix + [
                 str(scenario["repetition_counts"][index]),
                 ", ".join(str(count) for count in scenario["message_counts"][index]),
             ])
             latency_rows.append(prefix + [latency_values[index]])
             cycle_rows.append(prefix + [publisher_values[index], subscriber_values[index]])
-            highlighted.append(scenario["reference"])
+            highlighted.append(name == "tls_json")
 
     placeholders = {
         "ConfidenceLevel": CONFIDENCE_LEVEL,

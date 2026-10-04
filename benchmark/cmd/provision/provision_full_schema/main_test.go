@@ -2,28 +2,28 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"thesis/benchmark/cmd/provision"
 	"thesis/utility/golang/cache"
 )
 
-func TestRunProvisionStoresAllFixtures(t *testing.T) {
+func TestRunProvisionStoresBaseFixturesWhenPayloadSizesEmpty(t *testing.T) {
 
 	// Arrange
-	stored := map[string]bool{}
+	var stored []string
 
 	dependencies := provision.Dependency{
-		GenerateRandomBytes: func(count int) []byte {
-			return make([]byte, count)
-		},
 		Store: func(fileName string, _ []byte) {
-			stored[fileName] = true
+			stored = append(stored, fileName)
 		},
 	}
 
-	payloadSizes := []int{16}
+	// Act
+	runProvision(nil, 16, 2048, 1, dependencies)
 
+	// Assert
 	expected := []string{
 		cache.AESKeyFileName,
 		cache.ASCONKeyFileName,
@@ -32,6 +32,42 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 		cache.CPABEPublicKeyFileName,
 		cache.CPABEPolicyFileName,
 		cache.CPABEPrivateKeyFileName,
+	}
+
+	slices.Sort(stored)
+	slices.Sort(expected)
+
+	if !slices.Equal(stored, expected) {
+		t.Fatalf("stored %v, want %v", stored, expected)
+	}
+}
+
+func TestRunProvisionStoresPayloadFixtures(t *testing.T) {
+
+	// Arrange
+	var stored []string
+
+	dependencies := provision.Dependency{
+		Store: func(fileName string, _ []byte) {
+			stored = append(stored, fileName)
+		},
+	}
+
+	payloadSizes := []int{16, 32}
+
+	// Act
+	runProvision(payloadSizes, 16, 2048, 1, dependencies)
+
+	// Assert
+	expected := []string{
+		cache.AESKeyFileName,
+		cache.ASCONKeyFileName,
+		cache.RSAPrivateKeyFileName,
+		cache.RSAPublicKeyFileName,
+		cache.CPABEPublicKeyFileName,
+		cache.CPABEPolicyFileName,
+		cache.CPABEPrivateKeyFileName,
+
 		fmt.Sprintf(cache.PlaintextFileWSizeName, 16),
 		fmt.Sprintf(cache.PSKStandardEnvelopeWSizeFileName, 16),
 		fmt.Sprintf(cache.PSKLightEnvelopeWSizeFileName, 16),
@@ -39,21 +75,20 @@ func TestRunProvisionStoresAllFixtures(t *testing.T) {
 		fmt.Sprintf(cache.RSALightEnvelopeWSizeFileName, 16),
 		fmt.Sprintf(cache.CPABEStandardEnvelopeWSizeFileName, 16),
 		fmt.Sprintf(cache.CPABELightEnvelopeWSizeFileName, 16),
+
+		fmt.Sprintf(cache.PlaintextFileWSizeName, 32),
+		fmt.Sprintf(cache.PSKStandardEnvelopeWSizeFileName, 32),
+		fmt.Sprintf(cache.PSKLightEnvelopeWSizeFileName, 32),
+		fmt.Sprintf(cache.RSAStandardEnvelopeWSizeFileName, 32),
+		fmt.Sprintf(cache.RSALightEnvelopeWSizeFileName, 32),
+		fmt.Sprintf(cache.CPABEStandardEnvelopeWSizeFileName, 32),
+		fmt.Sprintf(cache.CPABELightEnvelopeWSizeFileName, 32),
 	}
 
-	// Act
-	runProvision(
-		payloadSizes,
-		16,
-		2048,
-		1,
-		dependencies,
-	)
+	slices.Sort(stored)
+	slices.Sort(expected)
 
-	// Assert
-	for _, fileName := range expected {
-		if !stored[fileName] {
-			t.Fatalf("expected %s to be stored", fileName)
-		}
+	if !slices.Equal(stored, expected) {
+		t.Fatalf("stored %v, want %v", stored, expected)
 	}
 }

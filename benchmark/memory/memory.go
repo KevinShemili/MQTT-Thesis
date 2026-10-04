@@ -17,11 +17,7 @@ const bytesPerKilobyte = 1024
 // from being counted towards the peak memory reported
 func ResetPeakResidentMemory() bool {
 
-	file, err := os.OpenFile(
-		processPeakMemoryResetPath,
-		os.O_WRONLY,
-		0,
-	)
+	file, err := os.OpenFile(processPeakMemoryResetPath, os.O_WRONLY, 0)
 	if err != nil {
 		return false
 	}

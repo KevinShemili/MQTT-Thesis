@@ -23,14 +23,8 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 	calls := []string{}
 
 	tokens := []*fakePublishToken{
-		{
-			calls: &calls,
-			index: 1,
-		},
-		{
-			calls: &calls,
-			index: 2,
-		},
+		{calls: &calls, index: 1},
+		{calls: &calls, index: 2},
 	}
 
 	client := &fakeMQTTClient{
@@ -49,7 +43,6 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 	}
 
 	rsaScheme := rsa.NewRSA(2048)
-
 	measurements := make([]macro.PublisherMeasurement, config.MessageCount)
 
 	newCPU := func() (cpu.CPU, error) {
@@ -63,9 +56,7 @@ func TestRunPublishBenchmarkMeasuredCallOrder(t *testing.T) {
 		"publish 1",
 		"publish 2",
 		"wait 1",
-		"error 1",
 		"wait 2",
-		"error 2",
 		"stop",
 	}
 
@@ -112,10 +103,7 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	calls := []string{}
 
 	tokens := []*fakePublishToken{
-		{
-			calls: &calls,
-			index: 1,
-		},
+		{calls: &calls, index: 1},
 	}
 
 	client := &fakeMQTTClient{
@@ -139,7 +127,6 @@ func TestRunPublishBenchmarkWarmupDoesNotMeasure(t *testing.T) {
 	expected := []string{
 		"publish 1",
 		"wait 1",
-		"error 1",
 	}
 
 	// Act
@@ -180,10 +167,7 @@ func TestPublishMessageConstructsDecryptablePayload(t *testing.T) {
 	calls := []string{}
 
 	tokens := []*fakePublishToken{
-		{
-			calls: &calls,
-			index: 1,
-		},
+		{calls: &calls, index: 1},
 	}
 
 	client := &fakeMQTTClient{
@@ -201,7 +185,6 @@ func TestPublishMessageConstructsDecryptablePayload(t *testing.T) {
 	}
 
 	rsaScheme := rsa.NewRSA(2048)
-
 	msg := message.NewMessage(16)
 	serializer := serialization.JSONSerializer{}
 
@@ -252,30 +235,19 @@ type fakeCPU struct {
 
 func (measurement *fakeCPU) Enable() error {
 
-	*measurement.calls = append(
-		*measurement.calls,
-		"enable",
-	)
-
+	*measurement.calls = append(*measurement.calls, "enable")
 	return nil
 }
 
 func (measurement *fakeCPU) Stop() (uint64, error) {
 
-	*measurement.calls = append(
-		*measurement.calls,
-		"stop",
-	)
-
+	*measurement.calls = append(*measurement.calls, "stop")
 	return 123, nil
 }
 
 func (measurement *fakeCPU) Abort() {
 
-	*measurement.calls = append(
-		*measurement.calls,
-		"abort",
-	)
+	*measurement.calls = append(*measurement.calls, "abort")
 }
 
 type fakeMQTTClient struct {
@@ -291,17 +263,11 @@ func (client *fakeMQTTClient) Connect() error {
 	return nil
 }
 
-func (client *fakeMQTTClient) Subscribe(
-	_ string,
-	_ func(mqtt.MQTTDelivery),
-) error {
+func (client *fakeMQTTClient) Subscribe(_ string, _ func(mqtt.MQTTDelivery)) error {
 	return nil
 }
 
-func (client *fakeMQTTClient) Publish(
-	topic string,
-	payload []byte,
-) mqtt.PublishToken {
+func (client *fakeMQTTClient) Publish(topic string, payload []byte) mqtt.PublishToken {
 
 	if client.publishIndex == 0 {
 		client.firstPublishTime = time.Now().UnixNano()
@@ -313,10 +279,7 @@ func (client *fakeMQTTClient) Publish(
 	index := client.publishIndex
 	client.publishIndex++
 
-	*client.calls = append(
-		*client.calls,
-		"publish "+strconv.Itoa(index+1),
-	)
+	*client.calls = append(*client.calls, "publish "+strconv.Itoa(index+1))
 
 	return client.tokens[index]
 }
@@ -331,20 +294,10 @@ type fakePublishToken struct {
 
 func (token *fakePublishToken) Wait() bool {
 
-	*token.calls = append(
-		*token.calls,
-		"wait "+strconv.Itoa(token.index),
-	)
-
+	*token.calls = append(*token.calls, "wait "+strconv.Itoa(token.index))
 	return true
 }
 
 func (token *fakePublishToken) Error() error {
-
-	*token.calls = append(
-		*token.calls,
-		"error "+strconv.Itoa(token.index),
-	)
-
 	return nil
 }

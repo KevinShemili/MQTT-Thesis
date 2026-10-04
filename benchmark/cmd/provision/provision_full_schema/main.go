@@ -21,8 +21,7 @@ func main() {
 	config := full_schema.NewFullSchemaConfig()
 
 	dependencies := provision.Dependency{
-		GenerateRandomBytes: generator.GenerateRandomBytes,
-		Store:               cache.Store,
+		Store: cache.Store,
 	}
 
 	runProvision(config.PayloadSizes, config.SymmetricKeySize, config.RSAKeyBits, config.AttributeCount, dependencies)
@@ -34,15 +33,15 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 	jsonSerializer := serialization.JSONSerializer{}
 	cborSerializer := serialization.CBORSerializer{}
 
-	standardSymmetricKey := dependencies.GenerateRandomBytes(symmetricKeySize)
+	standardSymmetricKey := generator.GenerateRandomBytes(symmetricKeySize)
 	dependencies.Store(cache.AESKeyFileName, standardSymmetricKey)
 	standardCipher := aes.NewAES(standardSymmetricKey)
-	standardNonce := dependencies.GenerateRandomBytes(standardCipher.NonceSize())
+	standardNonce := generator.GenerateRandomBytes(standardCipher.NonceSize())
 
-	lightweightSymmetricKey := dependencies.GenerateRandomBytes(symmetricKeySize)
+	lightweightSymmetricKey := generator.GenerateRandomBytes(symmetricKeySize)
 	dependencies.Store(cache.ASCONKeyFileName, lightweightSymmetricKey)
 	lightweightCipher := ascon.NewASCON(lightweightSymmetricKey)
-	lightweightNonce := dependencies.GenerateRandomBytes(lightweightCipher.NonceSize())
+	lightweightNonce := generator.GenerateRandomBytes(lightweightCipher.NonceSize())
 
 	rsaScheme := rsa.NewRSA(rsaKeyBits)
 	dependencies.Store(cache.RSAPrivateKeyFileName, rsaScheme.PrivateKeyBytes())
@@ -66,7 +65,7 @@ func runProvision(payloadSizes []int, symmetricKeySize int, rsaKeyBits int,
 
 	for _, payloadSize := range payloadSizes {
 
-		plaintext := dependencies.GenerateRandomBytes(payloadSize)
+		plaintext := generator.GenerateRandomBytes(payloadSize)
 
 		dependencies.Store(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize), plaintext)
 

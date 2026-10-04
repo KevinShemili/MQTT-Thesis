@@ -34,7 +34,7 @@ const SSH = "/usr/bin/ssh"
 const SCP = "/usr/bin/scp"
 const python3 = "python3"
 
-type coordinatorDependencies struct {
+type coordinatorDependency struct {
 	LoadEnvironment    func()
 	ProvisionFixtures  func() error
 	DistributeFixtures func() error
@@ -45,7 +45,7 @@ type coordinatorDependencies struct {
 	GenerateReport     func() error
 }
 
-type signalDependencies struct {
+type communicationDependency struct {
 	WritePublisher  func(string) error
 	ReadPublisher   func(string) error
 	WriteSubscriber func(string) error
@@ -71,7 +71,7 @@ var scenarios = []scenario{
 
 func main() {
 
-	dependencies := coordinatorDependencies{
+	dependencies := coordinatorDependency{
 		LoadEnvironment:    loadEnvironmentVariables,
 		ProvisionFixtures:  provisionFixtures,
 		DistributeFixtures: distributeFixtures,
@@ -90,7 +90,7 @@ func main() {
 	fmt.Printf("Finished: %s\n", resultDirectory)
 }
 
-func runCoordinator(dependencies coordinatorDependencies) error {
+func runCoordinator(dependencies coordinatorDependency) error {
 
 	dependencies.LoadEnvironment()
 
@@ -254,7 +254,7 @@ func orchestrateMacro(publisherTarget string, publisherDirectory string, subscri
 		return err
 	}
 
-	signalDependencies := signalDependencies{
+	communicationDependency := communicationDependency{
 		WritePublisher: func(signal string) error {
 			return communication.WriteSignal(publisherInput, signal)
 		},
@@ -270,7 +270,7 @@ func orchestrateMacro(publisherTarget string, publisherDirectory string, subscri
 	}
 
 	for range repetitions {
-		if err := runCommunicationSignals(signalDependencies); err != nil {
+		if err := runCommunicationSignals(communicationDependency); err != nil {
 			return err
 		}
 	}
@@ -290,7 +290,7 @@ func orchestrateMacro(publisherTarget string, publisherDirectory string, subscri
 	return subscriber.Wait()
 }
 
-func runCommunicationSignals(dependencies signalDependencies) error {
+func runCommunicationSignals(dependencies communicationDependency) error {
 
 	if err := dependencies.WriteSubscriber("GO"); err != nil {
 		return err

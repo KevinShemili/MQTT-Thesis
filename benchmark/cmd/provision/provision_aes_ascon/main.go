@@ -15,8 +15,7 @@ func main() {
 	config := aes_ascon.NewAESASCONConfig()
 
 	dependencies := provision.Dependency{
-		GenerateRandomBytes: generator.GenerateRandomBytes,
-		Store:               cache.Store,
+		Store: cache.Store,
 	}
 
 	runProvision(config.PayloadSizes, config.AESKeySize, config.ASCONKeySize, dependencies)
@@ -24,23 +23,23 @@ func main() {
 
 func runProvision(payloadSizes []int, aesKeySize int, asconKeySize int, dependencies provision.Dependency) {
 
-	aesKey := dependencies.GenerateRandomBytes(aesKeySize)
+	aesKey := generator.GenerateRandomBytes(aesKeySize)
 	dependencies.Store(cache.AESKeyFileName, aesKey)
 	aesGCM := aes.NewAES(aesKey)
 
-	asconKey := dependencies.GenerateRandomBytes(asconKeySize)
+	asconKey := generator.GenerateRandomBytes(asconKeySize)
 	dependencies.Store(cache.ASCONKeyFileName, asconKey)
 	asconCipher := ascon.NewASCON(asconKey)
 
-	aesNonce := dependencies.GenerateRandomBytes(aesGCM.NonceSize())
+	aesNonce := generator.GenerateRandomBytes(aesGCM.NonceSize())
 	dependencies.Store(cache.AESNonceFileName, aesNonce)
 
-	asconNonce := dependencies.GenerateRandomBytes(asconCipher.NonceSize())
+	asconNonce := generator.GenerateRandomBytes(asconCipher.NonceSize())
 	dependencies.Store(cache.ASCONNonceFileName, asconNonce)
 
 	for _, payloadSize := range payloadSizes {
 
-		plaintext := dependencies.GenerateRandomBytes(payloadSize)
+		plaintext := generator.GenerateRandomBytes(payloadSize)
 
 		dependencies.Store(fmt.Sprintf(cache.PlaintextFileWSizeName, payloadSize), plaintext)
 		dependencies.Store(fmt.Sprintf(cache.AESCiphertextWSizeFileName, payloadSize), aesGCM.Encrypt(nil, aesNonce, plaintext))

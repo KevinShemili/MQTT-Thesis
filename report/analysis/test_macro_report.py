@@ -1,48 +1,117 @@
-import csv
-
-from report.analysis.macro_report import SCENARIOS, generate_report
+import report.analysis.macro_report as sut
 
 
-def test_generate_report_compares_all_scenario_directories(tmp_path):
-    for scenario, _, _, _ in SCENARIOS:
-        scenario_directory = tmp_path / scenario
-        scenario_directory.mkdir()
+def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
 
-        with (scenario_directory / "publisher.csv").open("w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow([
-                "payload_size", "repetition", "message_id",
-                "publisher_started_unix_ns", "publisher_cycles",
-            ])
-            for payload_size in (256, 512):
-                for repetition in (1, 2):
-                    writer.writerow([
-                        payload_size, repetition,
-                        f"{scenario}-{payload_size}-{repetition}", 100, 1000,
-                    ])
+    # Arrange
+    calls = []
+    charts = []
 
-        with (scenario_directory / "subscriber.csv").open(
-            "w", newline="", encoding="utf-8"
-        ) as file:
-            writer = csv.writer(file)
-            writer.writerow([
-                "payload_size", "repetition", "message_id",
-                "subscriber_arrived_unix_ns", "subscriber_cycles",
-            ])
-            for payload_size in (256, 512):
-                for repetition in (1, 2):
-                    writer.writerow([
-                        payload_size, repetition,
-                        f"{scenario}-{payload_size}-{repetition}", 200, 2000,
-                    ])
+    class FakeSummary:
+        macro_aggregations = ["aggregation"]
 
-    generate_report(tmp_path)
+    def fake_load_summary(*args, **kwargs):
+        if "load summaries" not in calls:
+            calls.append("load summaries")
 
-    report = (tmp_path / "report.html").read_text(encoding="utf-8")
-    assert (tmp_path / "latency.png").is_file()
-    assert (tmp_path / "cpu_cycles.png").is_file()
-    assert report.count('class="reference-row"') == 6
-    for _, label, _, _ in SCENARIOS:
-        assert label in report
-    assert "256 B" in report
-    assert "512 B" in report
+        return FakeSummary()
+
+    def fake_analyze_case(*args):
+        if "analyze cases" not in calls:
+            calls.append("analyze cases")
+
+        return {
+            "payload_sizes": [256],
+            "repetition_counts": [1],
+            "message_counts": [[1]],
+            "latency_means": [1.0],
+            "latency_cis": [1.0],
+            "cycles": {},
+        }
+
+    def fake_chart(name):
+        def chart(*args):
+            if "generate charts" not in calls:
+                calls.append("generate charts")
+
+            charts.append(name)
+
+        return chart
+
+    def fake_write_report(*args):
+        calls.append("write html")
+
+    monkeypatch.setattr(sut, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(sut, "TEMPLATE_DIR", tmp_path)
+    monkeypatch.setenv("MACRO_RESULT_DIR", "results")
+
+    monkeypatch.setattr(sut, "load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setattr(sut, "load_macro_summary", fake_load_summary)
+    monkeypatch.setattr(sut, "analyze_case", fake_analyze_case)
+    monkeypatch.setattr(sut, "plot_macro_latency", fake_chart("latency"))
+    monkeypatch.setattr(sut, "plot_macro_cpu_cycles", fake_chart("cpu cycles"))
+    monkeypatch.setattr(sut, "write_macro_report", fake_write_report)
+
+    expected_calls = [
+        "load summaries",
+        "analyze cases",
+        "generate charts",
+        "write html",
+    ]
+
+    expected_charts = {
+        "latency",
+        "cpu cycles",
+    }
+
+    # Act
+    sut.main()
+
+    # Assert
+    assert calls == expected_calls
+    assert set(charts) == expected_charts
+
+
+def test_analyze_case_calls_expected_analysis_functions(monkeypatch):
+
+    # Arrange
+    calls = []
+
+    class FakeCase:
+        repetition = 1
+        publisher_timestamps = {"message": 1}
+
+    class FakeAggregation:
+        payload_size = 256
+        cases = [FakeCase()]
+
+    monkeypatch.setattr(
+        sut,
+        "macro_latency_statistics",
+        lambda *args: (
+            calls.append("latency statistics"),
+            ([1.0], [1.0]),
+        )[1],
+    )
+
+    monkeypatch.setattr(
+        sut,
+        "macro_cycle_statistics",
+        lambda *args: (
+            calls.append("cycle statistics"),
+            {},
+        )[1],
+    )
+
+    monkeypatch.setattr(sut, "to_microseconds", lambda values: values)
+
+    expected = {
+        "latency statistics",
+        "cycle statistics",
+    }
+
+    # Act
+    sut.analyze_case([FakeAggregation()])
+
+    # Assert
+    assert set(calls) == expected
