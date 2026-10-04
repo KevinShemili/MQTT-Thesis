@@ -29,10 +29,12 @@ var (
 	subscriberDirectory string
 )
 
+const localDockerExecutable = "/usr/local/bin/docker"
+const localGoExecutable = "/usr/bin/go"
+const localPython3 = "/usr/bin/python3"
 const remoteGoExecutable = "/usr/local/go/bin/go"
 const SSH = "/usr/bin/ssh"
 const SCP = "/usr/bin/scp"
-const python3 = "python3"
 
 type coordinatorDependency struct {
 	LoadEnvironment    func()
@@ -141,7 +143,7 @@ func runCoordinator(dependencies coordinatorDependency) error {
 
 func provisionFixtures() error {
 
-	command := exec.Command("go", "run", "./benchmark/cmd/provision/provision_macro")
+	command := exec.Command(localGoExecutable, "run", "./benchmark/cmd/provision/provision_macro")
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
@@ -175,7 +177,7 @@ func distributeBrokerCA() error {
 
 	const localCA = "environment/ca.crt"
 
-	copyFromBroker := exec.Command("docker", "cp", "mqtt-thesis-broker:/state/certs/ca.crt", localCA)
+	copyFromBroker := exec.Command(localDockerExecutable, "cp", "mqtt-thesis-broker:/state/certs/ca.crt", localCA)
 	copyFromBroker.Stdout = os.Stdout
 	copyFromBroker.Stderr = os.Stderr
 
@@ -403,7 +405,7 @@ func transferResult(target, projectDirectory, resultDirectory, filename string) 
 
 func generateReport() error {
 
-	command := exec.Command(python3, "-m", "report.analysis.macro_report")
+	command := exec.Command(localPython3, "-m", "report.analysis.macro_report")
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
