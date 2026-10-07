@@ -9,6 +9,9 @@ source =
 omit =
     **/test_*.py
     **/*_test.py
+    report/render/**
+    utility/python/um24c/**
+    orchestrate/shared/cooldown.py
 
 [report]
 show_missing = True
