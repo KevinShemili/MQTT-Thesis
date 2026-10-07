@@ -41,13 +41,13 @@ jobs:
       - name: Check and Test Go
         run: |
           mkdir -p .sonar/reports
-
           set -a
           source environment/benchmark.env
           set +a
 
           go vet ./...
-          go test -count=1 -coverpkg=./... \
+          go test -count=1 -p=1 -timeout=2m \
+            -covermode=set -coverpkg=./... \
             -coverprofile=.sonar/reports/coverage-go.out ./...
 
       - name: Check and Test Python
