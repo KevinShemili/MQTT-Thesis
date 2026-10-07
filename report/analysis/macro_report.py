@@ -26,14 +26,14 @@ CPU_CYCLES_PLOT = "cpu_cycles.png"
 
 
 SCENARIOS = (
-    "tls_json",
-    "tls_cbor",
-    "tls_psk_aes",
-    "tls_psk_ascon",
-    "tls_rsa_aes_json",
-    "tls_rsa_ascon_cbor",
-    "tls_cpabe_aes_json",
-    "tls_cpabe_ascon_cbor",
+    "tls",
+    "tls_light",
+    "tls_psk",
+    "tls_psk_light",
+    "tls_rsa",
+    "tls_rsa_light",
+    "tls_cpabe",
+    "tls_cpabe_light",
 )
 
 

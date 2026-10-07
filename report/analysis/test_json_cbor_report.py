@@ -8,10 +8,7 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
     render_calls = []
 
     class FakeTimingCase:
-        measurements = {
-            sut.SERIALIZED_BYTES: 2,
-            sut.RAW_BYTES: 1,
-        }
+        measurements = {sut.SERIALIZED_BYTES: 2, sut.RAW_BYTES: 1}
 
     class FakeTimingAggregation:
         cases = [FakeTimingCase()]
@@ -62,49 +59,24 @@ def test_main_calls_report_stages_in_expected_order(monkeypatch, tmp_path):
     monkeypatch.setattr(sut, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sut, "TEMPLATE_DIR", tmp_path)
     monkeypatch.setenv("JSON_CBOR_RESULT_DIR", "results")
-
     monkeypatch.setattr(sut, "load_dotenv", lambda *args, **kwargs: None)
     monkeypatch.setattr(sut, "parse_int_env", lambda name: 1)
     monkeypatch.setattr(sut, "parse_int_list_env", lambda name: [256])
-
     monkeypatch.setattr(sut, "load_summary", fake_load_summary)
     monkeypatch.setattr(sut, "analyze_case", fake_analyze_case)
-
+    monkeypatch.setattr(sut, "plot_json_cbor_latency", fake_chart("latency"))
     monkeypatch.setattr(
-        sut,
-        "plot_json_cbor_latency",
-        fake_chart("latency"),
+        sut, "plot_json_cbor_latency_speedup", fake_chart("latency speedup")
     )
+    monkeypatch.setattr(sut, "plot_json_cbor_size", fake_chart("size"))
     monkeypatch.setattr(
-        sut,
-        "plot_json_cbor_latency_speedup",
-        fake_chart("latency speedup"),
+        sut, "plot_json_cbor_wire_overhead", fake_chart("wire overhead")
     )
+    monkeypatch.setattr(sut, "plot_json_cbor_energy", fake_chart("energy"))
     monkeypatch.setattr(
-        sut,
-        "plot_json_cbor_size",
-        fake_chart("size"),
+        sut, "plot_json_cbor_energy_reduction", fake_chart("energy reduction")
     )
-    monkeypatch.setattr(
-        sut,
-        "plot_json_cbor_wire_overhead",
-        fake_chart("wire overhead"),
-    )
-    monkeypatch.setattr(
-        sut,
-        "plot_json_cbor_energy",
-        fake_chart("energy"),
-    )
-    monkeypatch.setattr(
-        sut,
-        "plot_json_cbor_energy_reduction",
-        fake_chart("energy reduction"),
-    )
-    monkeypatch.setattr(
-        sut,
-        "write_json_cbor_report",
-        fake_write_report,
-    )
+    monkeypatch.setattr(sut, "write_json_cbor_report", fake_write_report)
 
     expected_calls = [
         "load summary",
@@ -136,39 +108,28 @@ def test_analyze_case_calls_expected_analysis_functions(monkeypatch):
     # Arrange
     calls = []
 
-    monkeypatch.setattr(
-        sut,
-        "timing_statistics",
-        lambda *args: (
-            calls.append("timing statistics"),
-            ([1.0], [1.0]),
-        )[1],
-    )
-    monkeypatch.setattr(
-        sut,
-        "energy_statistics",
-        lambda *args: (
-            calls.append("energy statistics"),
-            ([1.0], [1.0]),
-        )[1],
-    )
+    def fake_timing_statistics(aggregations, measurement):
+        calls.append("timing statistics")
+        return [1.0], [1.0]
 
+    def fake_energy_statistics(aggregations, baseline_cases, timing_aggregations):
+        calls.append("energy statistics")
+        return [1.0], [1.0]
+
+    monkeypatch.setattr(sut, "timing_statistics", fake_timing_statistics)
+    monkeypatch.setattr(sut, "energy_statistics", fake_energy_statistics)
     monkeypatch.setattr(sut, "to_microseconds", lambda values: values)
     monkeypatch.setattr(sut, "to_microjoules", lambda values: values)
     monkeypatch.setattr(sut, "collect_timing_throttle_flags", lambda values: [])
     monkeypatch.setattr(sut, "collect_energy_throttle_flags", lambda values: [])
 
-    expected = {
+    expected_calls = [
         "timing statistics",
         "energy statistics",
-    }
+    ]
 
     # Act
-    sut.analyze_case(
-        ["timing"],
-        ["energy"],
-        ["energy baseline"],
-    )
+    sut.analyze_case(["timing"], ["energy"], ["energy baseline"])
 
     # Assert
-    assert set(calls) == expected
+    assert calls == expected_calls

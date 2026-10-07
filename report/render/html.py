@@ -897,14 +897,14 @@ def write_cpabe_rsa_report(
 
 
 MACRO_SCENARIO_LABELS = {
-    "tls_json": "TLS + JSON",
-    "tls_cbor": "TLS + CBOR",
-    "tls_psk_aes": "TLS + PSK (AES + JSON)",
-    "tls_psk_ascon": "TLS + PSK (ASCON + CBOR)",
-    "tls_rsa_aes_json": "TLS + RSA (AES + JSON)",
-    "tls_rsa_ascon_cbor": "TLS + RSA (ASCON + CBOR)",
-    "tls_cpabe_aes_json": "TLS + CP-ABE (AES + JSON)",
-    "tls_cpabe_ascon_cbor": "TLS + CP-ABE (ASCON + CBOR)",
+    "tls": "TLS + JSON",
+    "tls_light": "TLS + CBOR",
+    "tls_psk": "TLS + PSK (AES + JSON)",
+    "tls_psk_light": "TLS + PSK (ASCON + CBOR)",
+    "tls_rsa": "TLS + RSA (AES + JSON)",
+    "tls_rsa_light": "TLS + RSA (ASCON + CBOR)",
+    "tls_cpabe": "TLS + CP-ABE (AES + JSON)",
+    "tls_cpabe_light": "TLS + CP-ABE (ASCON + CBOR)",
 }
 
 
@@ -935,7 +935,7 @@ def write_macro_report(
             ])
             latency_rows.append(prefix + [latency_values[index]])
             cycle_rows.append(prefix + [publisher_values[index], subscriber_values[index]])
-            highlighted.append(name == "tls_json")
+            highlighted.append(name == "tls")
 
     placeholders = {
         "ConfidenceLevel": CONFIDENCE_LEVEL,

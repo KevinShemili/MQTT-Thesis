@@ -180,7 +180,7 @@ func TestRunCoordinatorStopsImmediatelyWhenBuildFails(t *testing.T) {
 	}
 }
 
-func TestRunProtocolRepetitionCallsSignalsInExpectedOrder(t *testing.T) {
+func TestRunCommunicationSignalsCallsSignalsInExpectedOrder(t *testing.T) {
 
 	// Arrange
 	calls := []string{}

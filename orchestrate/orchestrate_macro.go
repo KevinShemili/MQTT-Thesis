@@ -61,14 +61,14 @@ type scenario struct {
 }
 
 var scenarios = []scenario{
-	{"tls_json", "macro_tls_json_publisher", "macro_tls_json_subscriber"},
-	{"tls_cbor", "macro_tls_cbor_publisher", "macro_tls_cbor_subscriber"},
-	{"tls_psk_aes", "macro_tls_psk_aes_publisher", "macro_tls_psk_aes_subscriber"},
-	{"tls_psk_ascon", "macro_tls_psk_ascon_publisher", "macro_tls_psk_ascon_subscriber"},
-	{"tls_rsa_aes_json", "macro_tls_rsa_aes_json_publisher", "macro_tls_rsa_aes_json_subscriber"},
-	{"tls_rsa_ascon_cbor", "macro_tls_rsa_ascon_cbor_publisher", "macro_tls_rsa_ascon_cbor_subscriber"},
-	{"tls_cpabe_aes_json", "macro_tls_cpabe_aes_json_publisher", "macro_tls_cpabe_aes_json_subscriber"},
-	{"tls_cpabe_ascon_cbor", "macro_tls_cpabe_ascon_cbor_publisher", "macro_tls_cpabe_ascon_cbor_subscriber"},
+	{"tls", "tls_publisher", "tls_subscriber"},
+	{"tls_light", "tls_light_publisher", "tls_light_subscriber"},
+	{"tls_psk", "tls_psk_publisher", "tls_psk_subscriber"},
+	{"tls_psk_light", "tls_psk_light_publisher", "tls_psk_light_subscriber"},
+	{"tls_rsa", "tls_rsa_publisher", "tls_rsa_subscriber"},
+	{"tls_rsa_light", "tls_rsa_light_publisher", "tls_rsa_light_subscriber"},
+	{"tls_cpabe", "tls_cpabe_publisher", "tls_cpabe_subscriber"},
+	{"tls_cpabe_light", "tls_cpabe_light_publisher", "tls_cpabe_light_subscriber"},
 }
 
 func main() {

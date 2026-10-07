@@ -8,11 +8,8 @@ import (
 )
 
 // Live bits correspond to:
-// 0: Under-voltage detected
-// 1: Arm Freq Capped
-// 2: Currently throttled
 // 3: Soft temp limit
-var liveBits = []int{1, 2, 3}
+const softTempLimitBit = 3
 
 type ThrottleWatch struct {
 	bits string
@@ -33,14 +30,8 @@ func (watch ThrottleWatch) IsThrottled() bool {
 		return false
 	}
 
-	// Check whether throttling was active at the start or end of the benchmark
-	for _, liveBit := range liveBits {
-		if watch.bits[liveBit] == '1' || currentBits[liveBit] == '1' {
-			return true
-		}
-	}
-
-	return false
+	// Check whether the soft temp limit was active at the start or end of the benchmark
+	return watch.bits[softTempLimitBit] == '1' || currentBits[softTempLimitBit] == '1'
 }
 
 func readThrottleBits() string {

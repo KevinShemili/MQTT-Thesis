@@ -1787,14 +1787,14 @@ def plot_encrypt_decrypt_asymmetry(
 
 
 MACRO_SCENARIO_STYLES = {
-    "tls_json": ("TLS + JSON", VIOLET, "-"),
-    "tls_cbor": ("TLS + CBOR", VIOLET, "--"),
-    "tls_psk_aes": ("TLS + PSK (AES + JSON)", TEAL, "-"),
-    "tls_psk_ascon": ("TLS + PSK (ASCON + CBOR)", TEAL, "--"),
-    "tls_rsa_aes_json": ("TLS + RSA (AES + JSON)", AMBER, "-"),
-    "tls_rsa_ascon_cbor": ("TLS + RSA (ASCON + CBOR)", AMBER, "--"),
-    "tls_cpabe_aes_json": ("TLS + CP-ABE (AES + JSON)", CRIMSON, "-"),
-    "tls_cpabe_ascon_cbor": ("TLS + CP-ABE (ASCON + CBOR)", CRIMSON, "--"),
+    "tls": ("TLS + JSON", VIOLET, "-"),
+    "tls_light": ("TLS + CBOR", VIOLET, "--"),
+    "tls_psk": ("TLS + PSK (AES + JSON)", TEAL, "-"),
+    "tls_psk_light": ("TLS + PSK (ASCON + CBOR)", TEAL, "--"),
+    "tls_rsa": ("TLS + RSA (AES + JSON)", AMBER, "-"),
+    "tls_rsa_light": ("TLS + RSA (ASCON + CBOR)", AMBER, "--"),
+    "tls_cpabe": ("TLS + CP-ABE (AES + JSON)", CRIMSON, "-"),
+    "tls_cpabe_light": ("TLS + CP-ABE (ASCON + CBOR)", CRIMSON, "--"),
 }
 
 
